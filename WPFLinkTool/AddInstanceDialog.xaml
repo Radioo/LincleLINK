@@ -1,0 +1,36 @@
+﻿<Window x:Class="WPFLinkTool.AddInstanceDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WPFLinkTool"
+        mc:Ignorable="d"
+        Title="AddInstanceDialog" Height="250" Width="500"
+        WindowStartupLocation="CenterOwner">
+    <Border Margin="10">
+        <StackPanel>
+            <TextBlock IsEnabled="{Binding ElementName=CreateButton, Path=IsEnabled}" Text="Instance name"></TextBlock>
+            <TextBox Text="{Binding InstanceName}"></TextBox>
+            <TextBlock IsEnabled="{Binding ElementName=CreateButton, Path=IsEnabled}" Text="Data source path"></TextBlock>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition></ColumnDefinition>
+                    <ColumnDefinition Width="100"></ColumnDefinition>
+                </Grid.ColumnDefinitions>
+                <TextBox Text="{Binding DataSource , Mode=TwoWay}"></TextBox>
+                <Button IsEnabled="{Binding ElementName=CreateButton, Path=IsEnabled}" Command="{Binding OpenBrowseDialog}" Grid.Column="1" Content="Browse..."></Button>
+            </Grid>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition></ColumnDefinition>
+                    <ColumnDefinition></ColumnDefinition>
+                </Grid.ColumnDefinitions>
+                <RadioButton IsEnabled="{Binding ElementName=CreateButton, Path=IsEnabled}" Content="Move files" Grid.Column="0"></RadioButton>
+                <RadioButton IsEnabled="{Binding ElementName=CreateButton, Path=IsEnabled}" Content="Copy files" Grid.Column="1" IsChecked="{Binding IsCopyChecked}"></RadioButton>
+            </Grid>
+            <Button x:Name="CreateButton" Command="{Binding AddInstanceCommand}">Create instance</Button>
+            <TextBlock Text="{Binding StatusText}"></TextBlock>
+            <ProgressBar Height="30" Value="{Binding Progress}"></ProgressBar>
+        </StackPanel>
+    </Border>
+</Window>
