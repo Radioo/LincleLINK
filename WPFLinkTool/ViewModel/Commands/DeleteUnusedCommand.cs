@@ -22,6 +22,7 @@ namespace WPFLinkTool
         {
             IsExecuting = true;
             vm.UIEnabled = false;
+            vm.LinkButtonEnabled = false;
 
             HashSet<string> dBFiles = new();
             DirectoryInfo dir = new(dbDir);
@@ -55,6 +56,7 @@ namespace WPFLinkTool
 
             vm.Progress = 0;
             vm.UIEnabled = true;
+            vm.LinkButtonEnabled = true;
             IsExecuting = false;
         }
     }

@@ -8,16 +8,13 @@ namespace WPFLinkTool
 {
     public class SharedViewModel : ViewModelBase
     {
-        private DBInfo _info;
+        private DBInfo _Info;
         public DBInfo Info
         {
-            get
-            {
-                return _info;
-            }
+            get { return _Info; }
             set
             {
-                _info = value;
+                _Info = value;
                 OnPropertyChanged(nameof(Info));
             }
         }

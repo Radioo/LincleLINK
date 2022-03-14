@@ -16,7 +16,8 @@ namespace WPFLinkTool
 {
     public class MainWindowViewModel : ViewModelBase
     {
-        public readonly SharedViewModel Shared;
+        public SharedViewModel Shared;
+
         private string _dBSize;
         public string DBSize
         {
@@ -95,8 +96,8 @@ namespace WPFLinkTool
                 OnPropertyChanged(nameof(HeaderText));               
             }
         }
-        private string _selectedInstance;
-        public string SelectedInstance
+        private DataInstance _selectedInstance;
+        public DataInstance SelectedInstance
         {
             get
             {
@@ -106,6 +107,7 @@ namespace WPFLinkTool
             {
                 _selectedInstance = value;
                 OnPropertyChanged(nameof(SelectedInstance));
+                LinkButtonEnabled = true;
             }
         }
 
@@ -121,6 +123,7 @@ namespace WPFLinkTool
                 return list;
             }
         }
+
         public RelayCommand OpenAddInstanceWindow { get; private set; }
         public RelayCommand SelectedInstanceCommand { get; private set; }
         public RelayCommand DeleteInstanceCommand { get; private set; }
@@ -133,7 +136,6 @@ namespace WPFLinkTool
                 Directory.CreateDirectory(dbDir);
             Shared = shared;
             OpenAddInstanceWindow = new(OpenInstanceWindow);
-            SelectedInstanceCommand = new(SetSelectedRadioButton);
             DeleteInstanceCommand = new(DeleteInstance);
             MakeHardLinksCommand = new MakeHardLinksCommand(this, (ex) => HeaderText = ex.Message);
             DeleteUnusedCommand = new DeleteUnusedCommand(this, (ex) => HeaderText = ex.Message);
@@ -165,24 +167,14 @@ namespace WPFLinkTool
             LinkButtonEnabled = false;
             Task.Run(() => UpdateDBSize());
             Task.Run(() => UpdateSumSize());
-        }
-        
-        public void SetSelectedRadioButton(object o)
-        {
-            SelectedInstance = (string)o;
-            LinkButtonEnabled = true;
-        }
+        }      
 
         public void DeleteInstance(object o)
         {
-            var prompt = MessageBox.Show($"Delete {SelectedInstance}?", "Delete instance", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            var prompt = MessageBox.Show($"Delete {SelectedInstance.InstanceName}?", "Delete instance", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             if (prompt == DialogResult.Yes)
             {
-                DataInstance selected = (from inst in Shared.Info.InstanceList
-                                        where inst.InstanceName == SelectedInstance
-                                        select inst).Single();
-
-                Shared.Info.InstanceList.Remove(selected);
+                Shared.Info.InstanceList.Remove(SelectedInstance);
                 Shared.Info.SaveToXml();
                 LinkButtonEnabled = false;
                 UpdateSumSize();

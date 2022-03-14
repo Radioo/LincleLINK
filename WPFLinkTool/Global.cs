@@ -10,7 +10,7 @@ namespace WPFLinkTool
     public class Global
     {
         //public static string curDir = @"F:\Torrents\bemaniso.ws\HardLinkUI";
-        //public static string curDir = @"C:\Tools and stuff\WPFLinkTool";
+        //public static string curDir = @"C:\Tools&Stuff\LinkToolTest";
         public static string curDir = Directory.GetCurrentDirectory();
         public static string dbDir = curDir + @"\DB";
         public static string xmlDir = curDir + @"\XML";

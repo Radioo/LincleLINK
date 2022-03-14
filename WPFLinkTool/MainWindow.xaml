@@ -5,9 +5,20 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:WPFLinkTool"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="500">
-    <Border Padding="10">
-        <StackPanel>
+        Title="kors k's How to save a lot of disk space for your totally legal japanese rhythm games" Height="400" Width="650">
+    <Border Padding="4">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"></ColumnDefinition>
+            </Grid.ColumnDefinitions>
+
+            <Grid.RowDefinitions>
+                <RowDefinition MaxHeight="16" MinHeight="16"></RowDefinition>
+                <RowDefinition MaxHeight="24" MinHeight="24"></RowDefinition>
+                <RowDefinition></RowDefinition>
+                <RowDefinition MaxHeight="24" MinHeight="24"></RowDefinition>
+                <RowDefinition MaxHeight="16" MinHeight="16"></RowDefinition>
+            </Grid.RowDefinitions>
 
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -18,47 +29,32 @@
                 <TextBlock Grid.Column="1" Text="{Binding SumSize, StringFormat=Instance size sum: {0}}"></TextBlock>
             </Grid>
 
-            <Grid Margin="0 2 0 2">
+            <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition></ColumnDefinition>
                     <ColumnDefinition></ColumnDefinition>
                     <ColumnDefinition></ColumnDefinition>
                     <ColumnDefinition></ColumnDefinition>
                 </Grid.ColumnDefinitions>
-                <Button Command="{Binding OpenAddInstanceWindow}" Grid.Column="0">Add instance</Button>
+                <Button IsEnabled="{Binding UIEnabled}" Command="{Binding OpenAddInstanceWindow}" Grid.Column="0">Add instance</Button>
                 <Button IsEnabled="{Binding LinkButtonEnabled}" Command="{Binding MakeHardLinksCommand}" Grid.Column="1">Make hard links</Button>
                 <Button IsEnabled="{Binding UIEnabled}" Command="{Binding DeleteUnusedCommand}" Grid.Column="2">Delete unused files</Button>
                 <Button IsEnabled="{Binding LinkButtonEnabled}" Command="{Binding DeleteInstanceCommand}" Grid.Column="3">Delete instance</Button>
             </Grid>
+            <DataGrid Grid.Row="2" ItemsSource="{Binding InstanceList}" AutoGenerateColumns="False" SelectedItem="{Binding SelectedInstance, Mode=TwoWay}"
+                      IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow"  CanUserReorderColumns="False" 
+                      CanUserAddRows="False" CanUserDeleteRows="False" CanUserResizeRows="False" HeadersVisibility="Column"
+                      ScrollViewer.CanContentScroll="True">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Name" Binding="{Binding InstanceName}" Width="3*"></DataGridTextColumn>
+                    <DataGridTextColumn Header="File count" Binding="{Binding Entries}" Width="1*"></DataGridTextColumn>
+                    <DataGridTextColumn Header="Instance size" Binding="{Binding PrettySize}" Width="1*" SortMemberPath="Size"></DataGridTextColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+            <ProgressBar Grid.Row="3" Value="{Binding Progress}" MinHeight="20"></ProgressBar>
 
-            <DockPanel MaxHeight="300" Margin="0 2 0 2">
-            <ScrollViewer VerticalScrollBarVisibility="Visible">
-                <ItemsControl ItemsSource="{Binding InstanceList}">
-                <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="16"></ColumnDefinition>
-                                    <ColumnDefinition></ColumnDefinition>
-                                    <ColumnDefinition></ColumnDefinition>
-                                    <ColumnDefinition></ColumnDefinition>
-                                    
-                                </Grid.ColumnDefinitions>
-                                <RadioButton  x:Name="RdioBtn" Command="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=Window}, Path=DataContext.SelectedInstanceCommand}" CommandParameter="{Binding ElementName=InstName, Path=Text}" Grid.Column="0" GroupName="InstanceGroup"></RadioButton>
-                                <TextBlock HorizontalAlignment="Center" x:Name="InstName" Grid.Column="1" Text="{Binding InstanceName}"></TextBlock>
-                                <TextBlock HorizontalAlignment="Center"  Grid.Column="2" Text="{Binding Entries, StringFormat={}{0} files}"></TextBlock>
-                                <TextBlock HorizontalAlignment="Center"  Grid.Column="3" Text="{Binding PrettySize}"></TextBlock>
-                            </Grid>
-                        </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-            </ScrollViewer>
-            </DockPanel>
+            <TextBlock Grid.Row="4" Text="{Binding HeaderText}"></TextBlock>
 
-            <ProgressBar Margin="0 2 0 2" Value="{Binding Progress}" MinHeight="20"></ProgressBar>
-
-            <TextBlock Text="{Binding HeaderText}"></TextBlock>
-            
-        </StackPanel>
+        </Grid>
     </Border>
 </Window>
