@@ -51,6 +51,10 @@ namespace WPFLinkTool
                             }
                             break;
                         }
+                        else
+                        {
+                            proceed = true;
+                        }
                     }
 
                     if (delet)
