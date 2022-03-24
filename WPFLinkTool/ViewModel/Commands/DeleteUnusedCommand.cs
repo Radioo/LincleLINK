@@ -48,6 +48,7 @@ namespace WPFLinkTool
                 foreach (var file in dBFiles)
                 {
                     await Task.Run(() => File.Delete(dbDir + @"\" + file));
+                    vm.Loggerr.Log($"Deleting {file}");
                     vm.Progress += progressStep;
                 }
             }
@@ -58,6 +59,7 @@ namespace WPFLinkTool
             vm.UIEnabled = true;
             vm.LinkButtonEnabled = true;
             IsExecuting = false;
+            vm.Loggerr.Log("Delete operation finished.");
         }
     }
 }

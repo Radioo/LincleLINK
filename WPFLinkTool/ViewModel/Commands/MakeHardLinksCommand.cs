@@ -11,7 +11,6 @@ namespace WPFLinkTool
     public class MakeHardLinksCommand : AsyncCommandBase
     {
         private readonly MainWindowViewModel vm;
-        private bool proceed = false;
         private bool delet = false;
         private string target;
 
@@ -25,10 +24,8 @@ namespace WPFLinkTool
             IsExecuting = true;
             vm.UIEnabled = false;
             vm.LinkButtonEnabled = false;
-            DataInstance selectedInstance = vm.SelectedInstance;
 
-
-            var prompt = MessageBox.Show($"Creating hard links from {selectedInstance.InstanceName}.\nProceed to link target selection?", "Make hard links", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            var prompt = MessageBox.Show($"Creating hard links from {vm.SelectedInstance.InstanceName}.\nProceed to link target selection?", "Make hard links", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             if (prompt == DialogResult.Yes)
             {
                 FolderBrowserDialog dialog = new();
@@ -36,33 +33,17 @@ namespace WPFLinkTool
                 {
                     target = dialog.SelectedPath;
 
-                    foreach (var file in selectedInstance.InstanceFiles)
-                    {
-                        if (File.Exists(target + file.Location + @"\" + file.OriginalFileName))
-                        {
-                            var prompt2 = MessageBox.Show(@$"{file.Location}\{file.OriginalFileName} already exists in the target directory!" + "\n"
-                                + "Do you want to delete all encountered dupes before making hard links? (If you didn't know or forgot, overwriting hard linked files changes the originals) 'No' cancels the whole operation.", "Duplicate files detected!", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                    vm.Loggerr.Log("Checking for duplicates...");
 
-                            if (prompt2 == DialogResult.Yes)
-                            {
-                                proceed = true;
-                                delet = true;
-                                break;
-                            }
-                            break;
-                        }
-                        else
-                        {
-                            proceed = true;
-                        }
-                    }
+                    bool proceed = await Task.Run(() => CheckDupes());
 
                     if (delet)
                     {
-                        foreach (var file in selectedInstance.InstanceFiles)
+                        foreach (var file in vm.SelectedInstance.InstanceFiles)
                         {
                             if (File.Exists(target + file.Location + @"\" + file.OriginalFileName))
                             {
+                                vm.Loggerr.Log(@$"Deleting {target + file.Location + @"\" + file.OriginalFileName}");
                                 File.Delete(target + file.Location + @"\" + file.OriginalFileName);
                             }
                         }
@@ -70,25 +51,27 @@ namespace WPFLinkTool
 
                     if (proceed)
                     {
-                        var uniqueFolders = (from folders in selectedInstance.InstanceFiles
+                        var uniqueFolders = (from folders in vm.SelectedInstance.InstanceFiles
                                              where folders.Location != string.Empty
                                              select folders.Location).Distinct();
 
-                        double progressStep = 100D / (selectedInstance.InstanceFiles.Count + uniqueFolders.Count());
+                        double progressStep = 100D / (vm.SelectedInstance.InstanceFiles.Count + uniqueFolders.Count());
 
                         foreach (var folder in uniqueFolders)
                         {
                             if (!Directory.Exists(target + folder))
                             {
+                                vm.Loggerr.Log($@"Creating directory {target + folder}");
                                 await Task.Run(() => Directory.CreateDirectory(target + folder));
                             }
                             vm.Progress += progressStep;
                         }
 
-                        foreach (var file in selectedInstance.InstanceFiles)
+                        foreach (var file in vm.SelectedInstance.InstanceFiles)
                         {
                             if (!File.Exists(target + file.Location + @"\" + file.OriginalFileName))
                             {
+                                vm.Loggerr.Log($@"Linking {target + file.Location + @"\" + file.OriginalFileName}");
                                 await Task.Run(() => CreateHardLink(target + file.Location + @"\" + file.OriginalFileName,
                                     dbDir + @"\" + file.HashedFileName, IntPtr.Zero));
                             }
@@ -101,12 +84,36 @@ namespace WPFLinkTool
 
             vm.Progress = 0;
 
-
+            vm.Loggerr.Log("Link operation finished");
 
             vm.UIEnabled = true;
             vm.LinkButtonEnabled = true;
             IsExecuting = false;
         }
+
+        bool CheckDupes()
+        {
+            foreach (var file in vm.SelectedInstance.InstanceFiles)
+            {
+                if (File.Exists(target + file.Location + @"\" + file.OriginalFileName))
+                {
+                    var prompt2 = MessageBox.Show(@$"{file.Location}\{file.OriginalFileName} already exists in the target directory!" + "\n"
+                        + "Do you want to delete all encountered dupes before making hard links? (If you didn't know or forgot, overwriting hard linked files changes the originals). Nothing was linked yet. 'No' cancels the whole operation.", "Duplicate files detected!", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+
+                    if (prompt2 == DialogResult.Yes)
+                    {
+                        delet = true;
+                        return true;
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
 
         [DllImport("Kernel32.dll", CharSet = CharSet.Unicode)]
         static extern bool CreateHardLink(

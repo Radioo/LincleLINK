@@ -6,6 +6,7 @@ using System.Data;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows.Controls;
 using System.Windows.Forms;
 using System.Windows.Input;
 using System.Xml;
@@ -17,6 +18,22 @@ namespace WPFLinkTool
     public class MainWindowViewModel : ViewModelBase
     {
         public SharedViewModel Shared;
+
+        public Logger Loggerr;
+
+        public ObservableCollection<string> LogEntries
+        {
+            get
+            {
+                return _logEntries;
+            }
+            set
+            {
+                _logEntries = value;
+                OnPropertyChanged(nameof(LogEntries));
+            }
+        }
+        private ObservableCollection<string> _logEntries;
 
         private string _dBSize;
         public string DBSize
@@ -130,18 +147,25 @@ namespace WPFLinkTool
         public ICommand MakeHardLinksCommand { get; private set; }
         public ICommand DeleteUnusedCommand { get; private set; }
 
-        public MainWindowViewModel(SharedViewModel shared)
+        public ScrollViewer Scroller;
+
+        public MainWindowViewModel(SharedViewModel shared, ScrollViewer scroller)
         {
             if (!Directory.Exists(dbDir))
                 Directory.CreateDirectory(dbDir);
             Shared = shared;
+            Scroller = scroller;
+            Loggerr = new(Scroller);
             OpenAddInstanceWindow = new(OpenInstanceWindow);
             DeleteInstanceCommand = new(DeleteInstance);
-            MakeHardLinksCommand = new MakeHardLinksCommand(this, (ex) => HeaderText = ex.Message);
-            DeleteUnusedCommand = new DeleteUnusedCommand(this, (ex) => HeaderText = ex.Message);
+            MakeHardLinksCommand = new MakeHardLinksCommand(this, (ex) => Loggerr.Log(ex.Message));
+            DeleteUnusedCommand = new DeleteUnusedCommand(this, (ex) => Loggerr.Log(ex.Message));
             LoadDBInfo();
             Task.Run(() => UpdateDBSize());
             Task.Run(() => UpdateSumSize());
+            //HeaderText = "Loading finished, probably... Have a nice day!";
+            LogEntries = Loggerr.LogEntries;
+            Loggerr.Log("Loading finished, probably... Have a nice day!");
         }
 
         private void LoadDBInfo()
@@ -171,7 +195,7 @@ namespace WPFLinkTool
 
         public void DeleteInstance(object o)
         {
-            var prompt = MessageBox.Show($"Delete {SelectedInstance.InstanceName}?", "Delete instance", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            var prompt = MessageBox.Show($"Delete {SelectedInstance.InstanceName}? This will not delete the files.", "Delete instance", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             if (prompt == DialogResult.Yes)
             {
                 Shared.Info.InstanceList.Remove(SelectedInstance);
@@ -179,6 +203,7 @@ namespace WPFLinkTool
                 LinkButtonEnabled = false;
                 UpdateSumSize();
                 OnPropertyChanged(nameof(InstanceList));
+                Loggerr.Log("Deleting instance operation finished.");
             }
         }
         public void UpdateDBSize()

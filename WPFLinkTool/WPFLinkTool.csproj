@@ -6,6 +6,7 @@
     <UseWPF>true</UseWPF>
 	<UseWindowsForms>true</UseWindowsForms>
 	<ApplicationIcon>otoge.ico</ApplicationIcon>
+	<Version>$(VersionPrefix)</Version>
   </PropertyGroup>
 
   <ItemGroup>

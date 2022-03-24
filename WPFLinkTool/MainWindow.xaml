@@ -17,7 +17,7 @@
                 <RowDefinition MaxHeight="24" MinHeight="24"></RowDefinition>
                 <RowDefinition></RowDefinition>
                 <RowDefinition MaxHeight="24" MinHeight="24"></RowDefinition>
-                <RowDefinition MaxHeight="16" MinHeight="16"></RowDefinition>
+                <RowDefinition Height="0.3*"></RowDefinition>
             </Grid.RowDefinitions>
 
             <Grid>
@@ -53,7 +53,15 @@
             </DataGrid>
             <ProgressBar Grid.Row="3" Value="{Binding Progress}" MinHeight="20"></ProgressBar>
 
-            <TextBlock Grid.Row="4" Text="{Binding HeaderText}"></TextBlock>
+            <ScrollViewer x:Name="Scroller" Grid.Row="4">
+                <ItemsControl Grid.Row="1" ItemsSource="{Binding LogEntries}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBox Text="{Binding Mode=OneWay}" TextWrapping="Wrap" Background="Transparent" BorderThickness="0" IsReadOnly="True"></TextBox>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
 
         </Grid>
     </Border>

@@ -26,7 +26,7 @@ namespace WPFLinkTool
         {
             InitializeComponent();
             SharedViewModel shared = new();
-            DataContext = new MainWindowViewModel(shared);
+            DataContext = new MainWindowViewModel(shared, Scroller);            
         }
     }
 }
