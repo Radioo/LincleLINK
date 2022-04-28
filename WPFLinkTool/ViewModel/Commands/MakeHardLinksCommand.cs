@@ -43,11 +43,13 @@ namespace WPFLinkTool
                         {
                             if (File.Exists(target + file.Location + @"\" + file.OriginalFileName))
                             {
-                                vm.Loggerr.Log(@$"Deleting {target + file.Location + @"\" + file.OriginalFileName}");
+                                //vm.Loggerr.Log(@$"Deleting {target + file.Location + @"\" + file.OriginalFileName}");
                                 File.Delete(target + file.Location + @"\" + file.OriginalFileName);
                             }
                         }
                     }
+
+                    vm.Loggerr.Log("Linking...");
 
                     if (proceed)
                     {
@@ -61,7 +63,7 @@ namespace WPFLinkTool
                         {
                             if (!Directory.Exists(target + folder))
                             {
-                                vm.Loggerr.Log($@"Creating directory {target + folder}");
+                                //vm.Loggerr.Log($@"Creating directory {target + folder}");
                                 await Task.Run(() => Directory.CreateDirectory(target + folder));
                             }
                             vm.Progress += progressStep;
@@ -71,7 +73,7 @@ namespace WPFLinkTool
                         {
                             if (!File.Exists(target + file.Location + @"\" + file.OriginalFileName))
                             {
-                                vm.Loggerr.Log($@"Linking {target + file.Location + @"\" + file.OriginalFileName}");
+                                //vm.Loggerr.Log($@"Linking {target + file.Location + @"\" + file.OriginalFileName}");
                                 await Task.Run(() => CreateHardLink(target + file.Location + @"\" + file.OriginalFileName,
                                     dbDir + @"\" + file.HashedFileName, IntPtr.Zero));
                             }
