@@ -5,7 +5,7 @@ VisualStudioVersion = 17.1.32421.90
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WPFLinkTool", "WPFLinkTool\WPFLinkTool.csproj", "{F7A5BA83-57A5-40C8-87AB-14DC84AE7529}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LincleLINK", "..\LincleLINK\LincleLINK\LincleLINK.csproj", "{6104660A-6036-4BC9-98F8-D4B361F1CFAD}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LincleLINK", "LincleLINK\LincleLINK.csproj", "{12228E5C-A2E1-4648-90A0-C50CE051E613}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -17,10 +17,10 @@ Global
 		{F7A5BA83-57A5-40C8-87AB-14DC84AE7529}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F7A5BA83-57A5-40C8-87AB-14DC84AE7529}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F7A5BA83-57A5-40C8-87AB-14DC84AE7529}.Release|Any CPU.Build.0 = Release|Any CPU
-		{6104660A-6036-4BC9-98F8-D4B361F1CFAD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{6104660A-6036-4BC9-98F8-D4B361F1CFAD}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{6104660A-6036-4BC9-98F8-D4B361F1CFAD}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{6104660A-6036-4BC9-98F8-D4B361F1CFAD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{12228E5C-A2E1-4648-90A0-C50CE051E613}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{12228E5C-A2E1-4648-90A0-C50CE051E613}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{12228E5C-A2E1-4648-90A0-C50CE051E613}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{12228E5C-A2E1-4648-90A0-C50CE051E613}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
