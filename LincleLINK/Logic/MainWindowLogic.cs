@@ -274,36 +274,48 @@ namespace LincleLINK
                         }
 
                         LogList.Add("Checking for duplicate files...");
-
-                        if (CheckForDupes(inst, selectedPath))
+                        int dupes = CheckForDupes(inst, selectedPath);
+                        bool proceed = false;
+                        if (dupes > 0)
                         {
-                            foreach (var file in inst.FileList)
+                            if (MessageBox.Show($"{dupes} duplicate files already exist in the target directory. " +
+                                $"Do you want to delete each one before linking new ones? " +
+                                $"'No' Cancels the operation entirely", "Duplicate files detected",
+                                MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
                             {
-                                if (File.Exists(Path.Combine(selectedPath, file.RelativePath, file.FileName)))
+                                proceed = true;
+                                foreach (var file in inst.FileList)
                                 {
-                                    //File.Delete(Path.Combine(selectedPath, file.RelativePath, file.FileName));
-                                    //LogList.Add($"Deleting {Path.Combine(selectedPath, file.RelativePath, file.FileName)}");
+                                    if (File.Exists(Path.Combine(selectedPath, file.RelativePath, file.FileName)))
+                                    {
+                                        File.Delete(Path.Combine(selectedPath, file.RelativePath, file.FileName));
+                                        //LogList.Add($"Deleting {Path.Combine(selectedPath, file.RelativePath, file.FileName)}");
+                                    }
                                 }
                             }
+                            else
+                            {
+                                LogList.Add("Link operation aborted.");
+                                IsFree = true;
+                                return;
+                            }
+                            
                         }
-                        else
+                        if (dupes == 0 || proceed == true)
                         {
-                            LogList.Add("Link operation aborted.");
+                            
+                            LogList.Add("Linking...");
+
+                            foreach (var file in inst.FileList)
+                            {
+                                await Task.Run(() => CreateHardLink(Path.Combine(selectedPath, file.RelativePath, file.FileName),
+                                    Path.Combine(dbDir, file.HashedFileName), IntPtr.Zero));
+                                Progress += ProgressStep;
+                            }
+
+                            LogList.Add("Done!");
                             IsFree = true;
-                            return;
                         }
-
-                        LogList.Add("Linking...");
-
-                        foreach (var file in inst.FileList)
-                        {
-                            await Task.Run(() => CreateHardLink(Path.Combine(selectedPath, file.RelativePath, file.FileName),
-                                Path.Combine(dbDir, file.HashedFileName), IntPtr.Zero));
-                            Progress += ProgressStep;
-                        }
-
-                        LogList.Add("Done!");
-                        IsFree = true;
                     }
                     else LogList.Add("Link operation aborted.");
                 }
@@ -324,22 +336,17 @@ namespace LincleLINK
                 Directory.CreateDirectory(instanceDir);
         }
 
-        public bool CheckForDupes(Instance inst, string targetPath)
+        public int CheckForDupes(Instance inst, string targetPath)
         {
+            int exists = 0;
             foreach (var file in inst.FileList)
             {
                 if (File.Exists(Path.Combine(targetPath, file.RelativePath, file.FileName)))
                 {
-                    LogList.Add($"File {file.FileName} already exists in {targetPath}");
-                    if (MessageBox.Show($"{file.FileName} already exists in the target directory. Delete and link? 'No' will cancel the operation.",
-                        "Duplicate file", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
-                    {
-                        return true;
-                    }
-                    else return false;
+                    exists++;
                 }
             }
-            return false;
+            return exists;
         }
 
         public async void UpdateInstanceList()
@@ -533,7 +540,7 @@ namespace LincleLINK
 
                 if (MatchedList.Count == 0)
                 {
-                    UIContext.Send(x => LogList.Add("Check if your relative path is correct."), null);
+                    UIContext.Send(x => LogList.Add(@"Check if your relative path is correct. (example: contents\data)"), null);
                     //LogList.Add("Check if your relative path is correct.");
                 }
                 else
@@ -732,7 +739,7 @@ namespace LincleLINK
             }
             DBSize = Instance.ReadableSize(dbSize);
             long instTotal = 0;
-            foreach(var inst in InstanceList)
+            foreach (var inst in InstanceList)
             {
                 instTotal += inst.TotalFileSize;
             }
