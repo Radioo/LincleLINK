@@ -17,8 +17,8 @@ namespace LincleLINK
 {
     public class MainWindowLogic : ViewModelBase
     {
-        //public static readonly string currentDir = Directory.GetCurrentDirectory();
-        public static readonly string currentDir = @"F:\LincleLINK";
+        public static readonly string currentDir = Directory.GetCurrentDirectory();
+        //public static readonly string currentDir = @"F:\LincleLINK";
         public static readonly string dbDir = Path.Join(currentDir, "db");
         public static readonly string instanceDir = Path.Join(currentDir, "instance");
 

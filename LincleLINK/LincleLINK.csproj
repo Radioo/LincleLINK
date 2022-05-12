@@ -6,11 +6,13 @@
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>True</UseWindowsForms>
-    <ApplicationIcon>LincleLINK.ico</ApplicationIcon>
+    <ApplicationIcon>LL_logo.ico</ApplicationIcon>
+    <AssemblyVersion>2.0.0</AssemblyVersion>
+    <FileVersion>2.0.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="LincleLINK.ico" />
+    <Content Include="LL_logo.ico" />
   </ItemGroup>
 
   <ItemGroup>
