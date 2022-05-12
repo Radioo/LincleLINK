@@ -1,7 +1,10 @@
-# WPFLinkTool
+# LincleLINK
 
-The main purpose of this tool is to save disk space for AC data (can use it for anything but that was the main goal).  
-You add your games' `data` folder as an instance, then the tool will calculate the MD5 hash of each file and store it in its `DB` folder along with storing each file's location inside the `data` folder (ex. (`\sound\`, `\movie\`). Each new instance will only add unique files to the `DB`.  
-Then you can link your instance to wherever you want and stop copying large amounts of data.
+This program is designed to store all your arcade data in its own `db` folder. When you add an instance, it produces an MD5 hash of the file and stores it in the `db` folder. Only new and unique files are added, but the record of the file and its location in the original folder is also stored in the instance `.json` file.
 
-![screenshot](https://stn.s-ul.eu/UgeNvAoD.png)
+You can then create hard links to your desired destination(s).
+
+***It is highly recommended to only add the `data` folder of a game as an instance.***
+***Also remember that hard links only work on the same partition, additionally editing/modifying hard-linked files will change the originals in the `db` so take extra care. Delete a hard-linked file first if you want to replace/modify it!***
+
+![screenshot](https://stn.s-ul.eu/O84VELWa.png)
