@@ -19,6 +19,7 @@ namespace LincleLINK
     {
         public static readonly string currentDir = Directory.GetCurrentDirectory();
         //public static readonly string currentDir = @"F:\LincleLINK";
+        //public static readonly string currentDir = @"F:\LinkTool";
         public static readonly string dbDir = Path.Join(currentDir, "db");
         public static readonly string instanceDir = Path.Join(currentDir, "instance");
 
@@ -193,6 +194,7 @@ namespace LincleLINK
         public RelayCommand FolderBrowseTorrentFileCommand { get; set; }
         public RelayCommand FolderBrowseTorrentDLPathCommand { get; set; }
         public AsyncRelayCommand LinkToTorrentCommand { get; set; }
+        public RelayCommand CopyFilesCommand { get; set; }
 
         public MainWindowLogic(MainWindowControls controls, SynchronizationContext uicontext)
         {
@@ -209,11 +211,18 @@ namespace LincleLINK
             CheckPiecesCommand = new(CheckPieces, (ex) => LogList.Add(ex.Message));
             FolderBrowseTorrentFileCommand = new(FolderBrowseTorrentPath);
             FolderBrowseTorrentDLPathCommand = new(FolderBrowserTorrentDLPath);
+            CopyFilesCommand = new(CopyFiles, CanDoActionWithInstance);
             LinkToTorrentCommand = new(LinkToTorrent, (ex) => LogList.Add(ex.Message));
             MatchedList = new();
             RelativePath = string.Empty;
             UpdateInstanceList();
             IsFree = true;
+        }
+
+        public async Task<Instance> GetSelectedInstance()
+        {
+            using FileStream openStream = File.OpenRead(Path.Combine(instanceDir, SelectedInstance.InstanceName + ".json"));
+            return await JsonSerializer.DeserializeAsync<Instance>(openStream);
         }
 
         public void OpenAddInstanceWindow(object o)
@@ -222,7 +231,7 @@ namespace LincleLINK
             window.ShowDialog();
             UpdateInstanceList();
         }
-
+        
         public void DeleteInstance(object o)
         {
             try
@@ -408,6 +417,7 @@ namespace LincleLINK
             }
             IsFree = true;
         }
+        
         public bool CanDoActionWithInstance(object o)
         {
             if (SelectedInstance == null || !IsFree)
@@ -744,6 +754,49 @@ namespace LincleLINK
                 instTotal += inst.TotalFileSize;
             }
             Savings = Instance.ReadableSize(instTotal - dbSize);
+        }
+
+        public async void CopyFiles(object o)
+        {
+            try
+            {
+                IsFree = false;
+
+                if (MessageBox.Show("This will copy all hashed files of an instance to your selected destination. " +
+                    "Does not overwrite files. Proceed to destination selection?", "Copy files", MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    FolderBrowserDialog folderDialog = new();
+                    if (folderDialog.ShowDialog() == DialogResult.OK)
+                    {
+                        string destDir = folderDialog.SelectedPath;
+                        Progress = 0;
+                        ProgressStep = 100D / SelectedInstance.FileCount;
+
+                        Instance instance = await GetSelectedInstance();
+                        foreach (var instanceFile in instance.FileList)
+                        {
+                            string destinationFile = Path.Combine(destDir, instanceFile.HashedFileName);
+                            if (!File.Exists(destinationFile))
+                            {
+                                await Task.Run(() => File.Copy(Path.Combine(dbDir, instanceFile.HashedFileName), destinationFile));
+                            }
+                            else
+                            {
+                                LogList.Add(destinationFile + " already exists.");
+                            }
+                            Progress += ProgressStep;
+                        }
+                    }
+                    folderDialog.Dispose();
+                }
+                Progress = 0;
+                IsFree = true;
+            }
+            catch (Exception e)
+            {
+                LogList.Add(e.Message);
+            }
         }
 
         [DllImport("Kernel32.dll", CharSet = CharSet.Unicode)]
