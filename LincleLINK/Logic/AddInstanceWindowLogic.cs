@@ -110,10 +110,13 @@ namespace LincleLINK
             dialog.Dispose();
         }
 
-        public void MakeInstance(object o)
+        public async void MakeInstance(object o)
         {
             LogList.Add("Validating...");
-            if (ValidateInstance())
+            UIEnabled = false;
+            bool validate_result = await Task.Run(() => ValidateInstance());
+            UIEnabled = true;
+            if (validate_result)
             {
                 LogList.Add("Good to go!");
                 try
@@ -128,7 +131,7 @@ namespace LincleLINK
         }
 
         public bool ValidateInstance()
-        {
+        {         
             if (string.IsNullOrWhiteSpace(InstanceName))
             {
                 System.Windows.Forms.MessageBox.Show("Instance name cannot be empty.",
@@ -172,6 +175,42 @@ namespace LincleLINK
                         "Invalid characters", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return false;
                 }
+            }
+
+            // check if there is enough space for copying
+            if (IsCopyChecked)
+            {
+                DirectoryInfo files = new(DataPath);
+                long size_to_copy = 0;
+                foreach (var file in files.GetFiles("*", SearchOption.AllDirectories))
+                {
+                    size_to_copy += file.Length;
+                }
+
+                var drives = DriveInfo.GetDrives();
+                long free_space = 0;
+                foreach (var drive in drives)
+                {
+                    if (MainWindowLogic.currentDir.StartsWith(drive.Name))
+                    {
+                        free_space = drive.AvailableFreeSpace;
+                    }
+                }
+
+                if (size_to_copy + 100000000 > free_space) // add a 100MB wiggle room
+                {
+                    if (MessageBox.Show($"Current drive is low on disk space, do you want to continue? " +
+                        $"Free space: {Instance.ReadableSize(free_space)}, Size of files about to copy: {Instance.ReadableSize(size_to_copy)}", "Low disk space!",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+                    {
+                        return true;
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+
             }
 
             return true;

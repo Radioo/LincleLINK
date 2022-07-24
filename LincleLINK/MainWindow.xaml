@@ -160,11 +160,12 @@
                         <RowDefinition Height="20"></RowDefinition>
                         <RowDefinition Height="20"></RowDefinition>
                         <RowDefinition Height="20"></RowDefinition>
+                        <RowDefinition Height="20"></RowDefinition>
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Text="{Binding DBSize, StringFormat=db folder size: {0}}"></TextBlock>
                     <TextBlock Grid.Row="1" Text="{Binding Savings, StringFormat=You are saving: {0}}"></TextBlock>
-
+                    <TextBlock Grid.Row="2" Text="{Binding FreeSpace, StringFormat=Free drive space {0}}"></TextBlock>
                     <Button Grid.Row="3" Content="Import DBInfo.xml" IsEnabled="{Binding IsFree}"  Command="{Binding ImportLegacyCommand}"></Button>
 
                 </Grid>

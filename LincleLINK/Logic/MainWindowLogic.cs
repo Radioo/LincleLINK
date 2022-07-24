@@ -180,6 +180,17 @@ namespace LincleLINK
             }
         }
 
+        private string _freeSpace;
+        public string FreeSpace
+        {
+            get { return _freeSpace; }
+            set
+            {
+                _freeSpace = value;
+                OnPropertyChanged(nameof(FreeSpace));
+            }
+        }
+
         public SynchronizationContext UIContext { get; set; }
         public Dictionary<PassedFileInfo, HashSet<long>>? FilePieceMap { get; set; }
         public List<long>? BadPieces { get; set; }
@@ -754,6 +765,15 @@ namespace LincleLINK
                 instTotal += inst.TotalFileSize;
             }
             Savings = Instance.ReadableSize(instTotal - dbSize);
+
+            var drives = DriveInfo.GetDrives();
+            foreach (var drive in drives)
+            {
+                if (currentDir.StartsWith(drive.Name))
+                {
+                    FreeSpace = Instance.ReadableSize(drive.AvailableFreeSpace);
+                }
+            }
         }
 
         public async void CopyFiles(object o)
