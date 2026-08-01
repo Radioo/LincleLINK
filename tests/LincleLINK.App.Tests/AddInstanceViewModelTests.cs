@@ -49,7 +49,7 @@ public sealed class AddInstanceViewModelTests
         StubDataPath();
         var vm = Create();
         var closeRequested = false;
-        vm.CloseRequested += (_, success) => closeRequested = success;
+        vm.CloseRequested += (_, _) => closeRequested = true;
         vm.InstanceName = "inst";
         vm.DataPath = Data;
 

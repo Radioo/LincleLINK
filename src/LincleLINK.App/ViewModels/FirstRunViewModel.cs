@@ -45,9 +45,13 @@ public partial class FirstRunViewModel : ViewModelBase
     [RelayCommand]
     private void Confirm()
     {
-        if (!string.IsNullOrWhiteSpace(DataDirectory))
+        if (string.IsNullOrWhiteSpace(DataDirectory))
         {
-            Confirmed?.Invoke(this, DataDirectory);
+            Status = "Choose a folder before continuing.";
+            return;
         }
+
+        Confirmed?.Invoke(this, DataDirectory);
+        RequestClose();
     }
 }

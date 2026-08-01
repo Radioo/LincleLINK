@@ -6,4 +6,10 @@ public abstract class ViewModelBase : ObservableObject
 {
     /// <summary>Window title used when this view model is hosted in a dialog window.</summary>
     public virtual string Title => "LincleLINK";
+
+    /// <summary>Raised when the hosting dialog window should close itself.</summary>
+    public event EventHandler? CloseRequested;
+
+    /// <summary>Signals the hosting dialog window to close.</summary>
+    protected void RequestClose() => CloseRequested?.Invoke(this, EventArgs.Empty);
 }

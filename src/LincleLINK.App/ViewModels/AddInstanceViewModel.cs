@@ -12,9 +12,6 @@ public partial class AddInstanceViewModel : ViewModelBase
     private readonly InstanceService _service;
     private readonly IDialogService _dialogs;
 
-    /// <summary>Raised with true on success (the host window closes); false on explicit close.</summary>
-    public event EventHandler<bool>? CloseRequested;
-
     public ObservableCollection<string> LogLines { get; } = [];
 
     public override string Title => "Add Instance";
@@ -69,7 +66,7 @@ public partial class AddInstanceViewModel : ViewModelBase
 
             if (result.Success)
             {
-                CloseRequested?.Invoke(this, true);
+                RequestClose();
             }
             else if (result.Error is not null)
             {

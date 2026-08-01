@@ -22,13 +22,21 @@ public static class AppBootstrapper
             "settings.json");
 
         string dataDirectory;
-        using (var bootstrap = CreateBootstrapContainer(settingsFile))
+        using (var bootstrap = CreateBootstrapContainer(settingsFile, ownerProvider))
         {
+            // Apply the persisted theme before any window is shown (no flash) so the
+            // first-run dialog and the main window both render with the stored theme.
+            var settings = bootstrap.GetRequiredService<ISettingsStore>().Load();
+            bootstrap.GetRequiredService<IThemeManager>().Apply(settings.IsDarkTheme);
+
             var firstLaunch = bootstrap.GetRequiredService<FirstLaunchService>();
             var result = firstLaunch.Resolve();
 
             if (result.Action == FirstLaunchAction.PromptForDirectory)
             {
+                // The first-run dialog is hosted modally, which requires a visible owner.
+                ownerProvider()?.Show();
+
                 var host = bootstrap.GetRequiredService<IAppDialogHost>();
                 var dialogs = bootstrap.GetRequiredService<IDialogService>();
                 var vm = new FirstRunViewModel(dialogs, result.DataDirectory, result.HasLegacyV2Data);
@@ -79,14 +87,15 @@ public static class AppBootstrapper
         return chosen.Task.IsCompleted ? await chosen.Task : vm.DataDirectory;
     }
 
-    private static ServiceProvider CreateBootstrapContainer(string settingsFile)
+    private static ServiceProvider CreateBootstrapContainer(string settingsFile, Func<Window?> ownerProvider)
     {
-        var dialogService = new DialogService(() => null);
+        var dialogService = new DialogService(ownerProvider);
 
         var services = new ServiceCollection();
         services.AddSingleton<ISettingsStore>(new JsonSettingsStore(settingsFile));
         services.AddSingleton<IDialogService>(dialogService);
         services.AddSingleton<IAppDialogHost>(dialogService);
+        services.AddSingleton<IThemeManager, ThemeManager>();
         services.AddSingleton<FirstLaunchService>();
         return services.BuildServiceProvider();
     }

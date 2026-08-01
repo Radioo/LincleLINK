@@ -1,4 +1,6 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
 using LincleLINK.App.Controls;
 using LincleLINK.App.ViewModels;
@@ -75,6 +77,10 @@ public sealed class DialogService : IDialogService, IAppDialogHost
         };
         ThemeManager.ApplyTitleBar(window);
 
+        // Close the host window through a direct reference when the view model asks
+        // (robust; the view's VisualRoot is not reliably the hosting window here).
+        vm.CloseRequested += (_, _) => window.Close();
+
         var owner = _ownerProvider();
         if (owner is not null)
         {
@@ -122,7 +128,13 @@ public sealed class DialogService : IDialogService, IAppDialogHost
     private IStorageProvider GetStorageProvider()
     {
         var owner = _ownerProvider();
-        var topLevel = TopLevel.GetTopLevel(owner);
+        var topLevel = owner is not null ? TopLevel.GetTopLevel(owner) : null;
+        if (topLevel is not { IsVisible: true }
+            && Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            topLevel = desktop.Windows.FirstOrDefault(w => w.IsVisible) ?? topLevel;
+        }
+
         return topLevel?.StorageProvider
             ?? throw new InvalidOperationException("No window is available to host a file picker.");
     }
