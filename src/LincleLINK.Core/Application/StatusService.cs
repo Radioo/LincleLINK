@@ -47,6 +47,10 @@ public sealed class StatusService
 
         var freeSpace = _driveInfo.GetAvailableFreeSpace(_paths.DataDirectory);
 
-        return new StatusSummary(dbSize, instancesTotal, instancesTotal - dbSize, freeSpace);
+        // Savings can go negative when db/ holds orphaned files no instance references;
+        // SizeFormatter rejects negative sizes, so clamp at zero.
+        var savings = Math.Max(0, instancesTotal - dbSize);
+
+        return new StatusSummary(dbSize, instancesTotal, savings, freeSpace);
     }
 }

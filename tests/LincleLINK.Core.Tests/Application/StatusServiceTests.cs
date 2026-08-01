@@ -37,4 +37,28 @@ public sealed class StatusServiceTests
         summary.FreeSpace.Should().Be(500);
         summary.SavingsString.Should().Be("30 B");
     }
+
+    [Fact]
+    public async Task Summary_clamps_negative_savings_to_zero()
+    {
+        var store = Substitute.For<IFileStore>();
+        store.GetTotalSizeAsync(Arg.Any<CancellationToken>()).Returns(100L);
+
+        var repository = Substitute.For<IInstanceRepository>();
+        repository.GetAllAsync(Arg.Any<CancellationToken>()).Returns([
+            Instance.Create("a", [new InstanceFile("f.bin", "", 40, "A".PadRight(32, 'A') + ".bin")], []),
+        ]);
+
+        var driveInfo = Substitute.For<IDriveInfoProvider>();
+        driveInfo.GetAvailableFreeSpace(Arg.Any<string>()).Returns(500L);
+
+        var paths = Substitute.For<IAppPaths>();
+        paths.DataDirectory.Returns("C:\\data");
+
+        var summary = await new StatusService(store, repository, driveInfo, paths).GetSummaryAsync();
+
+        // db/ (100) exceeds the instance total (40): orphaned files, savings clamped.
+        summary.Savings.Should().Be(0);
+        summary.SavingsString.Should().Be("0 B");
+    }
 }
