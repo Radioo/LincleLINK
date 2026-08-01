@@ -4,8 +4,9 @@ using Avalonia.Controls;
 namespace LincleLINK.App.Behaviors;
 
 /// <summary>
-/// Scrolls a ScrollViewer to the end whenever its content grows (new log lines),
-/// without fighting the user's manual scrolling.
+/// Scrolls a ScrollViewer to the end when new content is added, but only if it was
+/// already at the bottom — so the user can scroll up and keep reading old lines
+/// without being dragged to the bottom.
 /// </summary>
 public static class AutoScrollBehavior
 {
@@ -39,7 +40,15 @@ public static class AutoScrollBehavior
 
     private static void OnScrollChanged(object? sender, ScrollChangedEventArgs e)
     {
-        if (sender is ScrollViewer viewer && e.ExtentDelta.Y > 0)
+        if (sender is not ScrollViewer viewer || e.ExtentDelta.Y <= 0)
+        {
+            return;
+        }
+
+        // Extent already includes the growth, so compare against the pre-growth extent.
+        // Only pin to the bottom when the user was already at/near it.
+        double wasAtBottom = viewer.Extent.Height - e.ExtentDelta.Y - 1;
+        if (viewer.Offset.Y + viewer.Viewport.Height >= wasAtBottom)
         {
             viewer.ScrollToEnd();
         }
