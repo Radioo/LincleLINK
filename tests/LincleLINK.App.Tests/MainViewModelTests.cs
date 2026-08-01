@@ -6,6 +6,7 @@ using LincleLINK.Core.Abstractions.Disk;
 using LincleLINK.Core.Abstractions.Filesystem;
 using LincleLINK.Core.Abstractions.Hashing;
 using LincleLINK.Core.Abstractions.Instances;
+using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Abstractions.Paths;
 using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Application;
@@ -29,6 +30,9 @@ public sealed class MainViewModelTests
 
     private MainViewModel CreateViewModel() => new(
         new InstanceService(_fs, _hasher, _store, _repository, _driveInfo, _dialogs),
+        new LinkingService(_fs, _store, Substitute.For<IHardLinker>(), _repository, _dialogs),
+        new UnusedFilesService(_store, _repository, _dialogs),
+        new LegacyImporter(_repository),
         _repository,
         new StatusService(_store, _repository, _driveInfo, _paths),
         _dialogs,
@@ -120,6 +124,24 @@ public sealed class MainViewModelTests
 
         vm.SelectedInstance = new InstanceListEntry("X", 0, 0, "0 B");
         vm.DeleteInstanceCommand.CanExecute(null).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Link_and_copy_commands_are_gated_on_selection_and_busy()
+    {
+        StubStatus();
+        var vm = CreateViewModel();
+
+        vm.LinkFilesCommand.CanExecute(null).Should().BeFalse();
+        vm.CopyHashedCommand.CanExecute(null).Should().BeFalse();
+
+        vm.SelectedInstance = new InstanceListEntry("X", 0, 0, "0 B");
+        vm.LinkFilesCommand.CanExecute(null).Should().BeTrue();
+        vm.CopyHashedCommand.CanExecute(null).Should().BeTrue();
+
+        vm.IsBusy = true;
+        vm.LinkFilesCommand.CanExecute(null).Should().BeFalse();
+        vm.CopyHashedCommand.CanExecute(null).Should().BeFalse();
     }
 
     [Fact]
