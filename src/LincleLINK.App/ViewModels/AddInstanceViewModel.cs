@@ -17,6 +17,8 @@ public partial class AddInstanceViewModel : ViewModelBase
 
     public ObservableCollection<string> LogLines { get; } = [];
 
+    public override string Title => "Add Instance";
+
     [ObservableProperty]
     private string _instanceName = string.Empty;
 

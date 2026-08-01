@@ -15,6 +15,8 @@ public partial class FirstRunViewModel : ViewModelBase
 
     public event EventHandler<string>? Confirmed;
 
+    public override string Title => "First launch";
+
     [ObservableProperty]
     private string _dataDirectory;
 

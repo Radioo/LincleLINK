@@ -64,6 +64,7 @@ public sealed class DialogService : IDialogService, IAppDialogHost
     {
         var window = new Window
         {
+            Title = vm.Title,
             Content = vm,
             Width = 520,
             Height = 420,
