@@ -362,5 +362,9 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 
+# App data dirs (created in CWD when running the app during development)
+db/
+instance/
+
 # Idea
 .idea/

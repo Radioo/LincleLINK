@@ -1,0 +1,33 @@
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+using LincleLINK.Core.Abstractions.Linking;
+
+namespace LincleLINK.Core.Infrastructure.Linking;
+
+[SupportedOSPlatform("linux")]
+public sealed class UnixHardLinker : IHardLinker
+{
+    public bool TryCreateLink(string sourcePath, string linkPath, out string? error)
+    {
+        if (link(sourcePath, linkPath) == 0)
+        {
+            error = null;
+            return true;
+        }
+
+        var errno = Marshal.GetLastPInvokeError();
+        error = errno switch
+        {
+            1 => "Operation not permitted.",
+            2 => "Could not find the source file in the db.",
+            17 => "A file with that name already exists at the target.",
+            18 => "Cross-device link: source and target are on different filesystems.",
+            31 => "Too many hard links for this file.",
+            _ => $"Could not create the hard link (errno {errno}).",
+        };
+        return false;
+    }
+
+    [DllImport("libc", SetLastError = true)]
+    private static extern int link(string oldpath, string newpath);
+}

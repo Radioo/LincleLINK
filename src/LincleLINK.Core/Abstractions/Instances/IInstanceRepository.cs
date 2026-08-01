@@ -1,0 +1,18 @@
+using LincleLINK.Core.Domain;
+
+namespace LincleLINK.Core.Abstractions.Instances;
+
+public interface IInstanceRepository
+{
+    Task<IReadOnlyList<string>> GetNamesAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<Instance>> GetAllAsync(CancellationToken ct = default);
+
+    /// <summary>Returns null when the instance does not exist.</summary>
+    Task<Instance?> GetAsync(string name, CancellationToken ct = default);
+
+    /// <summary>Case-insensitive existence check on all platforms.</summary>
+    Task<bool> ExistsAsync(string name, CancellationToken ct = default);
+
+    Task SaveAsync(Instance instance, CancellationToken ct = default);
+    Task<bool> DeleteAsync(string name, CancellationToken ct = default);
+}
