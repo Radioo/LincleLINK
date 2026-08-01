@@ -129,6 +129,8 @@ public sealed class InstanceService
             new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = ct },
             async (item, token) =>
             {
+                // IProgress<T> marshals to the UI thread, so this is safe from workers.
+                log?.Report($"Hashing {item.path}");
                 var hash = await _hasher.ComputeHashAsync(item.path, token);
                 hashResults[item.index] = new HashResult(item.path, hash, _fileSystem.GetFileLength(item.path));
                 percent?.Report(Interlocked.Increment(ref hashed) * hashStep);

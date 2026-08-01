@@ -262,8 +262,8 @@ public partial class MainViewModel : ViewModelBase
         IsBusy = true;
         try
         {
-            var log = new Progress<string>(LogLines.Add);
-            var percent = new Progress<double>(p => Progress = p);
+            var log = ProgressBridge.Create<string>(LogLines.Add);
+            var percent = ProgressBridge.Create<double>(p => Progress = p);
             await operation(log, percent);
         }
         catch (Exception ex)

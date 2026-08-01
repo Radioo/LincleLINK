@@ -207,8 +207,9 @@ public sealed class InstanceServiceTests
     {
         StubDataPath("C:\\data", "C:\\data\\a.bin");
         var logs = new List<string>();
+        var logLock = new object();
         double lastPercent = 0;
-        var log = new SynchronousProgress<string>(logs.Add);
+        var log = new SynchronousProgress<string>(s => { lock (logLock) logs.Add(s); });
         var percent = new SynchronousProgress<double>(p => lastPercent = p);
 
         await CreateService().CreateInstanceAsync(new("inst", "C:\\data", CopyMoveMode.Copy), log, percent);
