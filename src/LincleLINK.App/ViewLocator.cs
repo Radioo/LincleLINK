@@ -13,7 +13,12 @@ public sealed class ViewLocator : IDataTemplate
             return null;
         }
 
-        var baseName = data.GetType().FullName!.Replace("ViewModel", "", StringComparison.Ordinal);
+        // "LincleLINK.App.ViewModels.AddInstanceViewModel" → "LincleLINK.App.Views.AddInstance"
+        // (replacing "ViewModel" with "" also maps the ViewModels namespace to Views).
+        var baseName = data.GetType().FullName!
+            .Replace("ViewModels.", "Views.", StringComparison.Ordinal)
+            .Replace("ViewModel", "", StringComparison.Ordinal);
+
         var type = Type.GetType(baseName + "View") ?? Type.GetType(baseName + "Window");
 
         if (type != null)
