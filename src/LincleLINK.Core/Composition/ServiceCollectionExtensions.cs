@@ -67,6 +67,8 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<FirstLaunchService>();
         services.AddSingleton<LegacyImporter>();
+        services.AddSingleton<InstanceService>();
+        services.AddSingleton<StatusService>();
 
         return services;
     }

@@ -38,9 +38,11 @@ public sealed class FirstLaunchServiceTests : IDisposable
         var original = Environment.CurrentDirectory;
         try
         {
-            Environment.CurrentDirectory = Path.Combine(_temp.Root, "cwd");
+            var cwd = Path.Combine(_temp.Root, "cwd");
+            Directory.CreateDirectory(cwd);
+            Environment.CurrentDirectory = cwd;
             var result = new FirstLaunchService(store).Resolve();
-            result.DataDirectory.Should().Be(Environment.CurrentDirectory);
+            result.DataDirectory.Should().Be(cwd);
         }
         finally
         {
@@ -79,8 +81,9 @@ public sealed class FirstLaunchServiceTests : IDisposable
         var original = Environment.CurrentDirectory;
         try
         {
-            Environment.CurrentDirectory = Path.Combine(_temp.Root, "empty");
-            Directory.CreateDirectory(Environment.CurrentDirectory);
+            var cwd = Path.Combine(_temp.Root, "empty");
+            Directory.CreateDirectory(cwd);
+            Environment.CurrentDirectory = cwd;
 
             var result = new FirstLaunchService(new JsonSettingsStore(SettingsPath)).Resolve();
 
