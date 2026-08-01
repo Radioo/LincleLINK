@@ -22,8 +22,8 @@ Define how v3 is proven done: the **feature-parity matrix**, **V2-data migration
 | F8 | Torrent: check pieces | `TorrentPieceVerifierTests` + golden (`07`,`10`) | Check pieces; matched count reported |
 | F9 | Torrent: link to torrent | `TorrentServiceTests` (`07`) | Link; only clean-piece files created |
 | F10 | Import DBInfo.xml (v1) | `LegacyImporterTests` (`03`) | Import a real v1 `DBInfo.xml` |
-| F11 | Status panel (db size/savings/free) | `StatusServiceTests` (`08`) | Values match `du`/Explorer |
-| F12 | Dark mode + persistence | `MainViewModelTests` (`08`,`09`) | Toggle; restart; persists |
+| F11 | Status panel (db size/savings/free) | `StatusServiceTests` (`08`) | Values match `du`/Explorer; appear on load (no interaction needed) |
+| F12 | Dark mode + persistence | `MainViewModelTests` (`08`,`09`) | Toggle Light/Dark radios; restart; persists |
 | F13 | Log panel + progress | `MainViewModelTests` (`08`) | Watch a long op |
 
 ## 3. V2-data migration validation
@@ -47,8 +47,11 @@ Prereq: a copy of a real v2 install (`db/` + `instance/*.json` + CWD `settings.j
 4. Copy hashed files → flat copies, no overwrite.
 5. Delete instance → files remain; Check unused → delete orphans.
 6. Torrent: check files → check pieces → link (real `.torrent`).
-7. Toggle dark mode → UI + title bar dark → restart → persists.
+7. Toggle dark mode via the Light/Dark radios (Other tab) → UI + title bar dark → restart → persists.
 8. Import a v1 `DBInfo.xml`.
+9. Move the add-instance hash-thread slider (Other tab) to 1 → add a large instance → UI stays responsive, hashing is visibly serialized → restart → slider persists.
+10. Add a large instance (default threads) → the log keeps streaming without the window freezing; scroll up to read earlier lines, then scroll down → auto-scroll resumes at the bottom.
+11. Fresh start → Other tab shows db size/savings/free immediately (no selection needed).
 
 **Linux (same core steps):**
 1–8 as above (dark-mode title bar: no-op expected).
@@ -82,6 +85,12 @@ Prereq: a copy of a real v2 install (`db/` + `instance/*.json` + CWD `settings.j
 | Canonicalized torrent/instance path matching | `07` D4 | v2 Linux mismatch |
 | V1-only torrents; v2/hybrid rejected | `07` D1 | scoped v2 support |
 | `IsFree`/`UIContext` replaced by `IsBusy` + `IProgress` | `08` | concurrency correctness |
+| Parallel add-instance hashing bounded by a user-set thread count; all add-instance file I/O (enumeration, sizing, hash/copy/save) off the UI thread | `05` D5 | responsive UI on large instances |
+| Add-instance log lines batched to the UI (Background priority); log panels are virtualizing `ListBox`es keeping all lines | `05`/`08` D6–D7 | high-volume logging no longer stalls the UI |
+| Initial instance/status refresh runs from `MainWindow.Opened`, not framework init | `08` D8 | Other-tab status was empty until a later interaction |
+| Other-tab theme uses Light/Dark radio buttons (was a checkbox) | `09` | consistency with first-run window |
+| `AppSettings` gains `HashThreadCount` (clamped 1..ProcessorCount) | `03` | add-instance thread slider persistence |
+| Status `Savings` clamped at 0 (orphaned `db/` files) | `08` | negative savings crashed `SizeFormatter` |
 | UI redesign (Semi), layout preserved | `09` | modernization |
 
 ## 7. M6 acceptance gate

@@ -25,7 +25,7 @@ Persistence layer in `LincleLINK.Core`: ports (`IAppPaths`, `IAppPathsFactory`, 
 ## 3. Settings — split from data dir
 
 ```csharp
-public sealed record AppSettings(bool IsDarkTheme, string? DataDirectory);
+public sealed record AppSettings(bool IsDarkTheme, string? DataDirectory, int HashThreadCount);
 
 public interface ISettingsStore
 {
@@ -36,9 +36,10 @@ public interface ISettingsStore
 ```
 
 - **Location (D1):** `Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LincleLINK", "settings.json")` → `%APPDATA%\LincleLINK\settings.json` on Windows, `~/.config/LincleLINK/settings.json` on Linux. Never inside the data dir.
-- Schema: `{ "IsDarkTheme": bool, "DataDirectory": string | null }`. Key `IsDarkTheme` matches actual v2 code (AGENTS.md's `{"IsDark": bool}` is inaccurate).
+- Schema: `{ "IsDarkTheme": bool, "DataDirectory": string | null, "HashThreadCount": int }`. Key `IsDarkTheme` matches actual v2 code (AGENTS.md's `{"IsDark": bool}` is inaccurate).
 - `DataDirectory = null` → default (current working directory).
-- Tolerant load: missing/corrupt file → `AppSettings(false, null)`; save is best-effort + atomic temp-write.
+- `HashThreadCount` bounds the parallel hashing workers used by add-instance (Other-tab slider, `05`). Defaults to `Environment.ProcessorCount`; missing/corrupt/out-of-range values are clamped to `1..ProcessorCount` on load.
+- Tolerant load: missing/corrupt file → defaults; save is best-effort + atomic temp-write.
 - Registration order matters: `ISettingsStore` can be constructed **before** `IAppPaths` because it does not depend on the data dir.
 
 ## 4. `IAppPaths` + `IAppPathsFactory`

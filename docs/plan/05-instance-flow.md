@@ -24,7 +24,8 @@ public sealed class InstanceService
 public sealed record AddInstanceRequest(
     string InstanceName,
     string DataPath,
-    CopyMoveMode Mode);
+    CopyMoveMode Mode,
+    int? MaxDegreeOfParallelism = null);
 
 public sealed record AddInstanceResult(
     bool Success,
@@ -37,6 +38,9 @@ public sealed record AddInstanceResult(
 
 - **UI-free:** all confirmation/error dialogs go through `IDialogService` (App adapter). `AddInstanceViewModel` is a thin binding shell (details in `08`).
 - **Progress:** `IProgress<string>` carries log lines (hashing each file, "collecting directories", "saving…") — the V2 log panel behavior, but via `IProgress` instead of `ObservableCollection` mutation from logic. Numeric progress (`double`) is derived by the VM from `TotalFiles`/`FilesAdded` (or a second `IProgress<double>`; see D1).
+- **Parallel hashing (D5):** Phase A hashes files in parallel, bounded by `AddInstanceRequest.MaxDegreeOfParallelism` (default `Environment.ProcessorCount`, clamped to `1..ProcessorCount`). The value comes from the Other-tab thread slider via settings (`03`).
+- **Off-thread I/O (D5):** file enumeration (+ the copy-mode size precompute, which is one metadata round-trip per file) and Phases A+B (hash / dedup-copy / save) run on the thread pool via `Task.Run`, so no add-instance file I/O executes on the UI thread; validation and the low-disk dialog stay on the caller thread.
+- **Log flood control (D6):** per-file `IProgress<string>` lines are delivered to the UI log in bounded batches at Background dispatcher priority (`BatchedLog`, App), and the log panel is a virtualizing `ListBox` that keeps every line while only realizing the visible ones (`08`).
 
 ## 3. Flow (port of V2, with fixes)
 
@@ -121,3 +125,5 @@ Mocked ports (`IFileSystem`, `IFileHasher`, `IDriveInfoProvider`, `IFileStore`, 
 - **D2** Drop the V2 per-char data-path validation; rely on path existence. Low-disk free space measured on the **data path volume** (fix).
 - **D3** Preserve V2 move-mode dedup quirk: existing `db/` file → source left in place, counted as `AlreadyExisted`.
 - **D4** Reject instances with zero files (error) instead of saving an empty instance.
+- **D5** Parallel hashing bounded by `MaxDegreeOfParallelism` from the Other-tab thread slider; all file I/O (enumeration, sizing, phases) off the UI thread.
+- **D6** Add-instance log lines batched to the UI at Background priority and rendered in a virtualizing (keep-all-lines) `ListBox`.

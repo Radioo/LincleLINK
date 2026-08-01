@@ -53,7 +53,7 @@ src/LincleLINK.App/
 - `ObservableCollection<string> LogLines` (auto-scroll behavior)
 - `double Progress` (0–100), `bool IsBusy`
 - Torrent tab: `string TorrentFilePath`, `string RelativePath`, `string TorrentDownloadPath`, `ObservableCollection<string> MatchedFiles`
-- Other tab: `string DBSize`, `string Savings`, `string FreeSpace`, `bool IsDarkTheme`
+- Other tab: `string DBSize`, `string Savings`, `string FreeSpace`, `bool IsDarkTheme`/`bool IsLightTheme` (mutually exclusive radio buttons), `int ThreadCount` (add-instance hash workers, `1..MaxThreadCount`)
 - Derived gates: `bool CanCheckPieces` (last CheckFiles `Matched > 0`), `bool CanLinkTorrent` (last CheckPieces ok && `TorrentDownloadPath` non-empty)
 
 **Commands** (`[RelayCommand]`/`[AsyncRelayCommand]`, with `CanExecute` + `NotifyCanExecuteChangedFor`):
@@ -81,10 +81,10 @@ catch InstanceStorageException/IOException → dialogService.Error(...)
 finally: IsBusy = false; RefreshStatus()
 ```
 
-- **`IProgress<T>` marshals to the UI thread** via the captured `SynchronizationContext` (D2) — V2's manual `UIContext.Send` pattern is gone. `AsyncRelayCommand` resumes on the UI context, so `ObservableCollection` mutations are safe.
-- **Add-instance dialog (D5):** `OpenAddInstance` resolves `AddInstanceViewModel` from DI, shows it via `DialogService.ShowDialogAsync(vm)`, and on close refreshes `Instances` + status (V2 did this after `ShowDialog`).
+- **`IProgress<T>` marshals to the UI thread** via the captured `SynchronizationContext` (D2) — V2's manual `UIContext.Send` pattern is gone. `AsyncRelayCommand` resumes on the UI context, so `ObservableCollection` mutations are safe. High-frequency add-instance log lines go through `BatchedLog` (queue + `Dispatcher.UIThread.Post` at `Background` priority, ~100 lines per batch). Both log panels are virtualizing `ListBox`es (`AutoScrollBehavior` pinned to the last item), so a huge instance keeps every line without flooding the UI thread or unbounded TextBlock/GC cost (D7).
+- **Add-instance dialog (D5):** `OpenAddInstance` resolves `AddInstanceViewModel` from DI, forwards `ThreadCount` from the Other-tab slider, shows it via `DialogService.ShowDialogAsync(vm)`, and on close refreshes `Instances` + status (V2 did this after `ShowDialog`).
 
-**Startup:** constructor triggers `RefreshInstancesAsync` + `RefreshStatusAsync` (after first-run resolution).
+**Startup:** the initial `RefreshInstancesAsync` + `RefreshStatusAsync` run from `MainWindow.OnOpened` (fires on the UI thread once the window is shown and the dispatcher pumps), not from `OnFrameworkInitializationCompleted` — which runs before the window is shown/bound. First-run (window shown early for the bootstrap dialog) is covered by App firing the refresh directly once the `DataContext` is set while the window is already visible (D8).
 
 ## 5. `AddInstanceViewModel`
 
@@ -111,9 +111,9 @@ public interface IDialogService
 - `MessageDialog` is a styled `UserControl` (message + OK / YesNo buttons), reused by `Confirm`/`Info`/`Error`; avoids any WinForms.
 - `ShowDialogAsync` uses `ViewHostWindow` + the app `ViewLocator` (VM → View by name convention, `01`) — the add-instance and first-run windows are driven this way, so VMs never reference `Window` types.
 
-## 7. Theming binding (detail in `09`)
+## 7. Theming & thread-count binding (detail in `09`)
 
-`IsDarkTheme` (two-way CheckBox on Other tab): setter → `ThemeManager.ApplyTheme(value)` + `settingsStore.Save(new AppSettings(IsDarkTheme, DataDirectory))`. Read initial value from settings at startup; applied in `App` before first window (no flash).
+`IsDarkTheme`/`IsLightTheme` (mutually exclusive `RadioButton`s on the Other tab, matching the first-run window): the dark setter → `ThemeManager.ApplyTheme(value)` + `settingsStore.Save` preserving `DataDirectory` + `HashThreadCount`. `ThreadCount` (Other-tab slider, `1..Environment.ProcessorCount`) persists via `settingsStore.Save` preserving the theme + `DataDirectory`; read initial values from settings at startup (seeded in `App` before the window shows, no flash).
 
 ## 8. Logging
 
@@ -148,5 +148,7 @@ public interface IDialogService
 - **D2** `IProgress<T>` UI-thread marshaling via captured `SynchronizationContext`; V2 `UIContext.Send` removed.
 - **D3** Command gating = global `IsBusy` + per-command `CanExecute`; results derive `CanCheckPieces`/`CanLinkTorrent`.
 - **D4** Add `StatusService` in Core for the Other-tab summary.
-- **D5** Add-instance opens through `DialogService.ShowDialogAsync`; list refreshed on close.
+- **D5** Add-instance opens through `DialogService.ShowDialogAsync`; list refreshed on close; `ThreadCount` forwarded to the dialog VM.
 - **D6** Add `tests/LincleLINK.App.Tests` (logic-only VM tests; no render harnesses).
+- **D7** `BatchedLog` queues high-frequency log lines and drains them to the UI in bounded batches at `Background` priority (fallback: synchronous in headless tests); the log panels are virtualizing `ListBox`es that keep all lines.
+- **D8** Initial refresh fires from `MainWindow.OnOpened` (plus an `IsVisible` fallback in `App` for the first-run path).

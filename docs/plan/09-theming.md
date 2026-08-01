@@ -33,14 +33,14 @@ Define the v3 theme. **No `Avalonia.Themes.Fluent`, no hand-rolled control templ
 
 ## 4. Layout & styling (D3)
 
-- **Keep V2 structure:** window grid rows — tab area / 5px splitter / log panel / status progress bar; three tabs (Instances, Link to torrent, Other); Instances tab = button row + DataGrid (Name / File count / Instance size); Link-to-torrent tab = field rows + action buttons + matched-files list; Other tab = status lines + Import DBInfo.xml + dark-mode checkbox; AddInstanceWindow rows (name, path+browse, copy/move radios, create, log, progress).
+- **Keep V2 structure:** window grid rows — tab area / 5px splitter / log panel / status progress bar; three tabs (Instances, Link to torrent, Other); Instances tab = button row + DataGrid (Name / File count / Instance size); Link-to-torrent tab = field rows + action buttons + matched-files list; Other tab = status lines + Import DBInfo.xml + Light/Dark radio buttons + add-instance hash-thread slider; AddInstanceWindow rows (name, path+browse, copy/move radios, create, log, progress).
 - **Styling is Semi's default** — no custom sizes, spacing, or templates. Where V2 used `{DynamicResource ...}` theme brushes on the window background / splitter / progress bar, v3 uses Semi defaults (or a minimal override brush if the accent decision above is made).
 - Minimal polish allowed in layout XAML only: consistent margins/padding, `TextBox`/`Button` arrangement, column widths — matching V2 behavior, not restyling controls.
 
 ## 5. Theme switching & persistence
 
 - Startup: read `AppSettings.IsDarkTheme`, call `themeManager.Apply(...)` in `App.OnFrameworkInitializationCompleted` **before** `MainWindow` shows (no flash).
-- Toggle: `MainViewModel.IsDarkTheme` setter → `themeManager.Apply(value)` + `settingsStore.Save(AppSettings with preserved DataDirectory)` (`08` §7).
+- Toggle: the Other tab uses mutually exclusive Light/Dark `RadioButton`s (matching the first-run window), bound to `IsLightTheme`/`IsDarkTheme`. The dark setter → `themeManager.Apply(value)` + `settingsStore.Save` preserving `DataDirectory` + `HashThreadCount` (`08` §7).
 - Windows native title bar darkening (D4): small `Win32DarkTitleBar` helper (`DwmSetWindowAttribute` attr 20/19, `[SupportedOSPlatform("windows")]`) on `SourceInitialized` when dark; Linux no-op. **Verify at M5 whether Avalonia/Semi darkens the native title bar automatically; keep helper only if needed.**
 
 ## 6. Files summary
