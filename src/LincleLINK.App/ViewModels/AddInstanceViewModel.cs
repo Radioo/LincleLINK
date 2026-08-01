@@ -35,6 +35,13 @@ public partial class AddInstanceViewModel : ViewModelBase
     [ObservableProperty]
     private double _progress;
 
+    /// <summary>
+    /// Worker count for parallel hashing (1..ProcessorCount), injected by the
+    /// caller (<see cref="MainViewModel.OpenAddInstanceAsync"/>) from settings.
+    /// </summary>
+    [ObservableProperty]
+    private int _threadCount = Environment.ProcessorCount;
+
     public AddInstanceViewModel(InstanceService service, IDialogService dialogs)
     {
         _service = service;
@@ -57,12 +64,14 @@ public partial class AddInstanceViewModel : ViewModelBase
     private async Task MakeInstanceAsync()
     {
         IsBusy = true;
-        var log = ProgressBridge.Create<string>(LogLines.Add);
+        var log = BatchedLog.Create<string>(LogLines.Add);
         var percent = ProgressBridge.Create<double>(p => Progress = p);
 
         try
         {
-            var result = await _service.CreateInstanceAsync(new AddInstanceRequest(InstanceName, DataPath, Mode), log, percent);
+            var request = new AddInstanceRequest(
+                InstanceName, DataPath, Mode, Math.Clamp(ThreadCount, 1, Environment.ProcessorCount));
+            var result = await _service.CreateInstanceAsync(request, log, percent);
 
             if (result.Success)
             {
