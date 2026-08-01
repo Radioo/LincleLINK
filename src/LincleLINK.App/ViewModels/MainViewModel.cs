@@ -45,6 +45,15 @@ public partial class MainViewModel : ViewModelBase
     private bool _isDarkTheme;
 
     [ObservableProperty]
+    private bool _isLightTheme = true;
+
+    /// <summary>Worker count used while adding a new instance (1..<see cref="MaxThreadCount"/>).</summary>
+    [ObservableProperty]
+    private int _threadCount = Environment.ProcessorCount;
+
+    public int MaxThreadCount => Environment.ProcessorCount;
+
+    [ObservableProperty]
     private double _progress;
 
     [ObservableProperty]
@@ -130,7 +139,9 @@ public partial class MainViewModel : ViewModelBase
         IsBusy = true;
         try
         {
-            await _dialogHost.ShowDialogAsync(_addInstanceFactory());
+            var dialog = _addInstanceFactory();
+            dialog.ThreadCount = ThreadCount;
+            await _dialogHost.ShowDialogAsync(dialog);
         }
         finally
         {
@@ -409,9 +420,47 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnIsDarkThemeChanged(bool value)
     {
+        if (value)
+        {
+            IsLightTheme = false;
+        }
+
         _themeManager.Apply(value);
-        _settingsStore.Save(new AppSettings(value, _settingsStore.Load().DataDirectory));
+        SaveSettings(theme: value);
         LogLines.Add(value ? "Dark mode enabled" : "Dark mode disabled");
+    }
+
+    partial void OnIsLightThemeChanged(bool value)
+    {
+        if (value)
+        {
+            IsDarkTheme = false;
+        }
+    }
+
+    partial void OnThreadCountChanged(int value)
+    {
+        var clamped = Math.Clamp(value, 1, MaxThreadCount);
+        if (clamped != value)
+        {
+            ThreadCount = clamped;
+            return;
+        }
+
+        SaveSettings(threads: value);
+    }
+
+    /// <summary>
+    /// Persists a single setting change, preserving the other fields from the
+    /// currently stored settings so startup seeding never clobbers them.
+    /// </summary>
+    private void SaveSettings(bool? theme = null, int? threads = null)
+    {
+        var current = _settingsStore.Load();
+        _settingsStore.Save(new AppSettings(
+            theme ?? current.IsDarkTheme,
+            current.DataDirectory,
+            threads ?? current.HashThreadCount));
     }
 
     public async Task RefreshInstancesAsync()

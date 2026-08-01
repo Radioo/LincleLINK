@@ -76,14 +76,20 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
-    public async Task OpenAddInstance_hosts_dialog()
+    public async Task OpenAddInstance_hosts_dialog_and_forwards_thread_count()
     {
         StubStatus();
+        _settingsStore.Load().Returns(new AppSettings(false, "C:\\data", 2));
         var vm = CreateViewModel();
+        AddInstanceViewModel? shown = null;
+        _dialogHost.When(x => x.ShowDialogAsync(Arg.Any<AddInstanceViewModel>()))
+            .Do(ci => shown = ci.Arg<AddInstanceViewModel>());
 
+        vm.ThreadCount = 3;
         await vm.OpenAddInstanceCommand.ExecuteAsync(null);
 
         await _dialogHost.Received(1).ShowDialogAsync(Arg.Any<AddInstanceViewModel>());
+        shown!.ThreadCount.Should().Be(3);
     }
 
     [Fact]
@@ -152,7 +158,7 @@ public sealed class MainViewModelTests
     [Fact]
     public void IsDarkTheme_applies_theme_and_persists()
     {
-        _settingsStore.Load().Returns(new AppSettings(false, "C:\\data"));
+        _settingsStore.Load().Returns(new AppSettings(false, "C:\\data", 2));
         AppSettings? saved = null;
         _settingsStore.When(x => x.Save(Arg.Any<AppSettings>()))
             .Do(callInfo => saved = callInfo.Arg<AppSettings>());
@@ -164,9 +170,46 @@ public sealed class MainViewModelTests
         saved.Should().NotBeNull();
         saved!.IsDarkTheme.Should().BeTrue();
         saved.DataDirectory.Should().Be("C:\\data");
+        saved.HashThreadCount.Should().Be(2);
+        vm.IsLightTheme.Should().BeFalse();
 
         vm.IsDarkTheme = false;
         _themeManager.Received(1).Apply(false);
+    }
+
+    [Fact]
+    public void IsLightTheme_turns_dark_off_and_persists()
+    {
+        _settingsStore.Load().Returns(new AppSettings(true, "C:\\data", 2));
+        var vm = CreateViewModel();
+        vm.IsDarkTheme = true;
+
+        vm.IsLightTheme = true;
+
+        vm.IsDarkTheme.Should().BeFalse();
+        _themeManager.Received(1).Apply(false);
+    }
+
+    [Fact]
+    public void ThreadCount_persists_and_clamps()
+    {
+        _settingsStore.Load().Returns(new AppSettings(false, "C:\\data", 2));
+        AppSettings? saved = null;
+        _settingsStore.When(x => x.Save(Arg.Any<AppSettings>()))
+            .Do(callInfo => saved = callInfo.Arg<AppSettings>());
+
+        var vm = CreateViewModel();
+        vm.ThreadCount = 4;
+
+        saved.Should().NotBeNull();
+        saved!.HashThreadCount.Should().Be(4);
+        saved.IsDarkTheme.Should().BeFalse();
+        saved.DataDirectory.Should().Be("C:\\data");
+
+        // Below the minimum clamps back to 1.
+        vm.ThreadCount = 0;
+        vm.ThreadCount.Should().Be(1);
+        vm.MaxThreadCount.Should().Be(Environment.ProcessorCount);
     }
 
     [Fact]

@@ -20,7 +20,7 @@ public sealed class FirstLaunchServiceTests : IDisposable
     {
         var store = new JsonSettingsStore(SettingsPath);
         var dataDir = Path.Combine(_temp.Root, "data");
-        store.Save(new AppSettings(false, dataDir));
+        store.Save(new AppSettings(false, dataDir, 4));
 
         var result = new FirstLaunchService(store).Resolve();
 
@@ -33,7 +33,7 @@ public sealed class FirstLaunchServiceTests : IDisposable
     public void Resolve_with_existing_settings_and_null_dir_uses_cwd()
     {
         var store = new JsonSettingsStore(SettingsPath);
-        store.Save(new AppSettings(false, null));
+        store.Save(new AppSettings(false, null, 1));
 
         var original = Environment.CurrentDirectory;
         try

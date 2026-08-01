@@ -25,19 +25,27 @@ public sealed class JsonSettingsStore : ISettingsStore
     {
         if (!Exists)
         {
-            return new AppSettings(false, null);
+            return Defaults();
         }
 
         try
         {
             var json = File.ReadAllText(_settingsFile);
-            return JsonSerializer.Deserialize<AppSettings>(json, Options) ?? new AppSettings(false, null);
+            return Normalize(JsonSerializer.Deserialize<AppSettings>(json, Options) ?? Defaults());
         }
         catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException)
         {
-            return new AppSettings(false, null);
+            return Defaults();
         }
     }
+
+    private static AppSettings Defaults() => new(false, null, Environment.ProcessorCount);
+
+    private static AppSettings Normalize(AppSettings settings)
+        => settings with
+        {
+            HashThreadCount = Math.Clamp(settings.HashThreadCount, 1, Environment.ProcessorCount),
+        };
 
     public void Save(AppSettings settings)
     {

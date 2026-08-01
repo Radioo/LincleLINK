@@ -47,7 +47,7 @@ public static class AppBootstrapper
                 dataDirectory = await ShowFirstRunAsync(vm, host);
 
                 // Persist the explicit choice (directory + theme) made in the dialog.
-                settingsStore.Save(new AppSettings(vm.IsDarkTheme, dataDirectory));
+                settingsStore.Save(new AppSettings(vm.IsDarkTheme, dataDirectory, Environment.ProcessorCount));
             }
             else
             {

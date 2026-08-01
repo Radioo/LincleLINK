@@ -59,7 +59,7 @@ public sealed class FirstLaunchService
     {
         var settings = _settingsStore.Load();
         var isDark = ReadLegacyDarkTheme(dataDirectory) ?? settings.IsDarkTheme;
-        _settingsStore.Save(new AppSettings(isDark, dataDirectory));
+        _settingsStore.Save(new AppSettings(isDark, dataDirectory, settings.HashThreadCount));
     }
 
     private static bool HasLegacyData(string dir)
