@@ -32,7 +32,15 @@ public partial class App : Application
                 var viewModel = _services.GetRequiredService<MainViewModel>();
                 desktop.MainWindow.DataContext = viewModel;
                 viewModel.IsDarkTheme = settings.IsDarkTheme;
-                await viewModel.InitializeAsync();
+                viewModel.ThreadCount = settings.HashThreadCount;
+
+                // The first-run dialog shows the main window before the DataContext is
+                // set, so Opened cannot drive the initial refresh in that case; fire it
+                // directly here when the window is already visible.
+                if (desktop.MainWindow.IsVisible)
+                {
+                    await viewModel.InitializeAsync();
+                }
             }
             catch (Exception ex)
             {

@@ -26,9 +26,9 @@
 
         <Button Grid.Row="3" Content="Create instance" Command="{Binding MakeInstanceCommand}" Margin="0,12,0,0" />
 
-        <ScrollViewer Grid.Row="4" Margin="0,12,0,0" behaviors:AutoScrollBehavior.AutoScrollToEnd="True">
-            <ItemsControl ItemsSource="{Binding LogLines}" />
-        </ScrollViewer>
+        <ListBox Grid.Row="4" Margin="0,12,0,0"
+                 ItemsSource="{Binding LogLines}"
+                 behaviors:AutoScrollBehavior.AutoScrollToEnd="True" />
 
         <ProgressBar Grid.Row="5" Value="{Binding Progress}" Minimum="0" Maximum="100" Margin="0,12,0,0" />
 
