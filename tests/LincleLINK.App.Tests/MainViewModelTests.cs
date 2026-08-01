@@ -32,7 +32,7 @@ public sealed class MainViewModelTests
     private readonly ISettingsStore _settingsStore = Substitute.For<ISettingsStore>();
 
     private MainViewModel CreateViewModel() => new(
-        new InstanceService(_fs, _hasher, _store, _repository, _driveInfo, _dialogs),
+        new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _repository, _driveInfo, _dialogs),
         new LinkingService(_fs, _store, Substitute.For<IHardLinker>(), _repository, _dialogs),
         new UnusedFilesService(_store, _repository, _dialogs),
         new LegacyImporter(_repository),
@@ -43,7 +43,7 @@ public sealed class MainViewModelTests
         _dialogHost,
         _themeManager,
         _settingsStore,
-        () => new AddInstanceViewModel(new InstanceService(_fs, _hasher, _store, _repository, _driveInfo, _dialogs), _dialogs));
+        () => new AddInstanceViewModel(new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _repository, _driveInfo, _dialogs), _dialogs));
 
     private void StubStatus(long dbSize = 0, long free = 1)
     {

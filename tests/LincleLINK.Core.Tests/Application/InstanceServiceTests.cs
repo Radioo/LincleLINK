@@ -4,6 +4,7 @@ using LincleLINK.Core.Abstractions.Disk;
 using LincleLINK.Core.Abstractions.Filesystem;
 using LincleLINK.Core.Abstractions.Hashing;
 using LincleLINK.Core.Abstractions.Instances;
+using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
@@ -18,11 +19,12 @@ public sealed class InstanceServiceTests
     private readonly IFileSystem _fs = Substitute.For<IFileSystem>();
     private readonly IFileHasher _hasher = Substitute.For<IFileHasher>();
     private readonly IFileStore _store = Substitute.For<IFileStore>();
+    private readonly IHardLinker _hardLinker = Substitute.For<IHardLinker>();
     private readonly IInstanceRepository _repository = Substitute.For<IInstanceRepository>();
     private readonly IDriveInfoProvider _driveInfo = Substitute.For<IDriveInfoProvider>();
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
 
-    private InstanceService CreateService() => new(_fs, _hasher, _store, _repository, _driveInfo, _dialogs);
+    private InstanceService CreateService() => new(_fs, _hasher, _store, _hardLinker, _repository, _driveInfo, _dialogs);
 
     private void StubDataPath(string dataPath, params string[] files)
     {
@@ -101,22 +103,53 @@ public sealed class InstanceServiceTests
         result.BytesAdded.Should().Be(200);
 
         await _store.Received(2).CopyToStoreAsync(Arg.Any<string>(), "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin", Arg.Any<CancellationToken>());
-        await _store.DidNotReceive().MoveToStoreAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _repository.Received(1).SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Move_mode_moves_and_dedup_leaves_source_in_place()
+    public async Task Move_mode_copies_to_db_and_hard_links_back()
+    {
+        StubDataPath("C:\\data", "C:\\data\\a.bin");
+        _store.Exists("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin").Returns(false);
+        _store.GetPath("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin").Returns("C:\\db\\AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin");
+        _hardLinker.TryCreateLink(Arg.Any<string>(), Arg.Any<string>(), out _).Returns(x =>
+        {
+            x[2] = null;
+            return true;
+        });
+
+        var result = await CreateService().CreateInstanceAsync(new("inst", "C:\\data", CopyMoveMode.Move));
+
+        result.Success.Should().BeTrue();
+        result.FilesAdded.Should().Be(1);
+        result.BytesAdded.Should().Be(100);
+
+        await _store.Received(1).CopyToStoreAsync("C:\\data\\a.bin", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin", Arg.Any<CancellationToken>());
+        _fs.Received(1).DeleteFile("C:\\data\\a.bin");
+        _hardLinker.Received(1).TryCreateLink("C:\\db\\AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin", "C:\\data\\a.bin", out _);
+    }
+
+    [Fact]
+    public async Task Move_mode_dedup_links_original_to_existing_db_file()
     {
         StubDataPath("C:\\data", "C:\\data\\a.bin");
         _store.Exists("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin").Returns(true);
+        _store.GetPath("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin").Returns("C:\\db\\AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin");
+        _hardLinker.TryCreateLink(Arg.Any<string>(), Arg.Any<string>(), out _).Returns(x =>
+        {
+            x[2] = null;
+            return true;
+        });
 
         var result = await CreateService().CreateInstanceAsync(new("inst", "C:\\data", CopyMoveMode.Move));
 
         result.Success.Should().BeTrue();
         result.AlreadyExisted.Should().Be(1);
         result.FilesAdded.Should().Be(0);
-        await _store.DidNotReceive().MoveToStoreAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+
+        // The duplicate original becomes a hard link to the existing db file.
+        _fs.Received(1).DeleteFile("C:\\data\\a.bin");
+        _hardLinker.Received(1).TryCreateLink("C:\\db\\AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin", "C:\\data\\a.bin", out _);
     }
 
     [Fact]

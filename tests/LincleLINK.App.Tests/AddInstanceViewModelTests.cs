@@ -5,6 +5,7 @@ using LincleLINK.Core.Abstractions.Disk;
 using LincleLINK.Core.Abstractions.Filesystem;
 using LincleLINK.Core.Abstractions.Hashing;
 using LincleLINK.Core.Abstractions.Instances;
+using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
@@ -18,12 +19,13 @@ public sealed class AddInstanceViewModelTests
     private readonly IFileSystem _fs = Substitute.For<IFileSystem>();
     private readonly IFileHasher _hasher = Substitute.For<IFileHasher>();
     private readonly IFileStore _store = Substitute.For<IFileStore>();
+    private readonly IHardLinker _hardLinker = Substitute.For<IHardLinker>();
     private readonly IInstanceRepository _repository = Substitute.For<IInstanceRepository>();
     private readonly IDriveInfoProvider _driveInfo = Substitute.For<IDriveInfoProvider>();
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
 
     private AddInstanceViewModel Create() =>
-        new(new InstanceService(_fs, _hasher, _store, _repository, _driveInfo, _dialogs), _dialogs);
+        new(new InstanceService(_fs, _hasher, _store, _hardLinker, _repository, _driveInfo, _dialogs), _dialogs);
 
     private void StubDataPath()
     {
@@ -72,9 +74,16 @@ public sealed class AddInstanceViewModelTests
     }
 
     [Fact]
-    public async Task Move_mode_uses_move_operations()
+    public async Task Move_mode_copies_to_db_and_hard_links_back()
     {
         StubDataPath();
+        _store.GetPath(Arg.Any<string>()).Returns("C:\\db\\AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin");
+        _hardLinker.TryCreateLink(Arg.Any<string>(), Arg.Any<string>(), out _).Returns(x =>
+        {
+            x[2] = null;
+            return true;
+        });
+
         var vm = Create();
         vm.InstanceName = "inst";
         vm.DataPath = "C:\\data";
@@ -83,8 +92,9 @@ public sealed class AddInstanceViewModelTests
 
         await vm.MakeInstanceCommand.ExecuteAsync(null);
 
-        await _store.Received(1).MoveToStoreAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
-        await _store.DidNotReceive().CopyToStoreAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _store.Received(1).CopyToStoreAsync("C:\\data\\a.bin", Arg.Any<string>(), Arg.Any<CancellationToken>());
+        _fs.Received(1).DeleteFile("C:\\data\\a.bin");
+        _hardLinker.Received(1).TryCreateLink("C:\\db\\AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin", "C:\\data\\a.bin", out _);
     }
 
     [Fact]

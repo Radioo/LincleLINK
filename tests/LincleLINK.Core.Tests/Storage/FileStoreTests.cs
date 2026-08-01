@@ -39,29 +39,6 @@ public sealed class FileStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task MoveToStore_moves_and_removes_source()
-    {
-        var source = _temp.CreateFile("src.2dx", "hello"u8.ToArray());
-
-        await _store.MoveToStoreAsync(source, HashA);
-        _store.Exists(HashA).Should().BeTrue();
-        File.Exists(source).Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task MoveToStore_dedup_leaves_source_in_place()
-    {
-        var sourceA = _temp.CreateFile("a.2dx", "hello"u8.ToArray());
-        var sourceB = _temp.CreateFile("b.2dx", "hello"u8.ToArray());
-
-        await _store.MoveToStoreAsync(sourceA, HashA);
-        await _store.MoveToStoreAsync(sourceB, HashA); // same hash, already stored
-
-        File.Exists(sourceB).Should().BeTrue();
-        _store.Exists(HashA).Should().BeTrue();
-    }
-
-    [Fact]
     public async Task CopyOut_never_overwrites_existing_destination()
     {
         await _store.CopyToStoreAsync(_temp.CreateFile("src.2dx", "new"u8.ToArray()), HashA);

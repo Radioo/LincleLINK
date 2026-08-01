@@ -3,6 +3,7 @@ using LincleLINK.Core.Abstractions.Disk;
 using LincleLINK.Core.Abstractions.Filesystem;
 using LincleLINK.Core.Abstractions.Hashing;
 using LincleLINK.Core.Abstractions.Instances;
+using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Domain;
 using LincleLINK.Core.Domain.Validation;
@@ -33,6 +34,7 @@ public sealed class InstanceService
     private readonly IFileSystem _fileSystem;
     private readonly IFileHasher _hasher;
     private readonly IFileStore _store;
+    private readonly IHardLinker _hardLinker;
     private readonly IInstanceRepository _repository;
     private readonly IDriveInfoProvider _driveInfo;
     private readonly IDialogService _dialogs;
@@ -41,6 +43,7 @@ public sealed class InstanceService
         IFileSystem fileSystem,
         IFileHasher hasher,
         IFileStore store,
+        IHardLinker hardLinker,
         IInstanceRepository repository,
         IDriveInfoProvider driveInfo,
         IDialogService dialogs)
@@ -48,6 +51,7 @@ public sealed class InstanceService
         _fileSystem = fileSystem;
         _hasher = hasher;
         _store = store;
+        _hardLinker = hardLinker;
         _repository = repository;
         _driveInfo = driveInfo;
         _dialogs = dialogs;
@@ -123,6 +127,7 @@ public sealed class InstanceService
             log?.Report($"Hashing {file}");
             var hash = await _hasher.ComputeHashAsync(file, ct);
             var storeName = hash + Path.GetExtension(file);
+            var fileLength = _fileSystem.GetFileLength(file);
 
             var relativePath = Path.GetRelativePath(request.DataPath, Path.GetDirectoryName(file) ?? request.DataPath);
             if (relativePath == ".")
@@ -131,25 +136,35 @@ public sealed class InstanceService
             }
 
             directories.Add(relativePath);
-            instanceFiles.Add(new InstanceFile(Path.GetFileName(file), relativePath, _fileSystem.GetFileLength(file), storeName));
+            instanceFiles.Add(new InstanceFile(Path.GetFileName(file), relativePath, fileLength, storeName));
 
-            if (_store.Exists(storeName))
+            var isNew = !_store.Exists(storeName);
+
+            if (request.Mode == CopyMoveMode.Move)
             {
-                alreadyExisted++;
-            }
-            else
-            {
-                if (request.Mode == CopyMoveMode.Copy)
+                if (isNew)
                 {
                     await _store.CopyToStoreAsync(file, storeName, ct);
                 }
-                else
-                {
-                    await _store.MoveToStoreAsync(file, storeName, ct);
-                }
 
+                // Move: ensure a db copy exists (dedup skips the copy), then replace the
+                // original with a hard link to the db file so the source path keeps
+                // working while the data is deduplicated in db/.
+                LinkOriginalToStore(file, storeName, log);
+            }
+            else if (isNew)
+            {
+                await _store.CopyToStoreAsync(file, storeName, ct);
+            }
+
+            if (isNew)
+            {
                 filesAdded++;
-                bytesAdded += _fileSystem.GetFileLength(file);
+                bytesAdded += fileLength;
+            }
+            else
+            {
+                alreadyExisted++;
             }
 
             percent?.Report(++index * step);
@@ -167,6 +182,26 @@ public sealed class InstanceService
     }
 
     private static AddInstanceResult Fail(string error) => new(false, error, 0, 0, 0, 0);
+
+    /// <summary>
+    /// Replaces the original file at its source path with a hard link to its db copy.
+    /// The data is already safely in <c>db/</c>, so a failed link is non-destructive;
+    /// it is reported on the log and the file stays in the store.
+    /// </summary>
+    private void LinkOriginalToStore(string originalPath, string storeName, IProgress<string>? log)
+    {
+        var dbPath = _store.GetPath(storeName);
+        _fileSystem.DeleteFile(originalPath);
+
+        if (_hardLinker.TryCreateLink(dbPath, originalPath, out var error))
+        {
+            return;
+        }
+
+        log?.Report(
+            $"File {Path.GetFileName(originalPath)} was added to the db but could not be " +
+            $"hard-linked back into place ({error}); it is safe in the db.");
+    }
 
     /// <summary>
     /// Deletes an instance manifest (files stay in <c>db/</c>) after a confirmation.

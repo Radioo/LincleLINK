@@ -75,6 +75,7 @@ Prereq: a copy of a real v2 install (`db/` + `instance/*.json` + CWD `settings.j
 | `FileStore` hash-name traversal guard | `03` D4 | security |
 | Low-disk free space measured on data-path volume | `05` D2 | v2 measured wrong drive |
 | Zero-file instances rejected | `05` D4 | useless/confusing state |
+| Move mode: copy into `db/` + hard-link the original back (was `File.Move`, which deleted the source and crashed on re-stat) | `05` | critical bug fix + requested behavior |
 | Per-file link failures log + continue (not abort-all) | `06`/`07` | resilience |
 | Stored-data-derived target paths validated | `06` D3 | security |
 | Streaming piece verification (bounded memory) | `07` D2 | v2 OOM risk |

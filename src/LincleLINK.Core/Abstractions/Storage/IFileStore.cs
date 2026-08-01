@@ -12,12 +12,6 @@ public interface IFileStore
     /// <summary>Copies a source file into the store; no-op when the hash already exists (dedup).</summary>
     Task CopyToStoreAsync(string sourcePath, string hashedFileName, CancellationToken ct = default);
 
-    /// <summary>
-    /// Moves a source file into the store; no-op (source left in place) when the hash
-    /// already exists — v2 dedup quirk.
-    /// </summary>
-    Task MoveToStoreAsync(string sourcePath, string hashedFileName, CancellationToken ct = default);
-
     /// <summary>Copies a stored file out; never overwrites an existing destination.</summary>
     Task CopyOutAsync(string hashedFileName, string destinationPath, CancellationToken ct = default);
 
