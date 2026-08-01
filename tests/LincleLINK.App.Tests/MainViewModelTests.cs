@@ -9,6 +9,7 @@ using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Abstractions.Paths;
 using LincleLINK.Core.Abstractions.Storage;
+using LincleLINK.Core.Abstractions.Torrents;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
 using NSubstitute;
@@ -33,6 +34,7 @@ public sealed class MainViewModelTests
         new LinkingService(_fs, _store, Substitute.For<IHardLinker>(), _repository, _dialogs),
         new UnusedFilesService(_store, _repository, _dialogs),
         new LegacyImporter(_repository),
+        new TorrentService(Substitute.For<ITorrentSource>(), _repository, _store, Substitute.For<IHardLinker>(), _fs),
         _repository,
         new StatusService(_store, _repository, _driveInfo, _paths),
         _dialogs,
@@ -154,5 +156,26 @@ public sealed class MainViewModelTests
 
         vm.IsDarkTheme = false;
         _themeManager.Received(1).Apply(false);
+    }
+
+    [Fact]
+    public void Torrent_input_edits_reset_piece_gates()
+    {
+        StubStatus();
+        var vm = CreateViewModel();
+        vm.SelectedInstance = new InstanceListEntry("X", 0, 0, "0 B");
+
+        vm.TorrentFilePath = "x.torrent";
+        vm.CheckFilesCommand.CanExecute(null).Should().BeTrue();
+        vm.CanCheckPieces.Should().BeFalse();
+
+        vm.CanCheckPieces = true;
+        vm.TorrentDownloadPath = "C:\\dl";
+        vm.CanLinkTorrent = true;
+
+        vm.RelativePath = @"contents\data";
+
+        vm.CanCheckPieces.Should().BeFalse();
+        vm.CanLinkTorrent.Should().BeFalse();
     }
 }

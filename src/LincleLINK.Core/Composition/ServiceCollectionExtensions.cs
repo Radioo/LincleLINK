@@ -6,6 +6,7 @@ using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Abstractions.Paths;
 using LincleLINK.Core.Abstractions.Storage;
+using LincleLINK.Core.Abstractions.Torrents;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Infrastructure.Disk;
 using LincleLINK.Core.Infrastructure.Filesystem;
@@ -14,6 +15,7 @@ using LincleLINK.Core.Infrastructure.Instances;
 using LincleLINK.Core.Infrastructure.Linking;
 using LincleLINK.Core.Infrastructure.Paths;
 using LincleLINK.Core.Infrastructure.Storage;
+using LincleLINK.Core.Infrastructure.Torrents;
 
 namespace LincleLINK.Core.Composition;
 
@@ -64,6 +66,7 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<IFileStore, FileStore>();
         services.AddSingleton<IInstanceRepository, JsonInstanceRepository>();
+        services.AddSingleton<ITorrentSource, MonoTorrentSource>();
 
         services.AddSingleton<FirstLaunchService>();
         services.AddSingleton<LegacyImporter>();
@@ -71,6 +74,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<StatusService>();
         services.AddSingleton<LinkingService>();
         services.AddSingleton<UnusedFilesService>();
+        services.AddSingleton<TorrentService>();
 
         return services;
     }

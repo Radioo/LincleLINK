@@ -5,6 +5,7 @@ using LincleLINK.App.Services;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Application;
+using LincleLINK.Core.Application.Torrents;
 using LincleLINK.Core.Domain;
 
 namespace LincleLINK.App.ViewModels;
@@ -15,6 +16,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly LinkingService _linkingService;
     private readonly UnusedFilesService _unusedFilesService;
     private readonly LegacyImporter _legacyImporter;
+    private readonly TorrentService _torrentService;
     private readonly IInstanceRepository _repository;
     private readonly StatusService _statusService;
     private readonly IDialogService _dialogs;
@@ -22,8 +24,12 @@ public partial class MainViewModel : ViewModelBase
     private readonly IThemeManager _themeManager;
     private readonly Func<AddInstanceViewModel> _addInstanceFactory;
 
+    private IReadOnlyList<TorrentFileCheck> _checkedFiles = [];
+    private IReadOnlyList<long> _badPieces = [];
+
     public ObservableCollection<InstanceListEntry> Instances { get; } = [];
     public ObservableCollection<string> LogLines { get; } = [];
+    public ObservableCollection<string> MatchedFiles { get; } = [];
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(
@@ -58,11 +64,32 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private string _freeSpace = string.Empty;
 
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CheckFilesCommand))]
+    private string _torrentFilePath = string.Empty;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CheckFilesCommand))]
+    private string _relativePath = string.Empty;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CheckFilesCommand), nameof(LinkToTorrentCommand))]
+    private string _torrentDownloadPath = string.Empty;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CheckPiecesCommand), nameof(LinkToTorrentCommand))]
+    private bool _canCheckPieces;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(LinkToTorrentCommand))]
+    private bool _canLinkTorrent;
+
     public MainViewModel(
         InstanceService instanceService,
         LinkingService linkingService,
         UnusedFilesService unusedFilesService,
         LegacyImporter legacyImporter,
+        TorrentService torrentService,
         IInstanceRepository repository,
         StatusService statusService,
         IDialogService dialogs,
@@ -74,6 +101,7 @@ public partial class MainViewModel : ViewModelBase
         _linkingService = linkingService;
         _unusedFilesService = unusedFilesService;
         _legacyImporter = legacyImporter;
+        _torrentService = torrentService;
         _repository = repository;
         _statusService = statusService;
         _dialogs = dialogs;
@@ -81,6 +109,10 @@ public partial class MainViewModel : ViewModelBase
         _themeManager = themeManager;
         _addInstanceFactory = addInstanceFactory;
     }
+
+    partial void OnTorrentFilePathChanged(string value) => ResetTorrentGates();
+    partial void OnRelativePathChanged(string value) => ResetTorrentGates();
+    partial void OnTorrentDownloadPathChanged(string value) => ResetTorrentGates();
 
     public async Task InitializeAsync()
     {
@@ -248,6 +280,126 @@ public partial class MainViewModel : ViewModelBase
     private bool CanCheckUnused() => !IsBusy;
 
     private bool CanImportLegacy() => !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanBrowseTorrent))]
+    private async Task BrowseTorrentFileAsync()
+    {
+        var path = await _dialogs.PickOpenFileAsync("Select a torrent file", "Torrent file|*.torrent");
+        if (path is not null)
+        {
+            TorrentFilePath = path;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanBrowseTorrent))]
+    private async Task BrowseTorrentDlPathAsync()
+    {
+        var path = await _dialogs.PickFolderAsync("Select torrent download and link target location");
+        if (path is not null)
+        {
+            TorrentDownloadPath = path;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCheckFiles))]
+    private async Task CheckFilesAsync()
+    {
+        if (SelectedInstance is null)
+        {
+            return;
+        }
+
+        await RunOperationAsync(async (log, percent) =>
+        {
+            var result = await _torrentService.CheckFilesAsync(
+                new CheckFilesRequest(SelectedInstance!.InstanceName, TorrentFilePath, RelativePath), log, percent);
+
+            if (!result.Success)
+            {
+                if (result.Error is not null)
+                {
+                    LogLines.Add(result.Error);
+                }
+
+                CanCheckPieces = false;
+                return;
+            }
+
+            MatchedFiles.Clear();
+            foreach (var path in result.MatchedFilePaths)
+            {
+                MatchedFiles.Add(path);
+            }
+
+            CanCheckPieces = result.Matched > 0;
+            if (result.Matched == 0)
+            {
+                LogLines.Add(@"Check if your relative path is correct. (example: contents\data)");
+            }
+        });
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRunCheckPieces))]
+    private async Task CheckPiecesAsync()
+    {
+        await RunOperationAsync(async (log, percent) =>
+        {
+            var result = await _torrentService.CheckPiecesAsync(
+                new CheckPiecesRequest(SelectedInstance!.InstanceName, TorrentFilePath, RelativePath), log, percent);
+
+            if (!result.Success)
+            {
+                if (result.Error is not null)
+                {
+                    LogLines.Add(result.Error);
+                }
+
+                CanLinkTorrent = false;
+                _checkedFiles = [];
+                _badPieces = [];
+                return;
+            }
+
+            _checkedFiles = result.Files;
+            _badPieces = result.BadPieces;
+            CanLinkTorrent = !string.IsNullOrWhiteSpace(TorrentDownloadPath);
+        });
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRunLinkToTorrent))]
+    private async Task LinkToTorrentAsync()
+    {
+        await RunOperationAsync(async (log, percent) =>
+        {
+            var result = await _torrentService.LinkToTorrentAsync(
+                new LinkToTorrentRequest(TorrentDownloadPath, _checkedFiles, _badPieces), log, percent);
+
+            if (result.Error is not null)
+            {
+                LogLines.Add(result.Error);
+            }
+        });
+
+        CanCheckPieces = false;
+        CanLinkTorrent = false;
+        _checkedFiles = [];
+        _badPieces = [];
+    }
+
+    private bool CanBrowseTorrent() => !IsBusy;
+
+    private bool CanCheckFiles()
+        => !IsBusy && SelectedInstance is not null && !string.IsNullOrWhiteSpace(TorrentFilePath);
+
+    private bool CanRunCheckPieces() => !IsBusy && CanCheckPieces;
+
+    private bool CanRunLinkToTorrent() => !IsBusy && CanLinkTorrent;
+
+    private void ResetTorrentGates()
+    {
+        CanCheckPieces = false;
+        CanLinkTorrent = false;
+    }
 
     private bool CanDeleteInstance() => !IsBusy && SelectedInstance is not null;
 
