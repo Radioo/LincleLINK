@@ -107,4 +107,17 @@ public sealed class AddInstanceViewModelTests
 
         vm.DataPath.Should().Be("C:\\chosen");
     }
+
+    [Fact]
+    public void Fresh_instance_starts_with_defaults()
+    {
+        var vm = Create();
+
+        vm.InstanceName.Should().BeEmpty();
+        vm.DataPath.Should().BeEmpty();
+        vm.IsCopyChecked.Should().BeTrue();
+        vm.IsMoveChecked.Should().BeFalse();
+        vm.LogLines.Should().BeEmpty();
+        vm.Progress.Should().Be(0);
+    }
 }

@@ -59,7 +59,8 @@ public static class AppBootstrapper
         services.AddSingleton<IAppDialogHost>(dialogService);
 
         services.AddSingleton<IThemeManager, ThemeManager>();
-        services.AddSingleton<AddInstanceViewModel>();
+        // Transient so the Add Instance dialog starts fresh (no remembered fields/log).
+        services.AddTransient<AddInstanceViewModel>();
         services.AddSingleton<FirstRunViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<Func<AddInstanceViewModel>>(sp => () => sp.GetRequiredService<AddInstanceViewModel>());

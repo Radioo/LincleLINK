@@ -116,27 +116,43 @@ public sealed class InstanceService
         var instanceFiles = new List<InstanceFile>(files.Count);
         var directories = new HashSet<string>(StringComparer.Ordinal);
 
-        log?.Report("Hashing...");
-        double step = files.Count == 0 ? 0 : 100d / files.Count;
-        int index = 0;
+        log?.Report($"Hashing {files.Count} files...");
 
-        foreach (var file in files)
+        // Phase A: hash every file in parallel (bounded), capturing the length before any
+        // mutation. Results are index-aligned so phase B stays in enumeration order.
+        var hashResults = new HashResult[files.Count];
+        int hashed = 0;
+        double hashStep = files.Count == 0 ? 0 : 50d / files.Count;
+
+        await Parallel.ForEachAsync(
+            files.Select((path, index) => (path, index)),
+            new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = ct },
+            async (item, token) =>
+            {
+                var hash = await _hasher.ComputeHashAsync(item.path, token);
+                hashResults[item.index] = new HashResult(item.path, hash, _fileSystem.GetFileLength(item.path));
+                percent?.Report(Interlocked.Increment(ref hashed) * hashStep);
+            });
+
+        // Phase B: write to the store in original order (dedup, copy / move-link-back, count).
+        double writeStep = files.Count == 0 ? 0 : 50d / files.Count;
+        int written = 0;
+
+        foreach (var result in hashResults)
         {
             ct.ThrowIfCancellationRequested();
 
-            log?.Report($"Hashing {file}");
-            var hash = await _hasher.ComputeHashAsync(file, ct);
-            var storeName = hash + Path.GetExtension(file);
-            var fileLength = _fileSystem.GetFileLength(file);
+            var storeName = result.Hash + Path.GetExtension(result.Path);
+            var fileLength = result.Length;
 
-            var relativePath = Path.GetRelativePath(request.DataPath, Path.GetDirectoryName(file) ?? request.DataPath);
+            var relativePath = Path.GetRelativePath(request.DataPath, Path.GetDirectoryName(result.Path) ?? request.DataPath);
             if (relativePath == ".")
             {
                 relativePath = string.Empty;
             }
 
             directories.Add(relativePath);
-            instanceFiles.Add(new InstanceFile(Path.GetFileName(file), relativePath, fileLength, storeName));
+            instanceFiles.Add(new InstanceFile(Path.GetFileName(result.Path), relativePath, fileLength, storeName));
 
             var isNew = !_store.Exists(storeName);
 
@@ -144,17 +160,17 @@ public sealed class InstanceService
             {
                 if (isNew)
                 {
-                    await _store.CopyToStoreAsync(file, storeName, ct);
+                    await _store.CopyToStoreAsync(result.Path, storeName, ct);
                 }
 
                 // Move: ensure a db copy exists (dedup skips the copy), then replace the
                 // original with a hard link to the db file so the source path keeps
                 // working while the data is deduplicated in db/.
-                LinkOriginalToStore(file, storeName, log);
+                LinkOriginalToStore(result.Path, storeName, log);
             }
             else if (isNew)
             {
-                await _store.CopyToStoreAsync(file, storeName, ct);
+                await _store.CopyToStoreAsync(result.Path, storeName, ct);
             }
 
             if (isNew)
@@ -167,7 +183,7 @@ public sealed class InstanceService
                 alreadyExisted++;
             }
 
-            percent?.Report(++index * step);
+            percent?.Report(50 + (++written * writeStep));
         }
 
         var instance = Instance.Create(request.InstanceName, instanceFiles, directories);
@@ -182,6 +198,8 @@ public sealed class InstanceService
     }
 
     private static AddInstanceResult Fail(string error) => new(false, error, 0, 0, 0, 0);
+
+    private readonly record struct HashResult(string Path, string Hash, long Length);
 
     /// <summary>
     /// Replaces the original file at its source path with a hard link to its db copy.
