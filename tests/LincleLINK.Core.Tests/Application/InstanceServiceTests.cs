@@ -230,6 +230,44 @@ public sealed class InstanceServiceTests
     }
 
     [Fact]
+    public async Task MaxDegree_of_parallelism_one_hashes_sequentially()
+    {
+        StubDataPath(Data, FileA, FileB, FileSubC);
+        _store.Exists(Arg.Any<string>()).Returns(false);
+
+        int active = 0;
+        int maxActive = 0;
+        var gate = new object();
+
+        _hasher.ComputeHashAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(async _ =>
+            {
+                var now = Interlocked.Increment(ref active);
+                lock (gate)
+                {
+                    maxActive = Math.Max(maxActive, now);
+                }
+
+                try
+                {
+                    await Task.Delay(20);
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref active);
+                }
+
+                return "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+            });
+
+        var result = await CreateService().CreateInstanceAsync(
+            new("inst", Data, CopyMoveMode.Copy, MaxDegreeOfParallelism: 1));
+
+        result.Success.Should().BeTrue();
+        maxActive.Should().Be(1);
+    }
+
+    [Fact]
     public async Task Cancellation_mid_loop_does_not_save()
     {
         StubDataPath(Data, FileA, FileB);

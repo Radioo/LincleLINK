@@ -10,7 +10,11 @@ using LincleLINK.Core.Domain.Validation;
 
 namespace LincleLINK.Core.Application;
 
-public sealed record AddInstanceRequest(string InstanceName, string DataPath, CopyMoveMode Mode);
+public sealed record AddInstanceRequest(
+    string InstanceName,
+    string DataPath,
+    CopyMoveMode Mode,
+    int? MaxDegreeOfParallelism = null);
 
 public sealed record AddInstanceResult(
     bool Success,
@@ -79,7 +83,28 @@ public sealed class InstanceService
             return Fail("An instance with this name already exists.");
         }
 
-        var files = _fileSystem.EnumerateFiles(request.DataPath, recursive: true);
+        // Enumerate off the UI thread: recursive enumeration of a large tree can
+        // otherwise block the caller (which is the UI thread during add-instance).
+        // Copy mode also precomputes the total size here, since per-file metadata
+        // on a network origin is one round-trip per file that shouldn't run serially
+        // on the UI thread.
+        var enumerated = await Task.Run(() =>
+        {
+            var fileList = _fileSystem.EnumerateFiles(request.DataPath, recursive: true);
+
+            long total = 0;
+            if (request.Mode == CopyMoveMode.Copy)
+            {
+                foreach (var file in fileList)
+                {
+                    total += _fileSystem.GetFileLength(file);
+                }
+            }
+
+            return (Files: fileList, SizeToCopy: total);
+        }, ct);
+
+        var files = enumerated.Files;
         if (files.Count == 0)
         {
             return Fail("The data path contains no files.");
@@ -88,19 +113,13 @@ public sealed class InstanceService
         // Low-disk warning only in copy mode; free space measured on the data-path volume.
         if (request.Mode == CopyMoveMode.Copy)
         {
-            long sizeToCopy = 0;
-            foreach (var file in files)
-            {
-                sizeToCopy += _fileSystem.GetFileLength(file);
-            }
-
             long freeSpace = _driveInfo.GetAvailableFreeSpace(request.DataPath);
-            if (sizeToCopy + LowDiskWiggleRoom > freeSpace)
+            if (enumerated.SizeToCopy + LowDiskWiggleRoom > freeSpace)
             {
                 var proceed = await _dialogs.ConfirmAsync(
                     $"Current drive is low on disk space, do you want to continue? " +
                     $"Free space: {SizeFormatter.Format(freeSpace)}, " +
-                    $"Size of files about to copy: {SizeFormatter.Format(sizeToCopy)}",
+                    $"Size of files about to copy: {SizeFormatter.Format(enumerated.SizeToCopy)}",
                     "Low disk space!");
                 if (!proceed)
                 {
@@ -110,6 +129,25 @@ public sealed class InstanceService
             }
         }
 
+        // Hash, dedup-copy and save off the UI thread; log/percent marshal back to it.
+        return await Task.Run(() => RunPhasesAsync(request, files, log, percent, ct), ct);
+    }
+
+    private static AddInstanceResult Fail(string error) => new(false, error, 0, 0, 0, 0);
+
+    /// <summary>
+    /// Phase A + Phase B of add-instance: parallel hashing, then serialized dedup
+    /// copy/move into the store and the manifest save. Runs on the thread pool
+    /// (called via <see cref="Task.Run"/>); progress and log lines marshal to the
+    /// caller's context through <paramref name="log"/> / <paramref name="percent"/>.
+    /// </summary>
+    private async Task<AddInstanceResult> RunPhasesAsync(
+        AddInstanceRequest request,
+        IReadOnlyList<string> files,
+        IProgress<string>? log,
+        IProgress<double>? percent,
+        CancellationToken ct)
+    {
         int filesAdded = 0;
         int alreadyExisted = 0;
         long bytesAdded = 0;
@@ -123,10 +161,11 @@ public sealed class InstanceService
         var hashResults = new HashResult[files.Count];
         int hashed = 0;
         double hashStep = files.Count == 0 ? 0 : 50d / files.Count;
+        var maxDegree = Math.Clamp(request.MaxDegreeOfParallelism ?? Environment.ProcessorCount, 1, Environment.ProcessorCount);
 
         await Parallel.ForEachAsync(
             files.Select((path, index) => (path, index)),
-            new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = ct },
+            new ParallelOptions { MaxDegreeOfParallelism = maxDegree, CancellationToken = ct },
             async (item, token) =>
             {
                 var hash = await _hasher.ComputeHashAsync(item.path, token);
@@ -207,8 +246,6 @@ public sealed class InstanceService
 
         return new AddInstanceResult(true, null, filesAdded, bytesAdded, alreadyExisted, files.Count);
     }
-
-    private static AddInstanceResult Fail(string error) => new(false, error, 0, 0, 0, 0);
 
     private readonly record struct HashResult(string Path, string Hash, long Length);
 
