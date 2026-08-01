@@ -5,6 +5,7 @@
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\LL_logo.ico</ApplicationIcon>
+    <AssemblyName>LincleLINK</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
