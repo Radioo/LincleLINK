@@ -129,9 +129,9 @@ public sealed class InstanceService
             new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = ct },
             async (item, token) =>
             {
-                // IProgress<T> marshals to the UI thread, so this is safe from workers.
-                log?.Report($"Hashing {item.path}");
                 var hash = await _hasher.ComputeHashAsync(item.path, token);
+                // Log after hashing completes so lines stream as work finishes, not all at once.
+                log?.Report($"Hashed {item.path}");
                 hashResults[item.index] = new HashResult(item.path, hash, _fileSystem.GetFileLength(item.path));
                 percent?.Report(Interlocked.Increment(ref hashed) * hashStep);
             });
@@ -169,10 +169,19 @@ public sealed class InstanceService
                 // original with a hard link to the db file so the source path keeps
                 // working while the data is deduplicated in db/.
                 LinkOriginalToStore(result.Path, storeName, log);
+
+                log?.Report(isNew
+                    ? $"Moved {result.Path} into the db (linked back into place)"
+                    : $"{result.Path} already exists in the db");
             }
             else if (isNew)
             {
                 await _store.CopyToStoreAsync(result.Path, storeName, ct);
+                log?.Report($"Added {result.Path} to the db");
+            }
+            else
+            {
+                log?.Report($"{result.Path} already exists in the db");
             }
 
             if (isNew)

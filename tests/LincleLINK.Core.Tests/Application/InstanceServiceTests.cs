@@ -214,7 +214,9 @@ public sealed class InstanceServiceTests
 
         await CreateService().CreateInstanceAsync(new("inst", "C:\\data", CopyMoveMode.Copy), log, percent);
 
-        logs.Should().Contain(m => m.StartsWith("Hashing", StringComparison.Ordinal));
+        logs.Should().Contain(m => m.StartsWith("Hashing ", StringComparison.Ordinal));   // header
+        logs.Should().Contain(m => m.StartsWith("Hashed ", StringComparison.Ordinal));    // per-file completion
+        logs.Should().Contain(m => m.StartsWith("Added ", StringComparison.Ordinal));     // store decision
         logs.Should().Contain(m => m.StartsWith("Instance added.", StringComparison.Ordinal));
         lastPercent.Should().Be(100);
     }
