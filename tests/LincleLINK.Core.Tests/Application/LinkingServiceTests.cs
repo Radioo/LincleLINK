@@ -108,26 +108,27 @@ public sealed class LinkingServiceTests
     }
 
     [Fact]
-    public async Task Per_file_link_failures_are_reported_and_loop_continues()
+    public async Task Per_file_link_failures_are_logged_and_loop_continues()
     {
         _dialogs.PickFolderAsync(Arg.Any<string>()).Returns("C:\\target");
         _repository.GetAsync("inst", Arg.Any<CancellationToken>()).Returns(SampleInstance());
         _fs.FileExists(Arg.Any<string>()).Returns(false);
 
-        var call = 0;
-        _hardLinker.TryCreateLink(Arg.Any<string>(), Arg.Any<string>(), out _).Returns(x =>
-        {
-            call++;
-            x[2] = call == 1 ? "boom" : null;
-            return call != 1;
-        });
+        _hardLinker.TryCreateLink(Arg.Any<string>(), Arg.Any<string>(), out _)
+            .Returns(x =>
+            {
+                x[2] = "boom";
+                return false;
+            });
 
         var result = await CreateService().LinkInstanceAsync("inst");
 
+        // Every file was attempted and failed; the loop did not abort.
         result.Cancelled.Should().BeFalse();
-        result.Linked.Should().Be(1);
-        result.Failed.Should().Be(1);
-        result.Errors.Should().ContainSingle(e => e.Contains("boom"));
+        result.Linked.Should().Be(0);
+        result.Failed.Should().Be(2);
+        result.Errors.Should().HaveCount(2);
+        result.Errors.Should().OnlyContain(e => e.Contains("boom"));
     }
 
     [Fact]
