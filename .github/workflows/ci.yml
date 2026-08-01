@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [master, rewrite]
+  pull_request:
+
+jobs:
+  build-test:
+    name: Build & test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          cache: true
+
+      - name: Restore
+        run: dotnet restore LincleLINK.sln
+
+      - name: Build
+        run: dotnet build LincleLINK.sln -c Release --no-restore
+
+      - name: Test with coverage
+        run: dotnet test LincleLINK.sln -c Release --no-build --collect:"XPlat Code Coverage" --results-directory artifacts/coverage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.os }}
+          path: artifacts/coverage
+          if-no-files-found: error
