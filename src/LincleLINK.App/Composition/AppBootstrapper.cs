@@ -26,8 +26,10 @@ public static class AppBootstrapper
         {
             // Apply the persisted theme before any window is shown (no flash) so the
             // first-run dialog and the main window both render with the stored theme.
-            var settings = bootstrap.GetRequiredService<ISettingsStore>().Load();
-            bootstrap.GetRequiredService<IThemeManager>().Apply(settings.IsDarkTheme);
+            var settingsStore = bootstrap.GetRequiredService<ISettingsStore>();
+            var settings = settingsStore.Load();
+            var themeManager = bootstrap.GetRequiredService<IThemeManager>();
+            themeManager.Apply(settings.IsDarkTheme);
 
             var firstLaunch = bootstrap.GetRequiredService<FirstLaunchService>();
             var result = firstLaunch.Resolve();
@@ -39,17 +41,22 @@ public static class AppBootstrapper
 
                 var host = bootstrap.GetRequiredService<IAppDialogHost>();
                 var dialogs = bootstrap.GetRequiredService<IDialogService>();
-                var vm = new FirstRunViewModel(dialogs, result.DataDirectory, result.HasLegacyV2Data);
+                var vm = new FirstRunViewModel(
+                    dialogs, themeManager, result.DataDirectory, result.HasLegacyV2Data,
+                    result.LegacyDarkTheme ?? settings.IsDarkTheme);
                 dataDirectory = await ShowFirstRunAsync(vm, host);
+
+                // Persist the explicit choice (directory + theme) made in the dialog.
+                settingsStore.Save(new AppSettings(vm.IsDarkTheme, dataDirectory));
             }
             else
             {
                 dataDirectory = result.DataDirectory;
-            }
 
-            if (!bootstrap.GetRequiredService<ISettingsStore>().Exists)
-            {
-                firstLaunch.CompleteFirstLaunch(dataDirectory);
+                if (!settingsStore.Exists)
+                {
+                    firstLaunch.CompleteFirstLaunch(dataDirectory);
+                }
             }
         }
 
@@ -69,7 +76,6 @@ public static class AppBootstrapper
         services.AddSingleton<IThemeManager, ThemeManager>();
         // Transient so the Add Instance dialog starts fresh (no remembered fields/log).
         services.AddTransient<AddInstanceViewModel>();
-        services.AddSingleton<FirstRunViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<Func<AddInstanceViewModel>>(sp => () => sp.GetRequiredService<AddInstanceViewModel>());
 

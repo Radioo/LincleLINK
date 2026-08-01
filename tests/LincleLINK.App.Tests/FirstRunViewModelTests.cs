@@ -1,4 +1,5 @@
 using FluentAssertions;
+using LincleLINK.App.Services;
 using LincleLINK.App.ViewModels;
 using LincleLINK.Core.Abstractions.Dialogs;
 using NSubstitute;
@@ -9,9 +10,13 @@ namespace LincleLINK.App.Tests;
 public sealed class FirstRunViewModelTests
 {
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
+    private readonly IThemeManager _themeManager = Substitute.For<IThemeManager>();
 
-    private FirstRunViewModel Create(string defaultDirectory = @"C:\data", bool hasLegacyV2Data = false)
-        => new(_dialogs, defaultDirectory, hasLegacyV2Data);
+    private FirstRunViewModel Create(
+        string defaultDirectory = @"C:\data",
+        bool hasLegacyV2Data = false,
+        bool defaultDarkTheme = false)
+        => new(_dialogs, _themeManager, defaultDirectory, hasLegacyV2Data, defaultDarkTheme);
 
     [Fact]
     public void Constructor_sets_directory_and_status()
@@ -20,6 +25,40 @@ public sealed class FirstRunViewModelTests
 
         vm.DataDirectory.Should().Be(@"C:\data");
         vm.Status.Should().Contain("v2 data detected");
+    }
+
+    [Fact]
+    public void Default_theme_follows_given_value()
+    {
+        var light = Create();
+        light.IsDarkTheme.Should().BeFalse();
+        light.IsLightTheme.Should().BeTrue();
+
+        var dark = Create(defaultDarkTheme: true);
+        dark.IsDarkTheme.Should().BeTrue();
+        dark.IsLightTheme.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Selecting_dark_applies_theme_and_clears_light()
+    {
+        var vm = Create();
+
+        vm.IsDarkTheme = true;
+
+        _themeManager.Received(1).Apply(true);
+        vm.IsLightTheme.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Selecting_light_applies_theme_and_clears_dark()
+    {
+        var vm = Create(defaultDarkTheme: true);
+
+        vm.IsLightTheme = true;
+
+        _themeManager.Received(1).Apply(false);
+        vm.IsDarkTheme.Should().BeFalse();
     }
 
     [Fact]

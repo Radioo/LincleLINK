@@ -68,10 +68,10 @@ public sealed class DialogService : IDialogService, IAppDialogHost
         {
             Title = vm.Title,
             Content = vm,
-            Width = 520,
-            Height = 420,
-            MinWidth = 400,
-            MinHeight = 320,
+            Width = vm.DialogSize.Width,
+            Height = vm.DialogSize.Height,
+            MinWidth = vm.DialogMinSize.Width,
+            MinHeight = vm.DialogMinSize.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             CanResize = true,
         };
