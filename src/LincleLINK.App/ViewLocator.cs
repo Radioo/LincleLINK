@@ -13,15 +13,15 @@ public sealed class ViewLocator : IDataTemplate
             return null;
         }
 
-        var name = data.GetType().FullName!.Replace("ViewModel", "View", StringComparison.Ordinal);
-        var type = Type.GetType(name);
+        var baseName = data.GetType().FullName!.Replace("ViewModel", "", StringComparison.Ordinal);
+        var type = Type.GetType(baseName + "View") ?? Type.GetType(baseName + "Window");
 
         if (type != null)
         {
             return (Control)Activator.CreateInstance(type)!;
         }
 
-        return new TextBlock { Text = "Not Found: " + name };
+        return new TextBlock { Text = "Not Found: " + baseName };
     }
 
     public bool Match(object? data)

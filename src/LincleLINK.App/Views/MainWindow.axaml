@@ -4,22 +4,52 @@
         x:Class="LincleLINK.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="LincleLINK &quot;It never ends&quot;"
-        Width="800" Height="450">
+        Width="860" Height="520">
 
     <Grid Margin="5" RowDefinitions="4*,5,1*,Auto">
 
         <TabControl Grid.Row="0">
+
             <TabItem Header="Instances">
-                <!-- M2: instance list, add / link / copy / delete / check-unused actions -->
+                <Grid RowDefinitions="Auto,*">
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                        <Button Content="Add instance" Command="{Binding OpenAddInstanceCommand}" />
+                        <Button Content="Link files" IsEnabled="False" />
+                        <Button Content="Copy hashed files" IsEnabled="False" />
+                        <Button Content="Check for unused files" IsEnabled="False" />
+                        <Button Content="Delete instance" Command="{Binding DeleteInstanceCommand}" />
+                    </StackPanel>
+
+                    <DataGrid Grid.Row="1"
+                              ItemsSource="{Binding Instances}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              SelectionMode="Single"
+                              GridLinesVisibility="None"
+                              SelectedItem="{Binding SelectedInstance, Mode=TwoWay}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Name" Binding="{Binding InstanceName}" Width="3*" />
+                            <DataGridTextColumn Header="File count" Binding="{Binding FileCount}" Width="1*" />
+                            <DataGridTextColumn Header="Instance size" Binding="{Binding TotalFileSizeString}" Width="1*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
             </TabItem>
+
             <TabItem Header="Link to torrent">
-                <!-- M4: torrent file checks, piece checks, link to torrent -->
+                <TextBlock Text="Torrent flow lands in M4." VerticalAlignment="Center" HorizontalAlignment="Center" Opacity="0.6" />
             </TabItem>
+
             <TabItem Header="Other">
-                <StackPanel Spacing="8" Margin="8">
+                <StackPanel Spacing="8" Margin="8" Width="360" HorizontalAlignment="Left">
+                    <TextBlock Text="{Binding DbSize, StringFormat=db folder size: {0}}" />
+                    <TextBlock Text="{Binding Savings, StringFormat=You are saving: {0}}" />
+                    <TextBlock Text="{Binding FreeSpace, StringFormat=Free drive space: {0}}" />
+                    <Button Content="Import DBInfo.xml" IsEnabled="False" />
                     <CheckBox Content="Dark mode" IsChecked="{Binding IsDarkTheme, Mode=TwoWay}" />
                 </StackPanel>
             </TabItem>
+
         </TabControl>
 
         <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" VerticalAlignment="Center" />

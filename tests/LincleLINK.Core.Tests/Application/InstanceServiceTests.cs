@@ -126,7 +126,7 @@ public sealed class InstanceServiceTests
         _driveInfo.GetAvailableFreeSpace("C:\\data").Returns(100L); // smaller than 100 + wiggle
 
         var confirm = true;
-        _dialogs.Confirm(Arg.Any<string>(), Arg.Any<string>()).Returns(_ => confirm);
+        _dialogs.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(_ => confirm);
 
         var proceed = await CreateService().CreateInstanceAsync(new("inst", "C:\\data", CopyMoveMode.Copy));
         proceed.Success.Should().BeTrue();
@@ -199,3 +199,4 @@ public sealed class InstanceServiceTests
         await _repository.DidNotReceive().SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>());
     }
 }
+

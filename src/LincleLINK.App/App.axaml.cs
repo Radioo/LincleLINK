@@ -17,16 +17,25 @@ public partial class App : Application
         AvaloniaXamlLoader.Load(this);
     }
 
-    public override void OnFrameworkInitializationCompleted()
+    public override async void OnFrameworkInitializationCompleted()
     {
-        _services = AppBootstrapper.Build();
-
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow
+            try
             {
-                DataContext = _services.GetRequiredService<MainViewModel>(),
-            };
+                desktop.MainWindow = new MainWindow();
+
+                _services = await AppBootstrapper.BuildAsync(() => desktop.MainWindow);
+
+                var viewModel = _services.GetRequiredService<MainViewModel>();
+                desktop.MainWindow.DataContext = viewModel;
+                await viewModel.InitializeAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Startup failed: {ex}");
+                throw;
+            }
         }
 
         base.OnFrameworkInitializationCompleted();

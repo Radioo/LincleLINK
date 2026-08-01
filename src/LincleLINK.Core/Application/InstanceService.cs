@@ -19,6 +19,8 @@ public sealed record AddInstanceResult(
     int AlreadyExisted,
     int TotalFiles);
 
+public sealed record DeleteInstanceResult(bool Deleted, bool Cancelled);
+
 /// <summary>
 /// Add-instance use case (plan 05): validation incl. low-disk warning, hashing,
 /// dedup copy/move into <c>db/</c>, directory collection, and instance save.
@@ -91,7 +93,7 @@ public sealed class InstanceService
             long freeSpace = _driveInfo.GetAvailableFreeSpace(request.DataPath);
             if (sizeToCopy + LowDiskWiggleRoom > freeSpace)
             {
-                var proceed = _dialogs.Confirm(
+                var proceed = await _dialogs.ConfirmAsync(
                     $"Current drive is low on disk space, do you want to continue? " +
                     $"Free space: {SizeFormatter.Format(freeSpace)}, " +
                     $"Size of files about to copy: {SizeFormatter.Format(sizeToCopy)}",
@@ -165,4 +167,22 @@ public sealed class InstanceService
     }
 
     private static AddInstanceResult Fail(string error) => new(false, error, 0, 0, 0, 0);
+
+    /// <summary>
+    /// Deletes an instance manifest (files stay in <c>db/</c>) after a confirmation.
+    /// </summary>
+    public async Task<DeleteInstanceResult> DeleteInstanceAsync(string instanceName, CancellationToken ct = default)
+    {
+        var confirmed = await _dialogs.ConfirmAsync(
+            $"Delete {instanceName}? This will not delete the actual files.",
+            "Delete instance");
+
+        if (!confirmed)
+        {
+            return new DeleteInstanceResult(false, true);
+        }
+
+        var deleted = await _repository.DeleteAsync(instanceName, ct);
+        return new DeleteInstanceResult(deleted, false);
+    }
 }
