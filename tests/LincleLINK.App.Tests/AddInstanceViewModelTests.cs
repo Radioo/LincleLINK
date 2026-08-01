@@ -16,6 +16,11 @@ namespace LincleLINK.App.Tests;
 
 public sealed class AddInstanceViewModelTests
 {
+    // Platform-native mock paths (Path.GetRelativePath/GetDirectoryName are OS-sensitive).
+    private static string Data => Path.Combine(Path.GetTempPath(), "data");
+    private static string FileA => Path.Combine(Data, "a.bin");
+    private static string StoreA => "C:\\db\\AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin";
+
     private readonly IFileSystem _fs = Substitute.For<IFileSystem>();
     private readonly IFileHasher _hasher = Substitute.For<IFileHasher>();
     private readonly IFileStore _store = Substitute.For<IFileStore>();
@@ -29,9 +34,9 @@ public sealed class AddInstanceViewModelTests
 
     private void StubDataPath()
     {
-        _fs.DirectoryExists("C:\\data").Returns(true);
-        _fs.EnumerateFiles("C:\\data", true).Returns(["C:\\data\\a.bin"]);
-        _fs.GetFileLength("C:\\data\\a.bin").Returns(100);
+        _fs.DirectoryExists(Data).Returns(true);
+        _fs.EnumerateFiles(Data, true).Returns([FileA]);
+        _fs.GetFileLength(FileA).Returns(100);
         _hasher.ComputeHashAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
         _store.Exists(Arg.Any<string>()).Returns(false);
@@ -46,7 +51,7 @@ public sealed class AddInstanceViewModelTests
         var closeRequested = false;
         vm.CloseRequested += (_, success) => closeRequested = success;
         vm.InstanceName = "inst";
-        vm.DataPath = "C:\\data";
+        vm.DataPath = Data;
 
         await vm.MakeInstanceCommand.ExecuteAsync(null);
 
@@ -58,14 +63,14 @@ public sealed class AddInstanceViewModelTests
     [Fact]
     public async Task MakeInstance_error_shows_error_and_does_not_close()
     {
-        _fs.DirectoryExists("C:\\data").Returns(true);
-        _fs.EnumerateFiles("C:\\data", true).Returns([]);
+        _fs.DirectoryExists(Data).Returns(true);
+        _fs.EnumerateFiles(Data, true).Returns([]);
 
         var vm = Create();
         var closed = false;
         vm.CloseRequested += (_, _) => closed = true;
         vm.InstanceName = "inst";
-        vm.DataPath = "C:\\data";
+        vm.DataPath = Data;
 
         await vm.MakeInstanceCommand.ExecuteAsync(null);
 
@@ -77,7 +82,7 @@ public sealed class AddInstanceViewModelTests
     public async Task Move_mode_copies_to_db_and_hard_links_back()
     {
         StubDataPath();
-        _store.GetPath(Arg.Any<string>()).Returns("C:\\db\\AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin");
+        _store.GetPath(Arg.Any<string>()).Returns(StoreA);
         _hardLinker.TryCreateLink(Arg.Any<string>(), Arg.Any<string>(), out _).Returns(x =>
         {
             x[2] = null;
@@ -86,15 +91,15 @@ public sealed class AddInstanceViewModelTests
 
         var vm = Create();
         vm.InstanceName = "inst";
-        vm.DataPath = "C:\\data";
+        vm.DataPath = Data;
         vm.IsCopyChecked = false;
         vm.IsMoveChecked = true;
 
         await vm.MakeInstanceCommand.ExecuteAsync(null);
 
-        await _store.Received(1).CopyToStoreAsync("C:\\data\\a.bin", Arg.Any<string>(), Arg.Any<CancellationToken>());
-        _fs.Received(1).DeleteFile("C:\\data\\a.bin");
-        _hardLinker.Received(1).TryCreateLink("C:\\db\\AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin", "C:\\data\\a.bin", out _);
+        await _store.Received(1).CopyToStoreAsync(FileA, Arg.Any<string>(), Arg.Any<CancellationToken>());
+        _fs.Received(1).DeleteFile(FileA);
+        _hardLinker.Received(1).TryCreateLink(StoreA, FileA, out _);
     }
 
     [Fact]

@@ -66,8 +66,8 @@ public sealed class LinkingServiceTests
 
         var result = await CreateService().LinkInstanceAsync("inst");
 
-        var sep = Path.DirectorySeparatorChar;
-        _fs.Received(1).CreateDirectory($"C:\\target{sep}sub");
+        var expectedDir = PathNormalizer.ToPlatformSeparators(Path.Combine("C:\\target", "sub"));
+        _fs.Received(1).CreateDirectory(expectedDir);
         result.Cancelled.Should().BeFalse();
         result.Linked.Should().Be(2);
         result.Failed.Should().Be(0);
@@ -149,15 +149,18 @@ public sealed class LinkingServiceTests
     {
         _dialogs.PickFolderAsync(Arg.Any<string>()).Returns("C:\\dest");
         _repository.GetAsync("inst", Arg.Any<CancellationToken>()).Returns(SampleInstance());
-        _fs.FileExists("C:\\dest\\AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin").Returns(true);
-        _fs.FileExists("C:\\dest\\BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.bin").Returns(false);
+        _fs.FileExists(Path.Combine("C:\\dest", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin")).Returns(true);
+        _fs.FileExists(Path.Combine("C:\\dest", "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.bin")).Returns(false);
 
         var result = await CreateService().CopyHashedFilesAsync("inst");
 
         result.Cancelled.Should().BeFalse();
         result.AlreadyExisted.Should().Be(1);
         result.Copied.Should().Be(1);
-        await _store.Received(1).CopyOutAsync("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.bin", "C:\\dest\\BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.bin", Arg.Any<CancellationToken>());
+        await _store.Received(1).CopyOutAsync(
+            "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.bin",
+            Path.Combine("C:\\dest", "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.bin"),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

@@ -16,6 +16,14 @@ namespace LincleLINK.Core.Tests.Application;
 
 public sealed class InstanceServiceTests
 {
+    // Platform-native mock paths (GetRelativePath/GetDirectoryName are OS-sensitive).
+    private static string Data => Path.Combine(Path.GetTempPath(), "data");
+    private static string Missing => Path.Combine(Path.GetTempPath(), "missing");
+    private static string FileA => Path.Combine(Data, "a.bin");
+    private static string FileB => Path.Combine(Data, "b.bin");
+    private static string FileSubC => Path.Combine(Data, "sub", "c.bin");
+    private static string StoreA => "C:\\db\\AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin";
+
     private readonly IFileSystem _fs = Substitute.For<IFileSystem>();
     private readonly IFileHasher _hasher = Substitute.For<IFileHasher>();
     private readonly IFileStore _store = Substitute.For<IFileStore>();
@@ -46,8 +54,8 @@ public sealed class InstanceServiceTests
     [Fact]
     public async Task Invalid_name_returns_error_without_io()
     {
-        _fs.DirectoryExists("C:\\data").Returns(true);
-        var result = await CreateService().CreateInstanceAsync(new("bad/name", "C:\\data", CopyMoveMode.Copy));
+        _fs.DirectoryExists(Data).Returns(true);
+        var result = await CreateService().CreateInstanceAsync(new("bad/name", Data, CopyMoveMode.Copy));
 
         result.Success.Should().BeFalse();
         result.Error.Should().NotBeNullOrEmpty();
@@ -57,8 +65,8 @@ public sealed class InstanceServiceTests
     [Fact]
     public async Task Missing_data_path_returns_error()
     {
-        _fs.DirectoryExists("C:\\missing").Returns(false);
-        var result = await CreateService().CreateInstanceAsync(new("ok", "C:\\missing", CopyMoveMode.Copy));
+        _fs.DirectoryExists(Missing).Returns(false);
+        var result = await CreateService().CreateInstanceAsync(new("ok", Missing, CopyMoveMode.Copy));
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("Data path");
@@ -67,10 +75,10 @@ public sealed class InstanceServiceTests
     [Fact]
     public async Task Duplicate_name_returns_error()
     {
-        StubDataPath("C:\\data", "C:\\data\\a.bin");
+        StubDataPath(Data, FileA);
         _repository.ExistsAsync("dupe", Arg.Any<CancellationToken>()).Returns(true);
 
-        var result = await CreateService().CreateInstanceAsync(new("dupe", "C:\\data", CopyMoveMode.Copy));
+        var result = await CreateService().CreateInstanceAsync(new("dupe", Data, CopyMoveMode.Copy));
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("already exists");
@@ -79,10 +87,10 @@ public sealed class InstanceServiceTests
     [Fact]
     public async Task Empty_data_path_returns_error()
     {
-        _fs.DirectoryExists("C:\\data").Returns(true);
-        _fs.EnumerateFiles("C:\\data", true).Returns([]);
+        _fs.DirectoryExists(Data).Returns(true);
+        _fs.EnumerateFiles(Data, true).Returns([]);
 
-        var result = await CreateService().CreateInstanceAsync(new("ok", "C:\\data", CopyMoveMode.Copy));
+        var result = await CreateService().CreateInstanceAsync(new("ok", Data, CopyMoveMode.Copy));
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("no files");
@@ -91,10 +99,10 @@ public sealed class InstanceServiceTests
     [Fact]
     public async Task Copy_mode_counts_added_and_existing()
     {
-        StubDataPath("C:\\data", "C:\\data\\a.bin", "C:\\data\\b.bin", "C:\\data\\sub\\c.bin");
+        StubDataPath(Data, FileA, FileB, FileSubC);
         _store.Exists("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin").Returns(false, true, false);
 
-        var result = await CreateService().CreateInstanceAsync(new("inst", "C:\\data", CopyMoveMode.Copy));
+        var result = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Copy));
 
         result.Success.Should().BeTrue();
         result.FilesAdded.Should().Be(2);
@@ -109,63 +117,63 @@ public sealed class InstanceServiceTests
     [Fact]
     public async Task Move_mode_copies_to_db_and_hard_links_back()
     {
-        StubDataPath("C:\\data", "C:\\data\\a.bin");
+        StubDataPath(Data, FileA);
         _store.Exists("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin").Returns(false);
-        _store.GetPath("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin").Returns("C:\\db\\AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin");
+        _store.GetPath("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin").Returns(StoreA);
         _hardLinker.TryCreateLink(Arg.Any<string>(), Arg.Any<string>(), out _).Returns(x =>
         {
             x[2] = null;
             return true;
         });
 
-        var result = await CreateService().CreateInstanceAsync(new("inst", "C:\\data", CopyMoveMode.Move));
+        var result = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Move));
 
         result.Success.Should().BeTrue();
         result.FilesAdded.Should().Be(1);
         result.BytesAdded.Should().Be(100);
 
-        await _store.Received(1).CopyToStoreAsync("C:\\data\\a.bin", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin", Arg.Any<CancellationToken>());
-        _fs.Received(1).DeleteFile("C:\\data\\a.bin");
-        _hardLinker.Received(1).TryCreateLink("C:\\db\\AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin", "C:\\data\\a.bin", out _);
+        await _store.Received(1).CopyToStoreAsync(FileA, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin", Arg.Any<CancellationToken>());
+        _fs.Received(1).DeleteFile(FileA);
+        _hardLinker.Received(1).TryCreateLink(StoreA, FileA, out _);
     }
 
     [Fact]
     public async Task Move_mode_dedup_links_original_to_existing_db_file()
     {
-        StubDataPath("C:\\data", "C:\\data\\a.bin");
+        StubDataPath(Data, FileA);
         _store.Exists("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin").Returns(true);
-        _store.GetPath("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin").Returns("C:\\db\\AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin");
+        _store.GetPath("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin").Returns(StoreA);
         _hardLinker.TryCreateLink(Arg.Any<string>(), Arg.Any<string>(), out _).Returns(x =>
         {
             x[2] = null;
             return true;
         });
 
-        var result = await CreateService().CreateInstanceAsync(new("inst", "C:\\data", CopyMoveMode.Move));
+        var result = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Move));
 
         result.Success.Should().BeTrue();
         result.AlreadyExisted.Should().Be(1);
         result.FilesAdded.Should().Be(0);
 
         // The duplicate original becomes a hard link to the existing db file.
-        _fs.Received(1).DeleteFile("C:\\data\\a.bin");
-        _hardLinker.Received(1).TryCreateLink("C:\\db\\AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin", "C:\\data\\a.bin", out _);
+        _fs.Received(1).DeleteFile(FileA);
+        _hardLinker.Received(1).TryCreateLink(StoreA, FileA, out _);
     }
 
     [Fact]
     public async Task Low_disk_confirm_proceeds_and_decline_aborts()
     {
-        StubDataPath("C:\\data", "C:\\data\\a.bin");
-        _driveInfo.GetAvailableFreeSpace("C:\\data").Returns(100L); // smaller than 100 + wiggle
+        StubDataPath(Data, FileA);
+        _driveInfo.GetAvailableFreeSpace(Data).Returns(100L); // smaller than 100 + wiggle
 
         var confirm = true;
         _dialogs.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(_ => confirm);
 
-        var proceed = await CreateService().CreateInstanceAsync(new("inst", "C:\\data", CopyMoveMode.Copy));
+        var proceed = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Copy));
         proceed.Success.Should().BeTrue();
 
         confirm = false;
-        var declined = await CreateService().CreateInstanceAsync(new("inst2", "C:\\data", CopyMoveMode.Copy));
+        var declined = await CreateService().CreateInstanceAsync(new("inst2", Data, CopyMoveMode.Copy));
         declined.Success.Should().BeFalse();
         declined.Error.Should().BeNull();
 
@@ -176,10 +184,10 @@ public sealed class InstanceServiceTests
     [Fact]
     public async Task Low_disk_check_skipped_in_move_mode()
     {
-        StubDataPath("C:\\data", "C:\\data\\a.bin");
-        _driveInfo.GetAvailableFreeSpace("C:\\data").Returns(10L);
+        StubDataPath(Data, FileA);
+        _driveInfo.GetAvailableFreeSpace(Data).Returns(10L);
 
-        var result = await CreateService().CreateInstanceAsync(new("inst", "C:\\data", CopyMoveMode.Move));
+        var result = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Move));
 
         result.Success.Should().BeTrue();
         _driveInfo.DidNotReceiveWithAnyArgs().GetAvailableFreeSpace(default!);
@@ -188,12 +196,12 @@ public sealed class InstanceServiceTests
     [Fact]
     public async Task Directories_collected_as_relative_paths()
     {
-        StubDataPath("C:\\data", "C:\\data\\a.bin", "C:\\data\\sub\\b.bin");
+        StubDataPath(Data, FileA, Path.Combine(Data, "sub", "b.bin"));
 
         Instance? saved = null;
         _repository.SaveAsync(Arg.Do<Instance>(i => saved = i), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        await CreateService().CreateInstanceAsync(new("inst", "C:\\data", CopyMoveMode.Copy));
+        await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Copy));
 
         saved.Should().NotBeNull();
         saved!.FileList.Should().HaveCount(2);
@@ -205,14 +213,14 @@ public sealed class InstanceServiceTests
     [Fact]
     public async Task Progress_reports_log_lines_and_percent()
     {
-        StubDataPath("C:\\data", "C:\\data\\a.bin");
+        StubDataPath(Data, FileA);
         var logs = new List<string>();
         var logLock = new object();
         double lastPercent = 0;
         var log = new SynchronousProgress<string>(s => { lock (logLock) logs.Add(s); });
         var percent = new SynchronousProgress<double>(p => lastPercent = p);
 
-        await CreateService().CreateInstanceAsync(new("inst", "C:\\data", CopyMoveMode.Copy), log, percent);
+        await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Copy), log, percent);
 
         logs.Should().Contain(m => m.StartsWith("Hashing ", StringComparison.Ordinal));   // header
         logs.Should().Contain(m => m.StartsWith("Hashed ", StringComparison.Ordinal));    // per-file completion
@@ -224,12 +232,12 @@ public sealed class InstanceServiceTests
     [Fact]
     public async Task Cancellation_mid_loop_does_not_save()
     {
-        StubDataPath("C:\\data", "C:\\data\\a.bin", "C:\\data\\b.bin");
+        StubDataPath(Data, FileA, FileB);
         _store.Exists(Arg.Any<string>()).Returns(false);
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var act = () => CreateService().CreateInstanceAsync(new("inst", "C:\\data", CopyMoveMode.Copy), ct: cts.Token);
+        var act = () => CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Copy), ct: cts.Token);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
         await _repository.DidNotReceive().SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>());

@@ -124,8 +124,8 @@ public sealed class TorrentServiceTests
         result.Linked.Should().Be(1); // only a.bin (clean piece 0)
         result.Skipped.Should().Be(3);
 
-        var sep = Path.DirectorySeparatorChar;
-        _fs.Received().CreateDirectory($"C:\\dl{sep}data");
+        var expectedDir = Path.GetDirectoryName(PathNormalizer.ToPlatformSeparators(Path.Combine("C:\\dl", "data/a.bin")))!;
+        _fs.Received().CreateDirectory(expectedDir);
     }
 
     [Fact]

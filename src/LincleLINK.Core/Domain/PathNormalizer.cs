@@ -25,12 +25,15 @@ public static class PathNormalizer
             return true;
         }
 
-        if (Path.IsPathRooted(path))
+        // Platform-independent check: normalize separators, then reject anything that
+        // is rooted (a leading separator after normalization covers \root on Unix too),
+        // or contains '.', '..' or a drive-letter segment.
+        var normalized = path.Replace('\\', '/');
+        if (normalized.StartsWith('/'))
         {
             return false;
         }
 
-        var normalized = path.Replace('\\', '/');
         var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
         if (segments.Length == 0)

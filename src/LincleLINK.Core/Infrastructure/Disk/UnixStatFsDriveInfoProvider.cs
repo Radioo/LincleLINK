@@ -47,6 +47,9 @@ public sealed class UnixStatFsDriveInfoProvider : IDriveInfoProvider
         public ulong f_fsid;
         public ulong f_flag;
         public ulong f_namemax;
+        private ulong f_spare0; // glibc: int __f_spare[6] (24 bytes) after f_namemax
+        private ulong f_spare1;
+        private ulong f_spare2;
     }
 
     [DllImport("libc", SetLastError = true, EntryPoint = "statvfs")]
