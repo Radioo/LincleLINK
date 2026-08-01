@@ -67,6 +67,7 @@ public sealed class DialogService : IDialogService, IAppDialogHost
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             CanResize = false,
         };
+        ThemeManager.ApplyTitleBar(window);
 
         var owner = _ownerProvider();
         if (owner is not null)
@@ -90,6 +91,7 @@ public sealed class DialogService : IDialogService, IAppDialogHost
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             CanResize = false,
         };
+        ThemeManager.ApplyTitleBar(window);
 
         var tcs = new TaskCompletionSource<MessageDialogResult>();
         dialog.ResultChosen += result =>

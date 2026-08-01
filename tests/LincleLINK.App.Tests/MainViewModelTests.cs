@@ -8,6 +8,7 @@ using LincleLINK.Core.Abstractions.Hashing;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Abstractions.Paths;
+using LincleLINK.Core.Abstractions.Settings;
 using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Abstractions.Torrents;
 using LincleLINK.Core.Application;
@@ -28,6 +29,7 @@ public sealed class MainViewModelTests
     private readonly IFileStore _store = Substitute.For<IFileStore>();
     private readonly IDriveInfoProvider _driveInfo = Substitute.For<IDriveInfoProvider>();
     private readonly IAppPaths _paths = Substitute.For<IAppPaths>();
+    private readonly ISettingsStore _settingsStore = Substitute.For<ISettingsStore>();
 
     private MainViewModel CreateViewModel() => new(
         new InstanceService(_fs, _hasher, _store, _repository, _driveInfo, _dialogs),
@@ -40,6 +42,7 @@ public sealed class MainViewModelTests
         _dialogs,
         _dialogHost,
         _themeManager,
+        _settingsStore,
         () => new AddInstanceViewModel(new InstanceService(_fs, _hasher, _store, _repository, _driveInfo, _dialogs), _dialogs));
 
     private void StubStatus(long dbSize = 0, long free = 1)
@@ -147,12 +150,20 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
-    public void IsDarkTheme_applies_theme()
+    public void IsDarkTheme_applies_theme_and_persists()
     {
+        _settingsStore.Load().Returns(new AppSettings(false, "C:\\data"));
+        AppSettings? saved = null;
+        _settingsStore.When(x => x.Save(Arg.Any<AppSettings>()))
+            .Do(callInfo => saved = callInfo.Arg<AppSettings>());
+
         var vm = CreateViewModel();
 
         vm.IsDarkTheme = true;
         _themeManager.Received(1).Apply(true);
+        saved.Should().NotBeNull();
+        saved!.IsDarkTheme.Should().BeTrue();
+        saved.DataDirectory.Should().Be("C:\\data");
 
         vm.IsDarkTheme = false;
         _themeManager.Received(1).Apply(false);

@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using LincleLINK.App.Services;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Instances;
+using LincleLINK.Core.Abstractions.Settings;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Application.Torrents;
 using LincleLINK.Core.Domain;
@@ -22,6 +23,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly IDialogService _dialogs;
     private readonly IAppDialogHost _dialogHost;
     private readonly IThemeManager _themeManager;
+    private readonly ISettingsStore _settingsStore;
     private readonly Func<AddInstanceViewModel> _addInstanceFactory;
 
     private IReadOnlyList<TorrentFileCheck> _checkedFiles = [];
@@ -95,6 +97,7 @@ public partial class MainViewModel : ViewModelBase
         IDialogService dialogs,
         IAppDialogHost dialogHost,
         IThemeManager themeManager,
+        ISettingsStore settingsStore,
         Func<AddInstanceViewModel> addInstanceFactory)
     {
         _instanceService = instanceService;
@@ -107,6 +110,7 @@ public partial class MainViewModel : ViewModelBase
         _dialogs = dialogs;
         _dialogHost = dialogHost;
         _themeManager = themeManager;
+        _settingsStore = settingsStore;
         _addInstanceFactory = addInstanceFactory;
     }
 
@@ -406,6 +410,7 @@ public partial class MainViewModel : ViewModelBase
     partial void OnIsDarkThemeChanged(bool value)
     {
         _themeManager.Apply(value);
+        _settingsStore.Save(new AppSettings(value, _settingsStore.Load().DataDirectory));
         LogLines.Add(value ? "Dark mode enabled" : "Dark mode disabled");
     }
 
