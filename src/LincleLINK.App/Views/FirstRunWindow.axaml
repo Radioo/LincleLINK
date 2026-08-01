@@ -3,7 +3,7 @@
              xmlns:vm="using:LincleLINK.App.ViewModels"
              x:Class="LincleLINK.App.Views.FirstRunWindow"
              x:DataType="vm:FirstRunViewModel">
-    <StackPanel Margin="20" Spacing="12" Width="480">
+    <StackPanel Margin="20" Spacing="12">
         <TextBlock Text="Welcome to LincleLINK" FontSize="16" FontWeight="SemiBold" />
         <TextBlock Text="This looks like the first launch. Choose the data directory that contains (or will contain) your db/ and instance/ folders." TextWrapping="Wrap" />
         <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Opacity="0.8" />

@@ -56,16 +56,21 @@ public sealed class DialogService : IDialogService, IAppDialogHost
 
     /// <summary>
     /// Hosts a view model's view (resolved via the app ViewLocator) in a modal
-    /// window. Completes when the view closes its host window.
+    /// window. The window is user-resizable with a fixed default size, so content
+    /// that grows (e.g. a log panel) scrolls instead of stretching the window.
+    /// Completes when the view closes its host window.
     /// </summary>
     public async Task ShowDialogAsync(ViewModelBase vm)
     {
         var window = new Window
         {
             Content = vm,
-            SizeToContent = SizeToContent.WidthAndHeight,
+            Width = 520,
+            Height = 420,
+            MinWidth = 400,
+            MinHeight = 320,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            CanResize = false,
+            CanResize = true,
         };
         ThemeManager.ApplyTitleBar(window);
 

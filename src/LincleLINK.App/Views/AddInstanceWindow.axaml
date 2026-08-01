@@ -1,9 +1,10 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:LincleLINK.App.ViewModels"
+             xmlns:behaviors="using:LincleLINK.App.Behaviors"
              x:Class="LincleLINK.App.Views.AddInstanceWindow"
              x:DataType="vm:AddInstanceViewModel">
-    <Grid Margin="16" Width="520" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
+    <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
 
         <StackPanel Grid.Row="0" Spacing="6">
             <TextBlock Text="Instance name" />
@@ -25,7 +26,7 @@
 
         <Button Grid.Row="3" Content="Create instance" Command="{Binding MakeInstanceCommand}" Margin="0,12,0,0" />
 
-        <ScrollViewer Grid.Row="4" Margin="0,12,0,0">
+        <ScrollViewer Grid.Row="4" Margin="0,12,0,0" behaviors:AutoScrollBehavior.AutoScrollToEnd="True">
             <ItemsControl ItemsSource="{Binding LogLines}" />
         </ScrollViewer>
 
