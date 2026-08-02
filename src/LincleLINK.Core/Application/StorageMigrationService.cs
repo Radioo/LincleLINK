@@ -140,7 +140,7 @@ public class StorageMigrationService
                 {
                     skipped++;
                     handled++;
-                    File.Delete(file);
+                    TryDeleteLegacyFile(file, log);
                     ReportPercent(percent, handled, files.Count);
                     continue;
                 }
@@ -294,6 +294,24 @@ public class StorageMigrationService
         var quarantineDir = Path.Combine(_paths.InstanceDirectory, QuarantineDirectoryName);
         Directory.CreateDirectory(quarantineDir);
         File.Move(file, Path.Combine(quarantineDir, Path.GetFileName(file)), overwrite: true);
+    }
+
+    /// <summary>
+    /// Deletes a migrated JSON manifest, tolerating a locked/read-only file (Windows
+    /// AV scans, a file held open). The manifest stays in <c>instance/</c> and the
+    /// idempotent skip handles it on the next launch, so one stuck file never aborts
+    /// or misreports the rest of the migration.
+    /// </summary>
+    private void TryDeleteLegacyFile(string file, IProgress<string>? log)
+    {
+        try
+        {
+            File.Delete(file);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            log?.Report($"Could not delete {Path.GetFileName(file)} ({ex.Message}); will retry next launch.");
+        }
     }
 
     private static void ReportPercent(IProgress<double>? percent, int numerator, int denominator)
