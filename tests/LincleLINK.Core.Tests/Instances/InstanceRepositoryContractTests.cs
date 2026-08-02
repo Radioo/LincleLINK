@@ -99,6 +99,22 @@ public abstract class InstanceRepositoryContractTests : IDisposable
     }
 
     [Fact]
+    public async Task GetSummaries_returns_sorted_summaries_with_totals()
+    {
+        var repo = CreateRepository();
+        await repo.SaveAsync(Instance.Create(
+            "beta",
+            [new InstanceFile("f.bin", "", 100, "F".PadRight(32, 'F') + ".bin")],
+            ["dir"]));
+        await repo.SaveAsync(Instance.Create("Alpha", [], []));
+
+        var summaries = await repo.GetSummariesAsync();
+        summaries.Select(s => s.InstanceName).Should().Equal("Alpha", "beta");
+        summaries[1].FileCount.Should().Be(1);
+        summaries[1].TotalFileSize.Should().Be(100);
+    }
+
+    [Fact]
     public async Task Exists_is_case_insensitive()
     {
         var repo = CreateRepository();

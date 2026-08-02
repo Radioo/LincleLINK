@@ -334,13 +334,13 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
 
     public async Task RefreshInstancesAsync()
     {
-        var all = await _repository.GetAllAsync();
+        var all = await _repository.GetSummariesAsync();
         var selectedName = SelectedInstance?.InstanceName;
 
         Instances.Clear();
-        foreach (var instance in all)
+        foreach (var summary in all)
         {
-            Instances.Add(InstanceListEntry.From(instance));
+            Instances.Add(summary);
         }
 
         if (selectedName is not null)

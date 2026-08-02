@@ -48,6 +48,21 @@ public sealed class JsonInstanceRepository : IInstanceRepository
         return instances;
     }
 
+    public async Task<IReadOnlyList<InstanceListEntry>> GetSummariesAsync(CancellationToken ct = default)
+    {
+        var summaries = new List<InstanceListEntry>();
+        foreach (var name in await GetNamesAsync(ct))
+        {
+            var instance = await GetAsync(name, ct);
+            if (instance is not null)
+            {
+                summaries.Add(InstanceListEntry.From(instance));
+            }
+        }
+
+        return summaries;
+    }
+
     public async Task<Instance?> GetAsync(string name, CancellationToken ct = default)
     {
         ValidateName(name);

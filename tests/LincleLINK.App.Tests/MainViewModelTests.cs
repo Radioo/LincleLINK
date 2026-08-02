@@ -50,6 +50,7 @@ public sealed class MainViewModelTests
     private void StubStatus(long dbSize = 0, long free = 1)
     {
         _repository.GetAllAsync(Arg.Any<CancellationToken>()).Returns([]);
+        _repository.GetSummariesAsync(Arg.Any<CancellationToken>()).Returns([]);
         _store.GetTotalSizeAsync(Arg.Any<CancellationToken>()).Returns(dbSize);
         _driveInfo.GetAvailableFreeSpace(Arg.Any<string>()).Returns(free);
         _paths.DataDirectory.Returns("C:\\data");
@@ -58,9 +59,9 @@ public sealed class MainViewModelTests
     [Fact]
     public async Task InitializeAsync_populates_instances_and_status()
     {
-        _repository.GetAllAsync(Arg.Any<CancellationToken>()).Returns([
-            Instance.Create("A", [new InstanceFile("f.bin", "", 10, "A".PadRight(32, 'A') + ".bin")], []),
-            Instance.Create("B", [], []),
+        _repository.GetSummariesAsync(Arg.Any<CancellationToken>()).Returns([
+            new InstanceListEntry("A", 1, 10, "10 B"),
+            new InstanceListEntry("B", 0, 0, "0 B"),
         ]);
         _store.GetTotalSizeAsync(Arg.Any<CancellationToken>()).Returns(10L);
         _driveInfo.GetAvailableFreeSpace("C:\\data").Returns(500L);
@@ -98,7 +99,7 @@ public sealed class MainViewModelTests
     public async Task DeleteInstance_deletes_after_confirmation()
     {
         StubStatus();
-        _repository.GetAllAsync(Arg.Any<CancellationToken>()).Returns([Instance.Create("A", [], [])]);
+        _repository.GetSummariesAsync(Arg.Any<CancellationToken>()).Returns([new InstanceListEntry("A", 0, 0, "0 B")]);
         _dialogs.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
         _repository.DeleteAsync("A", Arg.Any<CancellationToken>()).Returns(true);
 
@@ -115,7 +116,7 @@ public sealed class MainViewModelTests
     public async Task DeleteInstance_cancelled_does_not_delete()
     {
         StubStatus();
-        _repository.GetAllAsync(Arg.Any<CancellationToken>()).Returns([Instance.Create("A", [], [])]);
+        _repository.GetSummariesAsync(Arg.Any<CancellationToken>()).Returns([new InstanceListEntry("A", 0, 0, "0 B")]);
         _dialogs.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
 
         var vm = CreateViewModel();

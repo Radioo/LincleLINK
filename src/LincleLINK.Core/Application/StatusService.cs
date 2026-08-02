@@ -37,12 +37,12 @@ public sealed class StatusService
     public async Task<StatusSummary> GetSummaryAsync(CancellationToken ct = default)
     {
         var dbSize = await _store.GetTotalSizeAsync(ct);
-        var instances = await _repository.GetAllAsync(ct);
+        var instances = await _repository.GetSummariesAsync(ct);
 
         long instancesTotal = 0;
-        foreach (var instance in instances)
+        foreach (var summary in instances)
         {
-            instancesTotal += instance.TotalFileSize;
+            instancesTotal += summary.TotalFileSize;
         }
 
         var freeSpace = _driveInfo.GetAvailableFreeSpace(_paths.DataDirectory);

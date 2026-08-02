@@ -19,8 +19,8 @@ public sealed class StatusServiceTests
         store.GetTotalSizeAsync(Arg.Any<CancellationToken>()).Returns(10L);
 
         var repository = Substitute.For<IInstanceRepository>();
-        repository.GetAllAsync(Arg.Any<CancellationToken>()).Returns([
-            Instance.Create("a", [new InstanceFile("f.bin", "", 40, "A".PadRight(32, 'A') + ".bin")], []),
+        repository.GetSummariesAsync(Arg.Any<CancellationToken>()).Returns([
+            new InstanceListEntry("a", 1, 40, "40 B"),
         ]);
 
         var driveInfo = Substitute.For<IDriveInfoProvider>();
@@ -45,8 +45,8 @@ public sealed class StatusServiceTests
         store.GetTotalSizeAsync(Arg.Any<CancellationToken>()).Returns(100L);
 
         var repository = Substitute.For<IInstanceRepository>();
-        repository.GetAllAsync(Arg.Any<CancellationToken>()).Returns([
-            Instance.Create("a", [new InstanceFile("f.bin", "", 40, "A".PadRight(32, 'A') + ".bin")], []),
+        repository.GetSummariesAsync(Arg.Any<CancellationToken>()).Returns([
+            new InstanceListEntry("a", 1, 40, "40 B"),
         ]);
 
         var driveInfo = Substitute.For<IDriveInfoProvider>();

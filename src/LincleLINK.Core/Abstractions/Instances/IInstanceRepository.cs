@@ -7,6 +7,12 @@ public interface IInstanceRepository
     Task<IReadOnlyList<string>> GetNamesAsync(CancellationToken ct = default);
     Task<IReadOnlyList<Instance>> GetAllAsync(CancellationToken ct = default);
 
+    /// <summary>
+    /// Lightweight projection for list views: only the summary columns, never the
+    /// file/directory rows. The UI list must not materialize the whole DB.
+    /// </summary>
+    Task<IReadOnlyList<InstanceListEntry>> GetSummariesAsync(CancellationToken ct = default);
+
     /// <summary>Returns null when the instance does not exist.</summary>
     Task<Instance?> GetAsync(string name, CancellationToken ct = default);
 

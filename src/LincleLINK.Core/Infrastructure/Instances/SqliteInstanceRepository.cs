@@ -44,6 +44,25 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
             .ToList();
     }
 
+    public async Task<IReadOnlyList<InstanceListEntry>> GetSummariesAsync(CancellationToken ct = default)
+    {
+        // No Include / no child rows: the list view only needs the persisted
+        // totals, so this reads one row per instance instead of the whole DB.
+        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        var summaries = await context.Instances
+            .AsNoTracking()
+            .Select(x => new InstanceListEntry(
+                x.InstanceName,
+                x.TotalFileCount,
+                x.TotalFileSize,
+                x.TotalFileSizeString))
+            .ToListAsync(ct);
+
+        return summaries
+            .OrderBy(x => x.InstanceName, StringComparer.Ordinal)
+            .ToArray();
+    }
+
     public async Task<Instance?> GetAsync(string name, CancellationToken ct = default)
     {
         ValidateName(name);
