@@ -77,7 +77,7 @@ public sealed class TorrentService
             ct.ThrowIfCancellationRequested();
 
             var full = PathNormalizer.Canonicalize(file.FullPath);
-            if (!full.StartsWith(relativePrefix, StringComparison.Ordinal))
+            if (!PathNormalizer.IsWithin(full, relativePrefix))
             {
                 percent?.Report(progress.Report(ref fileIndex));
                 continue;
@@ -218,7 +218,7 @@ public sealed class TorrentService
         foreach (var file in torrent.Files)
         {
             var full = PathNormalizer.Canonicalize(file.FullPath);
-            if (!full.StartsWith(relativePrefix, StringComparison.Ordinal))
+            if (!PathNormalizer.IsWithin(full, relativePrefix))
             {
                 continue;
             }
