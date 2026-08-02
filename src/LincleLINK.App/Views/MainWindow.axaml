@@ -39,7 +39,7 @@
             </TabItem>
 
             <TabItem Header="Link to torrent">
-                <Grid Margin="0,4" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto" RowSpacing="6">
+                <Grid Margin="0,4" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="6">
 
                     <TextBlock Grid.Row="0" Text="Instance to link from" />
                     <ComboBox Grid.Row="1"
@@ -75,9 +75,9 @@
                     </Grid>
 
                     <TextBlock Grid.Row="9" Text="Matched instance files" />
-                    <ScrollViewer Grid.Row="10">
-                        <ItemsControl ItemsSource="{Binding TorrentCheck.MatchedFiles}" />
-                    </ScrollViewer>
+                    <ListBox Grid.Row="10"
+                             ItemsSource="{Binding TorrentCheck.MatchedFiles}"
+                             behaviors:AutoScrollBehavior.AutoScrollToEnd="True" />
 
                 </Grid>
             </TabItem>
