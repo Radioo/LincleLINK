@@ -2,6 +2,9 @@ name: release
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   build-test:
@@ -76,11 +79,13 @@ jobs:
           path: artifacts/${{ matrix.name }}
           if-no-files-found: error
 
-  attach:
-    name: Attach to release
+  release:
+    name: Create release
     needs: publish
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@v5
         with:
@@ -89,3 +94,4 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
+          generate_release_notes: true
