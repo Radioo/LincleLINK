@@ -6,6 +6,7 @@ using LincleLINK.App.ViewModels.Base;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Application.Torrents;
+using LincleLINK.Core.Domain;
 
 namespace LincleLINK.App.ViewModels;
 
@@ -25,6 +26,16 @@ public partial class TorrentCheckViewModel : ViewModelBase
     private IReadOnlyList<long> _badPieces = [];
 
     public ObservableCollection<string> MatchedFiles { get; } = [];
+
+    /// <summary>
+    /// The instance linked from, picked in the torrent tab's own selector. Deliberately
+    /// independent of <c>MainViewModel.SelectedInstance</c> (which serves the Instances
+    /// tab): the two selections have different purposes and must not cross-write each
+    /// other through shared two-way bindings.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CheckFilesCommand))]
+    private InstanceListEntry? _torrentInstance;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CheckFilesCommand))]
@@ -87,7 +98,7 @@ public partial class TorrentCheckViewModel : ViewModelBase
         await _host.RunOperationAsync(async (log, percent) =>
         {
             var result = await _torrentService.CheckFilesAsync(
-                new TorrentCheckRequest(_host.SelectedInstanceName!, TorrentFilePath, RelativePath), log, percent);
+                new TorrentCheckRequest(TorrentInstance!.InstanceName, TorrentFilePath, RelativePath), log, percent);
 
             if (!result.Success)
             {
@@ -120,7 +131,7 @@ public partial class TorrentCheckViewModel : ViewModelBase
         await _host.RunOperationAsync(async (log, percent) =>
         {
             var result = await _torrentService.CheckPiecesAsync(
-                new TorrentCheckRequest(_host.SelectedInstanceName!, TorrentFilePath, RelativePath), log, percent);
+                new TorrentCheckRequest(TorrentInstance!.InstanceName, TorrentFilePath, RelativePath), log, percent);
 
             if (!result.Success)
             {
@@ -165,7 +176,7 @@ public partial class TorrentCheckViewModel : ViewModelBase
 
     private bool CanCheckFiles()
         => !_host.IsBusy
-           && _host.SelectedInstanceName is not null
+           && TorrentInstance is not null
            && !string.IsNullOrWhiteSpace(TorrentFilePath);
 
     private bool CanCheckPieces() => !_host.IsBusy && PiecesChecked;

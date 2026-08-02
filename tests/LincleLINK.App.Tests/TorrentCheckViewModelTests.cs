@@ -23,7 +23,6 @@ public sealed class TorrentCheckViewModelTests
 
     public TorrentCheckViewModelTests()
     {
-        _host.SelectedInstanceName.Returns("X");
         _host.LogLines.Returns(new ObservableCollection<string>());
         _host.RunOperationAsync(Arg.Any<Func<IProgress<string>, IProgress<double>, Task>>())
             .Returns(ci => ci.Arg<Func<IProgress<string>, IProgress<double>, Task>>()!(
@@ -42,6 +41,9 @@ public sealed class TorrentCheckViewModelTests
             Substitute.For<IFileSystem>());
         return new TorrentCheckViewModel(service, _dialogs, _host);
     }
+
+    private static void SelectInstance(TorrentCheckViewModel vm) =>
+        vm.TorrentInstance = new InstanceListEntry("X", 0, 0, "0 B");
 
     private static IInstanceRepository RepositoryWithInstance(Instance instance)
     {
@@ -76,6 +78,7 @@ public sealed class TorrentCheckViewModelTests
         var vm = CreateViewModel(
             SourceWithFiles(("contents/data.bin", 10)),
             RepositoryWithInstance(InstanceWithFile("data.bin", 10)));
+        SelectInstance(vm);
         vm.TorrentFilePath = "x.torrent";
         vm.RelativePath = "contents";
 
@@ -92,6 +95,7 @@ public sealed class TorrentCheckViewModelTests
         var vm = CreateViewModel(
             SourceWithFiles(("contents/data.bin", 10)),
             RepositoryWithInstance(InstanceWithFile("data.bin", 99)));
+        SelectInstance(vm);
         vm.TorrentFilePath = "x.torrent";
         vm.RelativePath = "contents";
 
@@ -111,6 +115,7 @@ public sealed class TorrentCheckViewModelTests
         var vm = CreateViewModel(
             source,
             RepositoryWithInstance(InstanceWithFile("data.bin", 10)));
+        SelectInstance(vm);
         vm.TorrentFilePath = "x.torrent";
         vm.RelativePath = "contents";
 
@@ -130,6 +135,7 @@ public sealed class TorrentCheckViewModelTests
         var vm = CreateViewModel(
             source,
             RepositoryWithInstance(InstanceWithFile("data.bin", 10)));
+        SelectInstance(vm);
         vm.TorrentFilePath = "x.torrent";
         vm.TorrentDownloadPath = "C:\\dl";
         vm.PiecesChecked = true;

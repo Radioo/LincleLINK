@@ -217,7 +217,7 @@ public sealed class MainViewModelTests
     {
         StubStatus();
         var vm = CreateViewModel();
-        vm.SelectedInstance = new InstanceListEntry("X", 0, 0, "0 B");
+        vm.TorrentCheck.TorrentInstance = new InstanceListEntry("X", 0, 0, "0 B");
 
         vm.TorrentCheck.TorrentFilePath = "x.torrent";
         vm.TorrentCheck.CheckFilesCommand.CanExecute(null).Should().BeTrue();
@@ -239,15 +239,63 @@ public sealed class MainViewModelTests
         StubStatus();
         var vm = CreateViewModel();
 
-        // No selected instance: not executable.
+        // No torrent instance selected: not executable.
         vm.TorrentCheck.TorrentFilePath = "x.torrent";
         vm.TorrentCheck.CheckFilesCommand.CanExecute(null).Should().BeFalse();
 
-        vm.SelectedInstance = new InstanceListEntry("X", 0, 0, "0 B");
+        vm.TorrentCheck.TorrentInstance = new InstanceListEntry("X", 0, 0, "0 B");
         vm.TorrentCheck.CheckFilesCommand.CanExecute(null).Should().BeTrue();
 
         // Busy gates it again through the shared host.
         vm.IsBusy = true;
         vm.TorrentCheck.CheckFilesCommand.CanExecute(null).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Torrent_command_requery_raised_on_selection_and_busy_changes()
+    {
+        StubStatus();
+        var vm = CreateViewModel();
+
+        var checkFilesFired = 0;
+        var checkPiecesFired = 0;
+        var linkFired = 0;
+        var browseFileFired = 0;
+        var browseDlFired = 0;
+        vm.TorrentCheck.CheckFilesCommand.CanExecuteChanged += (_, _) => checkFilesFired++;
+        vm.TorrentCheck.CheckPiecesCommand.CanExecuteChanged += (_, _) => checkPiecesFired++;
+        vm.TorrentCheck.LinkToTorrentCommand.CanExecuteChanged += (_, _) => linkFired++;
+        vm.TorrentCheck.BrowseTorrentFileCommand.CanExecuteChanged += (_, _) => browseFileFired++;
+        vm.TorrentCheck.BrowseTorrentDlPathCommand.CanExecuteChanged += (_, _) => browseDlFired++;
+
+        // Only CheckFiles gates on the torrent instance, so only it must re-query.
+        vm.TorrentCheck.TorrentInstance = new InstanceListEntry("X", 0, 0, "0 B");
+        checkFilesFired.Should().Be(1);
+        checkPiecesFired.Should().Be(0);
+        linkFired.Should().Be(0);
+        browseFileFired.Should().Be(0);
+        browseDlFired.Should().Be(0);
+
+        // Every torrent command gates on IsBusy, so all must re-query.
+        vm.IsBusy = true;
+        checkFilesFired.Should().Be(2);
+        checkPiecesFired.Should().Be(1);
+        linkFired.Should().Be(1);
+        browseFileFired.Should().Be(1);
+        browseDlFired.Should().Be(1);
+    }
+
+    [Fact]
+    public void Main_instance_selection_does_not_affect_torrent_instance()
+    {
+        StubStatus();
+        var vm = CreateViewModel();
+
+        vm.TorrentCheck.TorrentInstance = new InstanceListEntry("A", 0, 0, "0 B");
+        vm.TorrentCheck.TorrentFilePath = "x.torrent";
+        vm.SelectedInstance = new InstanceListEntry("B", 0, 0, "0 B");
+
+        vm.TorrentCheck.TorrentInstance!.InstanceName.Should().Be("A");
+        vm.TorrentCheck.CheckFilesCommand.CanExecute(null).Should().BeTrue();
     }
 }

@@ -16,9 +16,6 @@ public interface IOperationHost
     /// <summary>The shared log panel lines collection.</summary>
     ObservableCollection<string> LogLines { get; }
 
-    /// <summary>The currently selected instance name, or null when none is selected.</summary>
-    string? SelectedInstanceName { get; }
-
     /// <summary>Runs an operation on the thread pool, marshaling log/progress to the UI.</summary>
     Task RunOperationAsync(Func<IProgress<string>, IProgress<double>, Task> operation);
 }

@@ -55,7 +55,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         nameof(CheckUnusedCommand),
         nameof(ImportLegacyCommand))]
     private bool _isBusy;
-
+    
     [ObservableProperty]
     private double _progress;
 
@@ -95,8 +95,6 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         _addInstanceFactory = addInstanceFactory;
         TorrentCheck = new TorrentCheckViewModel(torrentService, dialogs, this);
     }
-
-    string? IOperationHost.SelectedInstanceName => SelectedInstance?.InstanceName;
 
     private bool _initialized;
 
@@ -284,6 +282,20 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         }
 
         SaveSettings(threads: clamped);
+    }
+
+    // The torrent tab's commands gate on host busy state, so re-query them when it
+    // changes. [NotifyCanExecuteChangedFor] can't target commands on another type,
+    // hence this explicit partial-method hook.
+    partial void OnIsBusyChanged(bool value) => NotifyTorrentCheckCommands();
+
+    private void NotifyTorrentCheckCommands()
+    {
+        TorrentCheck.BrowseTorrentFileCommand.NotifyCanExecuteChanged();
+        TorrentCheck.BrowseTorrentDlPathCommand.NotifyCanExecuteChanged();
+        TorrentCheck.CheckFilesCommand.NotifyCanExecuteChanged();
+        TorrentCheck.CheckPiecesCommand.NotifyCanExecuteChanged();
+        TorrentCheck.LinkToTorrentCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>
