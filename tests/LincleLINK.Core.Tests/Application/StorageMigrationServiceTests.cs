@@ -403,6 +403,29 @@ public sealed class StorageMigrationServiceTests : IDisposable
         await repository.DidNotReceive().SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task MigrateAsync_aborts_not_quarantines_on_db_failure_in_fallback()
+    {
+        // A DB-wide failure (locked/corrupt DB) during the per-instance fallback must
+        // abort the migration (the JSON stays put and it is re-offered next launch)
+        // rather than move the batch to instance-corrupt/, which would strand it
+        // outside the migration path after a transient lock.
+        var repository = Substitute.For<IInstanceRepository>();
+        repository.BulkInsertAsync(Arg.Any<IReadOnlyList<Instance>>(), Arg.Any<CancellationToken>())
+            .Returns(_ => throw new TestDbException("database is locked"));
+        repository.ExistsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(false);
+        repository.SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>())
+            .Returns(_ => throw new TestDbException("database is locked"));
+        WriteInstanceJson("IIDX28", TestData.V2InstanceJson);
+        var service = CreateService(repository);
+
+        var act = () => service.MigrateAsync();
+
+        await act.Should().ThrowAsync<TestDbException>();
+        Directory.GetFiles(_paths.InstanceDirectory, "*.json").Should().ContainSingle();
+        Directory.Exists(Path.Combine(_paths.InstanceDirectory, "instance-corrupt")).Should().BeFalse();
+    }
+
     /// <summary>Concrete <see cref="DbException"/> so the migration fallback filter can be exercised.</summary>
     private sealed class TestDbException : DbException
     {

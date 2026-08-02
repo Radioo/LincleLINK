@@ -261,7 +261,7 @@ public class StorageMigrationService
                     await _repository.SaveAsync(instance, ct);
                     await FinalizeAsync(instance, file, i);
                 }
-                catch (Exception inner) when (inner is JsonException or IOException or UnauthorizedAccessException or ArgumentException or DbException)
+                catch (Exception inner) when (inner is JsonException or IOException or UnauthorizedAccessException or ArgumentException)
                 {
                     quarantined++;
                     var detail = $"{instance.InstanceName}: {inner.Message}";
@@ -269,6 +269,16 @@ public class StorageMigrationService
                     log?.Report($"Quarantined {detail}");
                     TryQuarantine(file, log);
                     ReportPercent(percent, handled + i + 1, totalFiles);
+                }
+                catch (DbException inner)
+                {
+                    // A DB-wide failure (locked/corrupt database, disk full) means the
+                    // write never landed and the manifest itself is fine. Quarantining
+                    // would move the whole batch out of the migration path, so a
+                    // transient lock strands it forever. Abort instead; the JSON stays
+                    // on disk and the migration is re-offered next launch (idempotent).
+                    log?.Report($"Migration aborted: {inner.Message}");
+                    throw;
                 }
             }
 
