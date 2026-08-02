@@ -78,3 +78,50 @@ jobs:
           name: ${{ matrix.name }}
           path: artifacts/${{ matrix.name }}
           if-no-files-found: error
+
+  flatpak:
+    name: Flatpak bundle (linux-x64)
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v5
+        with:
+          name: LincleLINK-linux-x64.tar.gz
+          path: artifacts
+
+      - name: Stage published binary
+        run: |
+          tar -C artifacts -xzf artifacts/LincleLINK-linux-x64.tar.gz
+          mkdir -p artifacts/publish/linux-x64
+          cp artifacts/LincleLINK/LincleLINK artifacts/publish/linux-x64/
+
+      - name: Stamp metainfo release
+        run: |
+          VERSION=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' Directory.Build.props)
+          sed -i "s/@VERSION@/${VERSION}/; s/@DATE@/$(date -u +%F)/" \
+            packaging/flatpak/io.github.radioo.LincleLINK.metainfo.xml
+
+      - name: Install flatpak-builder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+      - name: Build flatpak
+        run: >-
+          flatpak-builder --user --install-deps-from=flathub --force-clean
+          --repo=artifacts/flatpak-repo artifacts/flatpak-build
+          packaging/flatpak/io.github.radioo.LincleLINK.yml
+
+      - name: Create bundle
+        run: >-
+          flatpak build-bundle artifacts/flatpak-repo
+          artifacts/LincleLINK-linux-x64.flatpak io.github.radioo.LincleLINK
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: LincleLINK-linux-x64.flatpak
+          path: artifacts/LincleLINK-linux-x64.flatpak
+          if-no-files-found: error

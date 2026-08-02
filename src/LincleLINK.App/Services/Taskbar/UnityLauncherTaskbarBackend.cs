@@ -16,8 +16,13 @@ namespace LincleLINK.App.Services.Taskbar;
 [ExcludeFromCodeCoverage]
 internal sealed class UnityLauncherTaskbarBackend : ITaskbarProgressBackend
 {
-    // Must match packaging/linux/LincleLINK.desktop as installed.
-    private const string AppUri = "application://LincleLINK.desktop";
+    // Must match the installed desktop file id: inside Flatpak the desktop file
+    // is exported as <app-id>.desktop (FLATPAK_ID is set by the sandbox), bare
+    // installs use packaging/linux/LincleLINK.desktop.
+    private static readonly string AppUri =
+        Environment.GetEnvironmentVariable("FLATPAK_ID") is { Length: > 0 } flatpakId
+            ? $"application://{flatpakId}.desktop"
+            : "application://LincleLINK.desktop";
     private const string ObjectPath = "/com/canonical/unity/launcherentry/1";
     private const string InterfaceName = "com.canonical.Unity.LauncherEntry";
 

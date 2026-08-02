@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- @VERSION@ / @DATE@ are stamped by CI (build.yml, "flatpak" job) from
+     Directory.Build.props before flatpak-builder runs. -->
+<component type="desktop-application">
+  <id>io.github.radioo.LincleLINK</id>
+  <name>LincleLINK</name>
+  <summary>Deduplicated game data storage and instance linking</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <developer id="io.github.radioo">
+    <name>Radioo</name>
+  </developer>
+  <description>
+    <p>
+      LincleLINK stores game data in a content-addressed database folder where
+      files are named by their MD5 hash, so identical files across game versions
+      are kept only once. Instances record the original file names, paths and
+      hashes, and can be linked back to any destination on the same partition as
+      hard links, recreating the original directory structure without using
+      additional disk space.
+    </p>
+    <p>
+      It can also check an instance against a .torrent file and link only the
+      files that fully match its pieces, preparing a download location where a
+      torrent client only fetches what is actually missing.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.radioo.LincleLINK.desktop</launchable>
+  <url type="homepage">https://github.com/Radioo/LincleLINK</url>
+  <url type="bugtracker">https://github.com/Radioo/LincleLINK/issues</url>
+  <categories>
+    <category>Utility</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="@VERSION@" date="@DATE@"/>
+  </releases>
+</component>
