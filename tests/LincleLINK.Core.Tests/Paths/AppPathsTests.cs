@@ -24,12 +24,14 @@ public sealed class AppPathsTests : IDisposable
     }
 
     [Fact]
-    public void EnsureCreated_creates_both_directories()
+    public void EnsureCreated_creates_db_but_not_instance()
     {
         var paths = new AppPaths(Path.Combine(_temp.Root, "data"));
         paths.EnsureCreated();
 
         Directory.Exists(paths.DbDirectory).Should().BeTrue();
-        Directory.Exists(paths.InstanceDirectory).Should().BeTrue();
+        // The instance folder is legacy-JSON-only and created lazily by the
+        // migration path (plan 13); a fresh SQLite install has no need for it.
+        Directory.Exists(paths.InstanceDirectory).Should().BeFalse();
     }
 }

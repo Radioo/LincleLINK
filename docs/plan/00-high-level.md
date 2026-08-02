@@ -111,7 +111,7 @@ Key rules:
 - `IHardLinker` → future strategies: reflink (btrfs), symlink mode, copy fallback
 - `IFileHasher` → MD5 today (hash-name compat), SHA-256 later
 - `ITorrentSource` → MonoTorrent today, other parsers later
-- `IInstanceRepository` / `IFileStore` → alternative backends (SQLite, cloud) without UI churn
+- `IInstanceRepository` / `IFileStore` → alternative backends (SQLite via EF Core — see `13`, cloud) without UI churn
 - DI container makes new services/views plug in without global static state
 
 ## 11. CI
@@ -156,3 +156,4 @@ Order matters — expand in this sequence, then lock each before implementation:
 10. `10-testing.md` (frameworks, fixtures, test plan per service)
 11. `11-ci.md` (GitHub Actions matrix, publish)
 12. `12-verification.md` (parity test checklist v2 vs v3, manual QA script)
+13. `13-sqlite-storage.md` (EF Core SQLite instance metadata + forced one-time migration — M7)

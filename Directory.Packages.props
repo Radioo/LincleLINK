@@ -1,9 +1,7 @@
 <Project>
-
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
-
   <ItemGroup>
     <!-- Avalonia (aligned to the Semi.Avalonia target patch so the theme,
          data-grid and control stack share one version; DataGrid has no 12.1.1) -->
@@ -24,6 +22,13 @@
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
     <!-- Torrent -->
     <PackageVersion Include="MonoTorrent" Version="3.0.2" />
+    <!-- Storage (SQLite instance metadata) -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
+    <!-- Design-time only; powers `dotnet ef` migrations, never ships in App (PrivateAssets=All) -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
+    <!-- Native SQLite runtime, referenced by the App entry point + test projects
+         (auto-added by the EF tools; needed to load the provider binaries). -->
+    <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
     <!-- Testing -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
@@ -33,5 +38,4 @@
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />
     <PackageVersion Include="coverlet.msbuild" Version="10.0.1" />
   </ItemGroup>
-
 </Project>

@@ -1,0 +1,21 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LincleLINK.App.ViewModels"
+             xmlns:behaviors="using:LincleLINK.App.Behaviors"
+             x:Class="LincleLINK.App.Views.StorageMigrationWindow"
+             x:DataType="vm:StorageMigrationViewModel">
+    <Grid Margin="16" RowDefinitions="Auto,*,Auto" RowSpacing="12">
+
+        <StackPanel Grid.Row="0" Spacing="6">
+            <TextBlock Text="Upgrading to the new SQLite database" FontSize="16" FontWeight="SemiBold" />
+            <TextBlock Text="Your instance data is being migrated to the new storage format. This happens once." TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Opacity="0.8" />
+        </StackPanel>
+
+        <ListBox Grid.Row="1" ItemsSource="{Binding LogLines}"
+                 behaviors:AutoScrollBehavior.AutoScrollToEnd="True" />
+
+        <ProgressBar Grid.Row="2" Value="{Binding Progress}" Minimum="0" Maximum="100" />
+
+    </Grid>
+</UserControl>

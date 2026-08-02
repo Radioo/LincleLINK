@@ -1,10 +1,12 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using LincleLINK.App.Abstractions;
 using LincleLINK.App.Composition;
 using LincleLINK.App.ViewModels;
 using LincleLINK.App.Views;
 using LincleLINK.Core.Abstractions.Settings;
+using LincleLINK.Core.Application;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LincleLINK.App;
@@ -29,6 +31,25 @@ public partial class App : Application
                 _services = await AppBootstrapper.BuildAsync(() => desktop.MainWindow);
 
                 var settings = _services.GetRequiredService<ISettingsStore>().Load();
+
+                // Forced one-time JSON → SQLite migration before the main window loads
+                // (plan 13 §7): users with legacy instance/*.json manifests get a
+                // non-dismissable progress window; new installs skip straight through.
+                var migration = _services.GetRequiredService<StorageMigrationService>();
+                if (migration.NeedsMigration())
+                {
+                    if (!desktop.MainWindow.IsVisible)
+                    {
+                        desktop.MainWindow.Show();
+                    }
+
+                    var host = _services.GetRequiredService<IAppDialogHost>();
+                    var migrationVm = _services.GetRequiredService<StorageMigrationViewModel>();
+                    var run = migrationVm.RunAsync();
+                    await host.ShowDialogAsync(migrationVm);
+                    await run;
+                }
+
                 var viewModel = _services.GetRequiredService<MainViewModel>();
                 desktop.MainWindow.DataContext = viewModel;
                 viewModel.SetTheme(settings.Theme);
