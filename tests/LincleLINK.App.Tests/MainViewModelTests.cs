@@ -96,6 +96,50 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task OpenAddInstance_does_not_disable_command_while_dialog_is_open()
+    {
+        StubStatus();
+        var dialogOpen = new TaskCompletionSource();
+        _dialogHost.ShowDialogAsync(Arg.Any<AddInstanceViewModel>()).Returns(dialogOpen.Task);
+        var vm = CreateViewModel();
+
+        var executing = vm.OpenAddInstanceCommand.ExecuteAsync(null);
+
+        vm.IsBusy.Should().BeFalse();
+        vm.OpenAddInstanceCommand.CanExecute(null).Should().BeTrue();
+
+        dialogOpen.TrySetResult();
+        await executing;
+    }
+
+    [Fact]
+    public async Task OpenAddInstance_re_enables_command_after_dialog_closes()
+    {
+        StubStatus();
+        var vm = CreateViewModel();
+
+        await vm.OpenAddInstanceCommand.ExecuteAsync(null);
+
+        vm.IsBusy.Should().BeFalse();
+        vm.OpenAddInstanceCommand.CanExecute(null).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task OpenAddInstance_survives_failing_post_dialog_refresh()
+    {
+        StubStatus();
+        _repository.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<IReadOnlyList<Instance>>(new IOException("db unavailable")));
+        var vm = CreateViewModel();
+
+        await vm.OpenAddInstanceCommand.ExecuteAsync(null);
+
+        vm.IsBusy.Should().BeFalse();
+        vm.OpenAddInstanceCommand.CanExecute(null).Should().BeTrue();
+        vm.LogLines.Should().Contain(m => m.Contains("Could not refresh instances"));
+    }
+
+    [Fact]
     public async Task DeleteInstance_deletes_after_confirmation()
     {
         StubStatus();
