@@ -4,7 +4,12 @@ using LincleLINK.Core.Abstractions.Linking;
 
 namespace LincleLINK.Core.Infrastructure.Linking;
 
+/// <summary>
+/// Hard linker for Unix-like targets via libc link(2). The mapped errno values
+/// (EPERM/ENOENT/EEXIST/EXDEV/EMLINK) are identical on Linux and macOS.
+/// </summary>
 [SupportedOSPlatform("linux")]
+[SupportedOSPlatform("macos")]
 public sealed class UnixHardLinker : IHardLinker
 {
     public bool TryCreateLink(string sourcePath, string linkPath, out string? error)

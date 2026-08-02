@@ -35,7 +35,7 @@ public interface ISettingsStore
 }
 ```
 
-- **Location (D1):** `Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LincleLINK", "settings.json")` → `%APPDATA%\LincleLINK\settings.json` on Windows, `~/.config/LincleLINK/settings.json` on Linux. Never inside the data dir.
+- **Location (D1):** `Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LincleLINK", "settings.json")` → `%APPDATA%\LincleLINK\settings.json` on Windows, `~/.config/LincleLINK/settings.json` on Linux, `~/Library/Application Support/LincleLINK/settings.json` on macOS. Never inside the data dir.
 - Schema: `{ "IsDarkTheme": bool, "DataDirectory": string | null, "HashThreadCount": int }`. Key `IsDarkTheme` matches actual v2 code (AGENTS.md's `{"IsDark": bool}` is inaccurate).
 - `DataDirectory = null` → default (current working directory).
 - `HashThreadCount` bounds the parallel hashing workers used by add-instance (Other-tab slider, `05`). Defaults to `Environment.ProcessorCount`; missing/corrupt/out-of-range values are clamped to `1..ProcessorCount` on load.

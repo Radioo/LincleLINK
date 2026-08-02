@@ -4,13 +4,13 @@
 
 - The locked rewrite plan lives in `docs/plan/` (`00-high-level.md` … `12-verification.md`). **Read `00` first** — §14 is the expansion index, §12 the milestone order. Work happens per the plan, in milestone order; don't invent features outside it.
 - **M0–M5 are done and committed** on branch `rewrite`: v3 skeleton, Core (domain/storage/ports), add-instance, linking/unused-files/legacy import, torrent flow (MonoTorrent), theming/title-bar/log. Remaining: M6 hardening (coverage gate, docs) and manual QA per `12-verification.md`.
-- Target: Avalonia cross-platform (Windows + Linux), .NET 10 LTS, CommunityToolkit.Mvvm, Microsoft.Extensions.DependencyInjection, **Semi.Avalonia** (not Fluent), MonoTorrent, layered `src/LincleLINK.Core` / `src/LincleLINK.App` / `tests/`.
+- Target: Avalonia cross-platform (Windows + Linux + macOS), .NET 10 LTS, CommunityToolkit.Mvvm, Microsoft.Extensions.DependencyInjection, **Semi.Avalonia** (not Fluent), MonoTorrent, layered `src/LincleLINK.Core` / `src/LincleLINK.App` / `tests/`.
 - `docs/plan/12-verification.md` §2 is the feature-parity matrix, §6 the consolidated v2→v3 behavior-change register.
 
 ## Build & verify
 
 - Build: `dotnet build LincleLINK.sln`; tests: `dotnet test LincleLINK.sln`.
-- CI: GitHub Actions matrix (`windows-latest` + `ubuntu-latest`) — `.github/workflows/ci.yml`.
+- CI: GitHub Actions matrix (`windows-latest` + `ubuntu-latest` + `macos-latest`) — `.github/workflows/ci.yml`.
 - `TreatWarningsAsErrors` is on for Core + both test projects (off for App). Keep builds at 0 warnings.
 - **Do NOT test UI changes via screenshots/render-capture harnesses** — ask the user to test and report instead.
 

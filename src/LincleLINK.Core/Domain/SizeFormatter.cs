@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace LincleLINK.Core.Domain;
 
 public static class SizeFormatter
@@ -24,8 +26,10 @@ public static class SizeFormatter
             unitIndex++;
         }
 
+        // Invariant culture: the string is persisted in instance JSON, so it must not
+        // vary with the machine locale (v2 fixture compatibility).
         return unitIndex == 0
             ? $"{size} {units[unitIndex]}"
-            : $"{Math.Round(value, 2)} {units[unitIndex]}";
+            : string.Create(CultureInfo.InvariantCulture, $"{Math.Round(value, 2)} {units[unitIndex]}");
     }
 }
