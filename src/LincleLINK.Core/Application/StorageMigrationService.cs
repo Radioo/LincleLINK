@@ -221,7 +221,7 @@ public class StorageMigrationService
             else
             {
                 quarantined++;
-                var detail = $"{instance.InstanceName}: Verification failed after writing {instance.InstanceName}.";
+                var detail = $"{instance.InstanceName}: Verification failed after writing.";
                 errors.Add(detail);
                 log?.Report($"Quarantined {detail}");
                 Quarantine(file);

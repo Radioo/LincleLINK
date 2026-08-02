@@ -245,7 +245,7 @@ public sealed class StorageMigrationServiceTests : IDisposable
 
         result.Migrated.Should().Be(0);
         result.Quarantined.Should().Be(1);
-        result.Errors.Should().ContainSingle().Which.Should().Contain("Verification failed after writing IIDX28");
+        result.Errors.Should().ContainSingle().Which.Should().Contain("Verification failed after writing");
         Directory.GetFiles(_paths.InstanceDirectory, "*.json").Should().BeEmpty();
         File.Exists(Path.Combine(_paths.InstanceDirectory, "instance-corrupt", "IIDX28.json")).Should().BeTrue();
     }
@@ -268,7 +268,7 @@ public sealed class StorageMigrationServiceTests : IDisposable
         await repository.Received(1).SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>());
         result.Migrated.Should().Be(0);
         result.Quarantined.Should().Be(1);
-        result.Errors.Should().ContainSingle().Which.Should().Contain("Verification failed after writing IIDX28");
+        result.Errors.Should().ContainSingle().Which.Should().Contain("Verification failed after writing");
         File.Exists(Path.Combine(_paths.InstanceDirectory, "instance-corrupt", "IIDX28.json")).Should().BeTrue();
     }
 
@@ -305,7 +305,7 @@ public sealed class StorageMigrationServiceTests : IDisposable
         await repository.Received(1).SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>());
         result.Migrated.Should().Be(0);
         result.Quarantined.Should().Be(1);
-        result.Errors.Should().ContainSingle().Which.Should().Contain("Verification failed after writing IIDX28");
+        result.Errors.Should().ContainSingle().Which.Should().Contain("Verification failed after writing");
         File.Exists(Path.Combine(_paths.InstanceDirectory, "instance-corrupt", "IIDX28.json")).Should().BeTrue();
     }
 
