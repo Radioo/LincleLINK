@@ -194,7 +194,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     {
         await RunOperationAsync(async (log, _) =>
         {
-            var result = await _unusedFilesService.CheckAndDeleteAsync(log);
+            var result = await _unusedFilesService.CheckAndDeleteAsync(log, threadCount: ThreadCount);
             if (result.Cancelled)
             {
                 LogLines.Add("Unused files deletion aborted.");

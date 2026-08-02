@@ -8,6 +8,13 @@ public interface IInstanceRepository
     Task<IReadOnlyList<Instance>> GetAllAsync(CancellationToken ct = default);
 
     /// <summary>
+    /// All referenced dedup file hashes (distinct), one row per hashed file. The
+    /// unused-file scan only needs the <c>HashedFileName</c> column; loading full
+    /// instances here would materialize every file row in the DB.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetAllHashedFileNamesAsync(CancellationToken ct = default);
+
+    /// <summary>
     /// Lightweight projection for list views: only the summary columns, never the
     /// file/directory rows. The UI list must not materialize the whole DB.
     /// </summary>

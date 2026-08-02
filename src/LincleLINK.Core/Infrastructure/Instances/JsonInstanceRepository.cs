@@ -48,6 +48,20 @@ public sealed class JsonInstanceRepository : IInstanceRepository
         return instances;
     }
 
+    public async Task<IReadOnlyList<string>> GetAllHashedFileNamesAsync(CancellationToken ct = default)
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var instance in await GetAllAsync(ct))
+        {
+            foreach (var file in instance.FileList)
+            {
+                names.Add(file.HashedFileName);
+            }
+        }
+
+        return names.Order(StringComparer.Ordinal).ToArray();
+    }
+
     public async Task<IReadOnlyList<InstanceListEntry>> GetSummariesAsync(CancellationToken ct = default)
     {
         var summaries = new List<InstanceListEntry>();

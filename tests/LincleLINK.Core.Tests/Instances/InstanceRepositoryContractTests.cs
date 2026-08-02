@@ -135,6 +135,22 @@ public abstract class InstanceRepositoryContractTests : IDisposable
     }
 
     [Fact]
+    public async Task GetAllHashedFileNames_returns_distinct_referenced_hashes()
+    {
+        var repo = CreateRepository();
+        var sharedHash = "A".PadRight(32, 'A') + ".bin";
+        var otherHash = "B".PadRight(32, 'B') + ".bin";
+        await repo.SaveAsync(Instance.Create(
+            "a",
+            [new InstanceFile("x.bin", "", 1, sharedHash), new InstanceFile("y.bin", "", 2, otherHash)],
+            []));
+        await repo.SaveAsync(Instance.Create("b", [new InstanceFile("z.bin", "", 3, sharedHash)], []));
+
+        var hashes = await repo.GetAllHashedFileNamesAsync();
+        hashes.Should().Equal(sharedHash, otherHash);
+    }
+
+    [Fact]
     public async Task Exists_is_case_insensitive()
     {
         var repo = CreateRepository();

@@ -46,6 +46,20 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
             .ToList();
     }
 
+    public async Task<IReadOnlyList<string>> GetAllHashedFileNamesAsync(CancellationToken ct = default)
+    {
+        // Column-only projection (no Includes, no domain materialization): the
+        // unused-file scan needs the hashes alone, never the full file rows.
+        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        var hashes = await context.InstanceFiles
+            .AsNoTracking()
+            .Select(f => f.HashedFileName)
+            .Distinct()
+            .ToListAsync(ct);
+
+        return hashes.Order(StringComparer.Ordinal).ToArray();
+    }
+
     public async Task<IReadOnlyList<InstanceListEntry>> GetSummariesAsync(CancellationToken ct = default)
     {
         // No Include / no child rows: the list view only needs the persisted
