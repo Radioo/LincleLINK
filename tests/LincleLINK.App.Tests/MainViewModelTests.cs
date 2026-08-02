@@ -199,10 +199,12 @@ public sealed class MainViewModelTests
             .Do(callInfo => saved = callInfo.Arg<AppSettings>());
 
         var vm = CreateViewModel();
-        vm.ThreadCount = 4;
+        int threadCount = vm.MaxThreadCount;
+        int requested = Math.Max(1, threadCount-1);
+        vm.ThreadCount = requested; 
 
         saved.Should().NotBeNull();
-        saved!.HashThreadCount.Should().Be(4);
+        saved!.HashThreadCount.Should().Be(requested);
         saved.IsDarkTheme.Should().BeFalse();
         saved.DataDirectory.Should().Be("C:\\data");
 
