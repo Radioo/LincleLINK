@@ -1,0 +1,11 @@
+name: package
+
+# Manual dry run of the release pipeline: builds and packages all platform
+# artifacts (downloadable from the run's artifacts) without creating a release.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
