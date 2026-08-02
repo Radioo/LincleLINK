@@ -12,7 +12,7 @@ namespace LincleLINK.Core.Infrastructure.Instances;
 /// EF Core (SQLite) implementation of <see cref="IInstanceRepository"/> (plan 13).
 /// Backed by an <c>IDbContextFactory</c> so the singleton repository uses a
 /// short-lived context per operation; instance metadata lives in
-/// <c>&lt;DataDirectory&gt;/linclelinc.db</c> while the <c>db/</c> dedup store
+/// <c>&lt;DataDirectory&gt;/linclelink.db</c> while the <c>db/</c> dedup store
 /// remains flat files. Semantics mirror <see cref="JsonInstanceRepository"/>:
 /// case-insensitive uniqueness, sorted names, totals recomputed on save.
 /// </summary>

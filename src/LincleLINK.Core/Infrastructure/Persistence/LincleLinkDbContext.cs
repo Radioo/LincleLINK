@@ -4,7 +4,7 @@ namespace LincleLINK.Core.Infrastructure.Persistence;
 
 /// <summary>
 /// EF Core code-first context for the instance metadata database
-/// (<c>&lt;DataDirectory&gt;/linclelinc.db</c>). Migrations are committed under
+/// (<c>&lt;DataDirectory&gt;/linclelink.db</c>). Migrations are committed under
 /// <c>Migrations/</c> and applied at startup via <c>Database.MigrateAsync</c>
 /// (plan 13). The dedup file store in <c>db/</c> stays on disk; only instance
 /// manifests live here.
