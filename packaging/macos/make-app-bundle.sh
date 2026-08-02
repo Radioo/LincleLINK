@@ -28,4 +28,10 @@ cp "$script_dir/LL_logo.icns" "$app/Contents/Resources/"
 sed "s/APP_VERSION/$version/g" "$script_dir/Info.plist" > "$app/Contents/Info.plist"
 chmod +x "$app/Contents/MacOS/LincleLINK"
 
+# Re-sign the assembled bundle: the executable carries the .NET linker's ad-hoc
+# signature for a bare binary, which is malformed as an app-bundle signature
+# (no resource seal — Gatekeeper reports the app as "damaged").
+codesign --force --deep --sign - "$app"
+codesign --verify --strict "$app"
+
 echo "created $app (version $version)"
