@@ -53,15 +53,16 @@ InstanceDirectories Id INTEGER PK AUTOINCREMENT · InstanceName TEXT FK→CASCAD
 ## 7. App changes
 
 - `ViewModels/StorageMigrationViewModel.cs` + `Views/StorageMigrationWindow.axaml(.cs)` — informational, **non-cancellable** progress + log window ("Upgrading instance database…") reusing `IAppDialogHost` / ViewLocator machinery. `Completed` event signals the host window to close (mirrors `FirstRunViewModel`).
-- Startup wiring (`App.axaml.cs` + `AppBootstrapper`): after the main container is built and `IAppPaths.EnsureCreated()` runs, if `StorageMigrationService.NeedsMigration()` → show the owner window, host the migration window modally, run `MigrateAsync` with progress/log; then set the main window content. On failure: log, keep un-migrated JSON, still open the app (never brick).
+- Startup wiring (`App.axaml.cs` + `AppBootstrapper`): after the main container is built and `IAppPaths.EnsureCreated()` runs, call `StorageMigrationService.EnsureSchemaAsync()` **unconditionally** (applies the SQLite schema — fresh installs have no JSON to trigger the migration but must not hit a missing table on the first query). Then, if `NeedsMigration()` → show the owner window, host the migration window modally, run `MigrateAsync` with progress/log; then set the main window content. On failure: log, keep un-migrated JSON, still open the app (never brick).
 
 ## 8. Migration semantics (`StorageMigrationService`)
 
 - `NeedsMigration()` → any `instance/*.json` exists. (New installs never create JSON, so this is a clean signal.)
+- `EnsureSchemaAsync()` → `Database.MigrateAsync()` on the SQLite context; applied unconditionally at startup (fresh installs included), and also the first step of `MigrateAsync`.
 - `MigrateAsync(IProgress<string> log, IProgress<double> percent, CancellationToken ct)`:
-  1. `Database.MigrateAsync()` on the SQLite context (applies any pending migrations).
+  1. `EnsureSchemaAsync()` (applies any pending migrations).
   2. For each `instance/*.json` (sorted by name): parse with the existing `InstanceJson` semantics; **skip if `NameKey` already present** (idempotent — survives a crash mid-run); insert instance + ordered children in one transaction; verify via `SqliteInstanceRepository.ExistsAsync`; then **delete that JSON**.
-  3. Per-file failure (unreadable/corrupt JSON) → move the file into `instance-corrupt/` with the error logged; continue. This prevents an infinite re-prompt loop next launch and never blocks the app.
+  3. Per-file failure (unreadable/corrupt JSON, or an instance name rejected by validation) → move the file into `instance-corrupt/` with the error logged; continue. This prevents an infinite re-prompt loop next launch and never blocks the app.
   4. `percent` mirrors add-instance-style progress (migrate count / total).
 
 ## 9. Launch matrix

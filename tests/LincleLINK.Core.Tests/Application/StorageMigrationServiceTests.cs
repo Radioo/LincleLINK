@@ -155,6 +155,44 @@ public sealed class StorageMigrationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task EnsureSchemaAsync_creates_schema_on_fresh_install()
+    {
+        // Fresh install: no instance/ directory and no migration run, yet the
+        // schema must exist so the first repository query does not hit a missing
+        // table (startup calls EnsureSchemaAsync unconditionally).
+        _paths.EnsureCreated();
+        var service = CreateService();
+
+        await service.EnsureSchemaAsync();
+
+        File.Exists(Path.Combine(_paths.DataDirectory, LincleLinkPersistence.DatabaseFileName)).Should().BeTrue();
+        var loaded = await _repository.GetAllAsync();
+        loaded.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task MigrateAsync_quarantines_invalid_name_and_continues()
+    {
+        // A reserved device name is rejected by the repository with an
+        // ArgumentException; it must quarantine that manifest rather than abort
+        // the loop and strand the remaining files.
+        WriteInstanceJson("IIDX28", TestData.V2InstanceJson);
+        WriteInstanceJson("bad", """{"Name":"CON","TotalFileSize":0,"TotalFileCount":0,"TotalFileSizeString":"0 B"}""");
+        var service = CreateService();
+
+        var result = await service.MigrateAsync();
+
+        result.Migrated.Should().Be(1);
+        result.Quarantined.Should().Be(1);
+        result.Errors.Should().ContainSingle().Which.Should().Contain("CON");
+        Directory.GetFiles(_paths.InstanceDirectory, "*.json").Should().BeEmpty();
+        File.Exists(Path.Combine(_paths.InstanceDirectory, "instance-corrupt", "bad.json")).Should().BeTrue();
+
+        var loaded = await _repository.GetAsync("IIDX28");
+        loaded.Should().NotBeNull();
+    }
+
+    [Fact]
     public async Task MigrateAsync_reports_log_and_progress_on_success()
     {
         WriteInstanceJson("IIDX28", TestData.V2InstanceJson);

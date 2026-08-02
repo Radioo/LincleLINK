@@ -48,16 +48,24 @@ public class StorageMigrationService
         => Directory.Exists(_paths.InstanceDirectory)
         && Directory.EnumerateFiles(_paths.InstanceDirectory, "*.json").Any();
 
+    /// <summary>
+    /// Applies any pending EF migrations so the schema exists before the first
+    /// repository query (plan 13 §8 step 1). Called unconditionally at startup —
+    /// fresh installs have no JSON to trigger <see cref="MigrateAsync"/> but still
+    /// need the schema, otherwise the first SELECT fails on a missing table.
+    /// </summary>
+    public virtual async Task EnsureSchemaAsync(CancellationToken ct = default)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        await context.Database.MigrateAsync(ct);
+    }
+
     public virtual async Task<StorageMigrationResult> MigrateAsync(
         IProgress<string>? log = null,
         IProgress<double>? percent = null,
         CancellationToken ct = default)
     {
-        // Apply any pending EF migrations before touching data (plan 13 §8 step 1).
-        await using (var context = await _contextFactory.CreateDbContextAsync(ct))
-        {
-            await context.Database.MigrateAsync(ct);
-        }
+        await EnsureSchemaAsync(ct);
 
         if (!Directory.Exists(_paths.InstanceDirectory))
         {
@@ -105,7 +113,7 @@ public class StorageMigrationService
                 migrated++;
                 log?.Report($"Migrated {name}");
             }
-            catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+            catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException or ArgumentException)
             {
                 quarantined++;
                 var detail = $"{name}: {ex.Message}";

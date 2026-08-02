@@ -32,10 +32,16 @@ public partial class App : Application
 
                 var settings = _services.GetRequiredService<ISettingsStore>().Load();
 
+                // Ensure the SQLite schema exists before the first query. Fresh
+                // installs have no JSON to trigger the migration below, but the
+                // first repository call would crash on a missing table without
+                // this (plan 13 §7/§8).
+                var migration = _services.GetRequiredService<StorageMigrationService>();
+                await migration.EnsureSchemaAsync();
+
                 // Forced one-time JSON → SQLite migration before the main window loads
                 // (plan 13 §7): users with legacy instance/*.json manifests get a
                 // non-dismissable progress window; new installs skip straight through.
-                var migration = _services.GetRequiredService<StorageMigrationService>();
                 if (migration.NeedsMigration())
                 {
                     if (!desktop.MainWindow.IsVisible)
