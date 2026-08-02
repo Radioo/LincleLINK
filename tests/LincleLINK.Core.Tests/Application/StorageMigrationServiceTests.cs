@@ -1,12 +1,15 @@
 using FluentAssertions;
+using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Paths;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Infrastructure.Instances;
 using LincleLINK.Core.Infrastructure.Paths;
 using LincleLINK.Core.Infrastructure.Persistence;
 using LincleLINK.Core.Tests.TestHelpers;
+using LincleLINK.Core.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using NSubstitute;
 using Xunit;
 
 namespace LincleLINK.Core.Tests.Application;
@@ -32,10 +35,25 @@ public sealed class StorageMigrationServiceTests : IDisposable
 
     private StorageMigrationService CreateService() => new(_paths, _repository, _factory);
 
+    /// <summary>
+    /// Service wired to a substituted repository so verification/insertion failure
+    /// paths can be forced; the real factory still applies the schema migrations.
+    /// </summary>
+    private StorageMigrationService CreateService(IInstanceRepository repository)
+        => new(_paths, repository, _factory);
+
     private void WriteInstanceJson(string name, string json)
     {
         Directory.CreateDirectory(_paths.InstanceDirectory);
         File.WriteAllText(Path.Combine(_paths.InstanceDirectory, name + ".json"), json);
+    }
+
+    [Fact]
+    public void NeedsMigration_with_empty_instance_dir_returns_false()
+    {
+        Directory.CreateDirectory(_paths.InstanceDirectory);
+
+        CreateService().NeedsMigration().Should().BeFalse();
     }
 
     [Fact]
@@ -118,5 +136,107 @@ public sealed class StorageMigrationServiceTests : IDisposable
         await service.MigrateAsync();
 
         File.Exists(Path.Combine(_paths.DataDirectory, LincleLinkPersistence.DatabaseFileName)).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task MigrateAsync_without_instance_directory_returns_empty_result()
+    {
+        // Mirror production startup (paths.EnsureCreated) so the data root exists
+        // but no legacy instance/ folder does.
+        _paths.EnsureCreated();
+        var service = CreateService();
+
+        var result = await service.MigrateAsync();
+
+        result.Migrated.Should().Be(0);
+        result.Skipped.Should().Be(0);
+        result.Quarantined.Should().Be(0);
+        result.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task MigrateAsync_reports_log_and_progress_on_success()
+    {
+        WriteInstanceJson("IIDX28", TestData.V2InstanceJson);
+        var service = CreateService();
+        var log = new List<string>();
+        var percents = new List<double>();
+
+        var result = await service.MigrateAsync(
+            new SynchronousProgress<string>(log.Add),
+            new SynchronousProgress<double>(percents.Add));
+
+        result.Migrated.Should().Be(1);
+        log.Should().Contain("Migrated IIDX28");
+        log.Should().Contain("Migration finished: 1 migrated, 0 already present, 0 quarantined.");
+        percents.Last().Should().Be(100);
+    }
+
+    [Fact]
+    public async Task MigrateAsync_logs_quarantine_and_progress()
+    {
+        WriteInstanceJson("bad", "{ this is not json");
+        var service = CreateService();
+        var log = new List<string>();
+        var percents = new List<double>();
+
+        var result = await service.MigrateAsync(
+            new SynchronousProgress<string>(log.Add),
+            new SynchronousProgress<double>(percents.Add));
+
+        result.Quarantined.Should().Be(1);
+        log.Should().Contain(line => line.Contains("Quarantined bad"));
+        percents.Last().Should().Be(100);
+    }
+
+    [Fact]
+    public async Task MigrateAsync_quarantines_when_verification_returns_null()
+    {
+        var repository = Substitute.For<IInstanceRepository>();
+        repository.ExistsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(false);
+        repository.SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        repository.GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((Instance?)null);
+        WriteInstanceJson("IIDX28", TestData.V2InstanceJson);
+        var service = CreateService(repository);
+
+        var result = await service.MigrateAsync();
+
+        result.Migrated.Should().Be(0);
+        result.Quarantined.Should().Be(1);
+        result.Errors.Should().ContainSingle().Which.Should().Contain("Verification failed after writing IIDX28");
+        Directory.GetFiles(_paths.InstanceDirectory, "*.json").Should().BeEmpty();
+        File.Exists(Path.Combine(_paths.InstanceDirectory, "instance-corrupt", "IIDX28.json")).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task MigrateAsync_quarantines_when_file_count_mismatch()
+    {
+        var repository = Substitute.For<IInstanceRepository>();
+        repository.ExistsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(false);
+        repository.SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        // The JSON manifest holds one file; a mismatched read-back must fail the
+        // verification even though the row itself exists.
+        repository.GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Instance.Create("IIDX28", [], []));
+        WriteInstanceJson("IIDX28", TestData.V2InstanceJson);
+        var service = CreateService(repository);
+
+        var result = await service.MigrateAsync();
+
+        result.Quarantined.Should().Be(1);
+        result.Errors.Should().ContainSingle().Which.Should().Contain("Verification failed after writing IIDX28");
+    }
+
+    [Fact]
+    public async Task MigrateAsync_quarantines_null_json_content()
+    {
+        WriteInstanceJson("bad", "null");
+        var service = CreateService();
+
+        var result = await service.MigrateAsync();
+
+        result.Quarantined.Should().Be(1);
+        result.Errors.Should().ContainSingle().Which.Should().Contain("Instance JSON was null");
+        File.Exists(Path.Combine(_paths.InstanceDirectory, "instance-corrupt", "bad.json")).Should().BeTrue();
     }
 }
