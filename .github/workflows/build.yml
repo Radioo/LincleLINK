@@ -78,6 +78,7 @@ jobs:
           name: ${{ matrix.name }}
           path: artifacts/${{ matrix.name }}
           if-no-files-found: error
+          archive: false
 
   flatpak:
     name: Flatpak bundle (linux-x64)
@@ -125,3 +126,4 @@ jobs:
           name: LincleLINK-linux-x64.flatpak
           path: artifacts/LincleLINK-linux-x64.flatpak
           if-no-files-found: error
+          archive: false
