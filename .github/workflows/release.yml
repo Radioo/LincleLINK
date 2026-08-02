@@ -2,6 +2,9 @@ name: release
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   build-test:
@@ -24,20 +27,16 @@ jobs:
         include:
           - rid: win-x64
             os: windows-latest
-            exe: .exe
             name: LincleLINK-win-x64.exe
           - rid: linux-x64
             os: ubuntu-latest
-            exe: ''
-            name: LincleLINK-linux-x64
+            name: LincleLINK-linux-x64.tar.gz
           - rid: osx-x64
             os: macos-latest
-            exe: ''
-            name: LincleLINK-osx-x64
+            name: LincleLINK-osx-x64.app.zip
           - rid: osx-arm64
             os: macos-latest
-            exe: ''
-            name: LincleLINK-osx-arm64
+            name: LincleLINK-osx-arm64.app.zip
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -55,21 +54,38 @@ jobs:
           -p:DebugSymbols=false
           -p:EnableCompressionInSingleFile=true
 
-      - name: Stage executable
+      - name: Package (Windows)
+        if: startsWith(matrix.rid, 'win')
         shell: bash
-        run: cp artifacts/publish/${{ matrix.rid }}/LincleLINK${{ matrix.exe }} artifacts/publish/${{ matrix.name }}
+        run: cp artifacts/publish/${{ matrix.rid }}/LincleLINK.exe artifacts/${{ matrix.name }}
+
+      - name: Package (Linux)
+        if: startsWith(matrix.rid, 'linux')
+        run: |
+          mkdir -p artifacts/LincleLINK
+          cp artifacts/publish/${{ matrix.rid }}/LincleLINK artifacts/LincleLINK/
+          cp packaging/linux/LincleLINK.desktop packaging/linux/linclelink.png artifacts/LincleLINK/
+          tar -C artifacts -czf artifacts/${{ matrix.name }} LincleLINK
+
+      - name: Package (macOS .app bundle)
+        if: startsWith(matrix.rid, 'osx')
+        run: |
+          packaging/macos/make-app-bundle.sh artifacts/publish/${{ matrix.rid }} artifacts/bundle
+          ditto -c -k --keepParent artifacts/bundle/LincleLINK.app artifacts/${{ matrix.name }}
 
       - uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.name }}
-          path: artifacts/publish/${{ matrix.name }}
+          path: artifacts/${{ matrix.name }}
           if-no-files-found: error
 
-  attach:
-    name: Attach to release
+  release:
+    name: Create release
     needs: publish
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@v5
         with:
@@ -78,3 +94,4 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
+          generate_release_notes: true
