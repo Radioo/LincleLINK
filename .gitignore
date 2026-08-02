@@ -368,3 +368,6 @@ instance/
 
 # Idea
 .idea/
+
+# Build dir when on intelliJ
+build/*
