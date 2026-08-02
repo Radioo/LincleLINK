@@ -115,22 +115,28 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         await RefreshAllAsync();
     }
 
-    [RelayCommand(CanExecute = nameof(CanOpenAddInstance))]
+    [RelayCommand(CanExecute = nameof(CanOpenAddInstance), AllowConcurrentExecutions = true)]
     private async Task OpenAddInstanceAsync()
     {
-        IsBusy = true;
+        // The dialog is modal, so the owner window is already non-interactive while
+        // it is shown, and no concurrent interaction is possible. Holding IsBusy (or
+        // letting the command's running state gate CanExecute) across the dialog and
+        // the follow-up refresh is what strands the button when that refresh stalls;
+        // with AllowConcurrentExecutions the button stays driven by IsBusy alone.
+        var dialog = _addInstanceFactory();
+        dialog.ThreadCount = ThreadCount;
+        await _dialogHost.ShowDialogAsync(dialog);
+
         try
         {
-            var dialog = _addInstanceFactory();
-            dialog.ThreadCount = ThreadCount;
-            await _dialogHost.ShowDialogAsync(dialog);
+            await RefreshAllAsync();
         }
-        finally
+        catch (Exception ex)
         {
-            IsBusy = false;
+            // A transient storage failure right after the dialog must not surface to
+            // the command and strand its button state; degrade and log instead.
+            LogLines.Add($"Could not refresh instances: {ex.Message}");
         }
-
-        await RefreshAllAsync();
     }
 
     [RelayCommand(CanExecute = nameof(CanDeleteInstance))]

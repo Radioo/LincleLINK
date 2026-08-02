@@ -87,18 +87,22 @@ public sealed class DialogService : IDialogService, IAppDialogHost
         // (robust; the view's VisualRoot is not reliably the hosting window here).
         vm.CloseRequested += (_, _) => window.Close();
 
+        // Settle on the Closed event in both branches: closing via the title-bar X
+        // must never leave the caller awaiting the dialog.
+        var closed = new TaskCompletionSource();
+        window.Closed += (_, _) => closed.TrySetResult();
+
         var owner = _ownerProvider();
         if (owner is not null)
         {
-            await window.ShowDialog(owner);
+            var show = window.ShowDialog(owner);
+            await Task.WhenAny(show, closed.Task);
         }
         else
         {
             // No owner (e.g. before the main window exists): show non-modally but
             // still wait for close so the contract "completes when the host window
             // closes" holds in both branches.
-            var closed = new TaskCompletionSource();
-            window.Closed += (_, _) => closed.TrySetResult();
             window.Show();
             await closed.Task;
         }
