@@ -3,6 +3,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using LincleLINK.App.Abstractions;
 using LincleLINK.App.Composition;
+using LincleLINK.App.Services;
 using LincleLINK.App.ViewModels;
 using LincleLINK.App.Views;
 using LincleLINK.Core.Abstractions.Settings;
@@ -18,6 +19,7 @@ public partial class App : Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
+        BrandTheme.Apply(this);
     }
 
     public override async void OnFrameworkInitializationCompleted()
