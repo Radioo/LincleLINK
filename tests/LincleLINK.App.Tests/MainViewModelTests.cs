@@ -128,8 +128,8 @@ public sealed class MainViewModelTests
     public async Task OpenAddInstance_survives_failing_post_dialog_refresh()
     {
         StubStatus();
-        _repository.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromException<IReadOnlyList<Instance>>(new IOException("db unavailable")));
+        _repository.GetSummariesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<IReadOnlyList<InstanceListEntry>>(new IOException("db unavailable")));
         var vm = CreateViewModel();
 
         await vm.OpenAddInstanceCommand.ExecuteAsync(null);
