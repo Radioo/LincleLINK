@@ -19,36 +19,51 @@ jobs:
     name: Publish (${{ matrix.rid }})
     needs: build-test
     strategy:
+      fail-fast: false
       matrix:
         include:
           - rid: win-x64
-            ext: zip
+            os: windows-latest
+            exe: .exe
+            name: LincleLINK-win-x64.exe
           - rid: linux-x64
-            ext: tar.gz
-    runs-on: ubuntu-latest
+            os: ubuntu-latest
+            exe: ''
+            name: LincleLINK-linux-x64
+          - rid: osx-x64
+            os: macos-latest
+            exe: ''
+            name: LincleLINK-osx-x64
+          - rid: osx-arm64
+            os: macos-latest
+            exe: ''
+            name: LincleLINK-osx-arm64
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
 
-      - name: Publish ${{ matrix.rid }}
-        run: dotnet publish src/LincleLINK.App -c Release -r ${{ matrix.rid }} --self-contained -o artifacts/publish/${{ matrix.rid }}
+      - name: Publish single-file
+        run: >-
+          dotnet publish src/LincleLINK.App -c Release -r ${{ matrix.rid }}
+          --self-contained -o artifacts/publish/${{ matrix.rid }}
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=None
+          -p:DebugSymbols=false
+          -p:EnableCompressionInSingleFile=true
 
-      - name: Package
+      - name: Stage executable
         shell: bash
-        run: |
-          cd artifacts/publish
-          if [ "${{ matrix.ext }}" = "zip" ]; then
-            zip -r LincleLINK-${{ matrix.rid }}.zip ${{ matrix.rid }}
-          else
-            tar -czf LincleLINK-${{ matrix.rid }}.tar.gz ${{ matrix.rid }}
-          fi
+        run: cp artifacts/publish/${{ matrix.rid }}/LincleLINK${{ matrix.exe }} artifacts/publish/${{ matrix.name }}
 
       - uses: actions/upload-artifact@v5
         with:
-          name: LincleLINK-${{ matrix.rid }}
-          path: artifacts/publish/LincleLINK-${{ matrix.rid }}.${{ matrix.ext }}
+          name: ${{ matrix.name }}
+          path: artifacts/publish/${{ matrix.name }}
+          if-no-files-found: error
 
   attach:
     name: Attach to release
