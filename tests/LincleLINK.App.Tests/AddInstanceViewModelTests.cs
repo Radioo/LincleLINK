@@ -1,4 +1,5 @@
 using FluentAssertions;
+using LincleLINK.App.Abstractions;
 using LincleLINK.App.ViewModels;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Disk;
@@ -28,9 +29,10 @@ public sealed class AddInstanceViewModelTests
     private readonly IInstanceRepository _repository = Substitute.For<IInstanceRepository>();
     private readonly IDriveInfoProvider _driveInfo = Substitute.For<IDriveInfoProvider>();
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
+    private readonly ITaskbarProgress _taskbarProgress = Substitute.For<ITaskbarProgress>();
 
     private AddInstanceViewModel Create() =>
-        new(new InstanceService(_fs, _hasher, _store, _hardLinker, _repository, _driveInfo, _dialogs), _dialogs);
+        new(new InstanceService(_fs, _hasher, _store, _hardLinker, _repository, _driveInfo, _dialogs), _dialogs, _taskbarProgress);
 
     private void StubDataPath()
     {

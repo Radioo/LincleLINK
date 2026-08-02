@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using LincleLINK.App.Abstractions;
 using LincleLINK.App.Services;
+using LincleLINK.App.Services.Taskbar;
 using LincleLINK.App.ViewModels;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Paths;
@@ -111,6 +112,17 @@ public static class AppBootstrapper
         services.AddSingleton<IDialogService>(dialogService);
         services.AddSingleton<IAppDialogHost>(dialogService);
         services.AddSingleton<IThemeManager, ThemeManager>();
+        services.AddSingleton<ITaskbarProgress>(_ =>
+        {
+            ITaskbarProgressBackend backend =
+                OperatingSystem.IsWindows() ? new WindowsTaskbarProgressBackend(ownerProvider) :
+                OperatingSystem.IsLinux() ? new UnityLauncherTaskbarBackend() :
+                OperatingSystem.IsMacOS() ? new MacDockTaskbarBackend() :
+                new NullTaskbarProgressBackend();
+            // Default to "active" when no window exists yet so completion never
+            // flashes a window that is not on screen.
+            return new TaskbarProgressService(backend, () => ownerProvider()?.IsActive ?? true);
+        });
     }
 
     private static ServiceProvider CreateBootstrapContainer(string settingsFile, Func<Window?> ownerProvider)
