@@ -1,7 +1,9 @@
+using System.Text;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Domain;
 using LincleLINK.Core.Domain.Validation;
 using LincleLINK.Core.Infrastructure.Persistence;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 namespace LincleLINK.Core.Infrastructure.Instances;
@@ -146,6 +148,149 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
         await context.SaveChangesAsync(ct);
         return true;
     }
+
+    public async Task BulkInsertAsync(IReadOnlyList<Instance> instances, CancellationToken ct = default)
+    {
+        if (instances.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var instance in instances)
+        {
+            ValidateName(instance.InstanceName);
+            instance.RecomputeTotals();
+        }
+
+        // One transaction for the whole batch, raw multi-row INSERTs bypassing EF
+        // change tracking (which is catastrophically slow for ~1M rows). WAL +
+        // synchronous=NORMAL avoid the per-commit fsync cost; journal mode is
+        // persistent in the DB file, memory DBs (tests) simply report "memory".
+        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        var connection = (SqliteConnection)context.Database.GetDbConnection();
+        await connection.OpenAsync(ct);
+
+        await using (var pragma = connection.CreateCommand())
+        {
+            pragma.CommandText = "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;";
+            await pragma.ExecuteNonQueryAsync(ct);
+        }
+
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(ct);
+
+        foreach (var instance in instances)
+        {
+            await InsertInstanceAsync(connection, transaction, instance, ct);
+            await InsertFilesAsync(connection, transaction, instance, ct);
+            await InsertDirectoriesAsync(connection, transaction, instance, ct);
+        }
+
+        await transaction.CommitAsync(ct);
+    }
+
+    private static async Task InsertInstanceAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        Instance instance,
+        CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            INSERT INTO "Instances" ("InstanceName", "NameKey", "TotalFileSize", "TotalFileCount", "TotalFileSizeString")
+            VALUES ($name, $key, $size, $count, $sizeString)
+            """;
+        command.Parameters.Add(new SqliteParameter("$name", instance.InstanceName));
+        command.Parameters.Add(new SqliteParameter("$key", LincleLinkPersistence.NameKeyOf(instance.InstanceName)));
+        command.Parameters.Add(new SqliteParameter("$size", instance.TotalFileSize));
+        command.Parameters.Add(new SqliteParameter("$count", instance.TotalFileCount));
+        command.Parameters.Add(new SqliteParameter("$sizeString", instance.TotalFileSizeString));
+        await command.ExecuteNonQueryAsync(ct);
+    }
+
+    /// <summary>
+    /// Inserts the file rows in chunked multi-row statements (~6 params per row,
+    /// well under SQLite's 32,766-variable limit). Keeps <see cref="Ordinal"/>
+    /// global to the instance so order survives chunk boundaries.
+    /// </summary>
+    private static async Task InsertFilesAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        Instance instance,
+        CancellationToken ct)
+    {
+        const string prefix = "INSERT INTO \"InstanceFiles\" (\"InstanceName\", \"Ordinal\", \"FileName\", \"RelativePath\", \"FileSize\", \"HashedFileName\") VALUES ";
+        var files = instance.FileList;
+
+        for (var start = 0; start < files.Count; start += BulkChunkSize)
+        {
+            var count = Math.Min(BulkChunkSize, files.Count - start);
+            var sql = new StringBuilder(prefix);
+            var parameters = new SqliteParameter[count * 6];
+
+            for (var i = 0; i < count; i++)
+            {
+                var file = files[start + i];
+                var ordinal = start + i;
+                if (i > 0)
+                {
+                    sql.Append(',');
+                }
+
+                sql.Append($"($n{i},$o{i},$f{i},$r{i},$z{i},$h{i})");
+                parameters[i * 6 + 0] = new SqliteParameter($"$n{i}", instance.InstanceName);
+                parameters[i * 6 + 1] = new SqliteParameter($"$o{i}", ordinal);
+                parameters[i * 6 + 2] = new SqliteParameter($"$f{i}", file.FileName);
+                parameters[i * 6 + 3] = new SqliteParameter($"$r{i}", file.RelativePath);
+                parameters[i * 6 + 4] = new SqliteParameter($"$z{i}", file.FileSize);
+                parameters[i * 6 + 5] = new SqliteParameter($"$h{i}", file.HashedFileName);
+            }
+
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = sql.ToString();
+            command.Parameters.AddRange(parameters);
+            await command.ExecuteNonQueryAsync(ct);
+        }
+    }
+
+    private static async Task InsertDirectoriesAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        Instance instance,
+        CancellationToken ct)
+    {
+        const string prefix = "INSERT INTO \"InstanceDirectories\" (\"InstanceName\", \"Ordinal\", \"Value\") VALUES ";
+        var directories = instance.DirectoryList;
+
+        for (var start = 0; start < directories.Count; start += BulkChunkSize)
+        {
+            var count = Math.Min(BulkChunkSize, directories.Count - start);
+            var sql = new StringBuilder(prefix);
+            var parameters = new SqliteParameter[count * 3];
+
+            for (var i = 0; i < count; i++)
+            {
+                if (i > 0)
+                {
+                    sql.Append(',');
+                }
+
+                sql.Append($"($n{i},$o{i},$v{i})");
+                parameters[i * 3 + 0] = new SqliteParameter($"$n{i}", instance.InstanceName);
+                parameters[i * 3 + 1] = new SqliteParameter($"$o{i}", start + i);
+                parameters[i * 3 + 2] = new SqliteParameter($"$v{i}", directories[start + i]);
+            }
+
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = sql.ToString();
+            command.Parameters.AddRange(parameters);
+            await command.ExecuteNonQueryAsync(ct);
+        }
+    }
+
+    private const int BulkChunkSize = 4000;
 
     private static Instance ToDomain(InstanceEntity entity) => new()
     {

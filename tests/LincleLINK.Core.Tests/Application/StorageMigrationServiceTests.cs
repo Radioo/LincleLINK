@@ -228,12 +228,15 @@ public sealed class StorageMigrationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task MigrateAsync_quarantines_when_verification_returns_null()
+    public async Task MigrateAsync_quarantines_when_verification_fails()
     {
+        // The bulk insert "succeeds" but the follow-up existence check reports the
+        // row is absent, so the manifest must be quarantined (not deleted).
         var repository = Substitute.For<IInstanceRepository>();
+        repository.BulkInsertAsync(Arg.Any<IReadOnlyList<Instance>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
         repository.ExistsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(false);
         repository.SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-        repository.GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((Instance?)null);
         WriteInstanceJson("IIDX28", TestData.V2InstanceJson);
         var service = CreateService(repository);
 
@@ -247,22 +250,25 @@ public sealed class StorageMigrationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task MigrateAsync_quarantines_when_file_count_mismatch()
+    public async Task MigrateAsync_falls_back_to_per_instance_save_when_bulk_insert_fails()
     {
+        // A bulk insert failure must not strand the batch: each manifest is retried
+        // individually so a single bad instance is quarantined, not the whole chunk.
         var repository = Substitute.For<IInstanceRepository>();
+        repository.BulkInsertAsync(Arg.Any<IReadOnlyList<Instance>>(), Arg.Any<CancellationToken>())
+            .Returns(_ => throw new IOException("bulk failed"));
         repository.ExistsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(false);
         repository.SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-        // The JSON manifest holds one file; a mismatched read-back must fail the
-        // verification even though the row itself exists.
-        repository.GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Instance.Create("IIDX28", [], []));
         WriteInstanceJson("IIDX28", TestData.V2InstanceJson);
         var service = CreateService(repository);
 
         var result = await service.MigrateAsync();
 
+        await repository.Received(1).SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>());
+        result.Migrated.Should().Be(0);
         result.Quarantined.Should().Be(1);
         result.Errors.Should().ContainSingle().Which.Should().Contain("Verification failed after writing IIDX28");
+        File.Exists(Path.Combine(_paths.InstanceDirectory, "instance-corrupt", "IIDX28.json")).Should().BeTrue();
     }
 
     [Fact]

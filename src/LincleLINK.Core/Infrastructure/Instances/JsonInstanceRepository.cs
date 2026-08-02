@@ -169,6 +169,14 @@ public sealed class JsonInstanceRepository : IInstanceRepository
         }, ct);
     }
 
+    public async Task BulkInsertAsync(IReadOnlyList<Instance> instances, CancellationToken ct = default)
+    {
+        foreach (var instance in instances)
+        {
+            await SaveAsync(instance, ct);
+        }
+    }
+
     private string PathFor(string name) => Path.Combine(_paths.InstanceDirectory, name + ".json");
 
     /// <summary>

@@ -115,6 +115,26 @@ public abstract class InstanceRepositoryContractTests : IDisposable
     }
 
     [Fact]
+    public async Task BulkInsert_adds_all_instances_with_children()
+    {
+        var repo = CreateRepository();
+        await repo.BulkInsertAsync([
+            Instance.Create("beta", [new InstanceFile("b.bin", "dir", 2, "B".PadRight(32, 'B') + ".bin")], ["dir"]),
+            Instance.Create("Alpha", [], []),
+        ]);
+
+        (await repo.GetNamesAsync()).Should().Equal("Alpha", "beta");
+
+        var loaded = await repo.GetAsync("beta");
+        loaded.Should().NotBeNull();
+        loaded!.FileList.Should().ContainSingle().Which.HashedFileName.Should().Be("B".PadRight(32, 'B') + ".bin");
+        loaded.DirectoryList.Should().Equal("dir");
+
+        var summaries = await repo.GetSummariesAsync();
+        summaries.Single(s => s.InstanceName == "beta").TotalFileSize.Should().Be(2);
+    }
+
+    [Fact]
     public async Task Exists_is_case_insensitive()
     {
         var repo = CreateRepository();

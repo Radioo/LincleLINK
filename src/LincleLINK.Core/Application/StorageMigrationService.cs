@@ -26,6 +26,10 @@ public class StorageMigrationService
 {
     private const string QuarantineDirectoryName = "instance-corrupt";
 
+    /// <summary>Flush pending manifests as one bulk insert every N instances or file rows.</summary>
+    private const int BulkFlushThreshold = 50;
+    private const long BulkFileFlushThreshold = 100_000;
+
     private readonly IAppPaths _paths;
     private readonly IInstanceRepository _repository;
     private readonly IDbContextFactory<LincleLinkDbContext> _contextFactory;
@@ -76,10 +80,25 @@ public class StorageMigrationService
             .OrderBy(f => f, StringComparer.Ordinal)
             .ToList();
 
+        if (files.Count == 0)
+        {
+            return new StorageMigrationResult(0, 0, 0, []);
+        }
+
         int migrated = 0;
         int skipped = 0;
         int quarantined = 0;
         var errors = new List<string>();
+
+        // Manifests are parsed and accumulated, then written in one bulk insert
+        // (a single SQLite transaction) instead of one context+commit per instance.
+        // Failure isolation is preserved: unreadable names are quarantined during
+        // the parse phase, and a failed chunk falls back to per-instance writes.
+        // The source file path travels with each instance so delete/quarantine uses
+        // the actual manifest file, which can differ from the inner name.
+        var pending = new List<(Instance Instance, string File)>();
+        long pendingFileCount = 0;
+        int handled = 0;
 
         for (var index = 0; index < files.Count; index++)
         {
@@ -97,37 +116,125 @@ public class StorageMigrationService
                 if (await _repository.ExistsAsync(name, ct))
                 {
                     skipped++;
+                    handled++;
                     File.Delete(file);
+                    ReportPercent(percent, handled, files.Count);
                     continue;
                 }
 
-                await _repository.SaveAsync(instance, ct);
-
-                var written = await _repository.GetAsync(instance.InstanceName, ct);
-                if (written is null || written.FileList.Count != instance.FileList.Count)
-                {
-                    throw new IOException($"Verification failed after writing {name}.");
-                }
-
-                File.Delete(file);
-                migrated++;
-                log?.Report($"Migrated {name}");
+                pending.Add((instance, file));
+                pendingFileCount += instance.FileList.Count;
             }
             catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException or ArgumentException)
             {
                 quarantined++;
+                handled++;
                 var detail = $"{name}: {ex.Message}";
                 errors.Add(detail);
                 log?.Report($"Quarantined {detail}");
                 Quarantine(file);
+                ReportPercent(percent, handled, files.Count);
             }
 
-            percent?.Report(100d * (index + 1) / files.Count);
+            if (pending.Count >= BulkFlushThreshold || pendingFileCount >= BulkFileFlushThreshold)
+            {
+                var (m, q, e) = await FlushAsync(pending, handled, files.Count, log, percent, ct);
+                migrated += m;
+                quarantined += q;
+                errors.AddRange(e);
+                handled += pending.Count;
+                pending.Clear();
+                pendingFileCount = 0;
+            }
+        }
+
+        if (pending.Count > 0)
+        {
+            var (m, q, e) = await FlushAsync(pending, handled, files.Count, log, percent, ct);
+            migrated += m;
+            quarantined += q;
+            errors.AddRange(e);
         }
 
         log?.Report(
             $"Migration finished: {migrated} migrated, {skipped} already present, {quarantined} quarantined.");
         return new StorageMigrationResult(migrated, skipped, quarantined, errors);
+    }
+
+    /// <summary>
+    /// Writes a pending batch via <see cref="IInstanceRepository.BulkInsertAsync"/>
+    /// and finalizes each manifest (delete JSON / quarantine) with a cheap
+    /// existence check instead of re-reading every file row. On a bulk failure,
+    /// falls back to per-instance <see cref="IInstanceRepository.SaveAsync"/> so a
+    /// single bad manifest is quarantined rather than stranding the whole batch.
+    /// </summary>
+    private async Task<(int Migrated, int Quarantined, IReadOnlyList<string> Errors)> FlushAsync(
+        IReadOnlyList<(Instance Instance, string File)> pending,
+        int handled,
+        int totalFiles,
+        IProgress<string>? log,
+        IProgress<double>? percent,
+        CancellationToken ct)
+    {
+        int migrated = 0;
+        int quarantined = 0;
+        var errors = new List<string>();
+
+        async Task FinalizeAsync(Instance instance, string file, int withinFlush)
+        {
+            if (await _repository.ExistsAsync(instance.InstanceName, ct))
+            {
+                migrated++;
+                File.Delete(file);
+                log?.Report($"Migrated {instance.InstanceName}");
+            }
+            else
+            {
+                quarantined++;
+                var detail = $"{instance.InstanceName}: Verification failed after writing {instance.InstanceName}.";
+                errors.Add(detail);
+                log?.Report($"Quarantined {detail}");
+                Quarantine(file);
+            }
+
+            ReportPercent(percent, handled + withinFlush + 1, totalFiles);
+        }
+
+        try
+        {
+            await _repository.BulkInsertAsync(pending.Select(p => p.Instance).ToList(), ct);
+
+            for (var i = 0; i < pending.Count; i++)
+            {
+                await FinalizeAsync(pending[i].Instance, pending[i].File, i);
+            }
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            log?.Report($"Bulk insert failed ({ex.Message}); retrying individually.");
+
+            for (var i = 0; i < pending.Count; i++)
+            {
+                var (instance, file) = pending[i];
+
+                try
+                {
+                    await _repository.SaveAsync(instance, ct);
+                    await FinalizeAsync(instance, file, i);
+                }
+                catch (Exception inner) when (inner is JsonException or IOException or UnauthorizedAccessException or ArgumentException)
+                {
+                    quarantined++;
+                    var detail = $"{instance.InstanceName}: {inner.Message}";
+                    errors.Add(detail);
+                    log?.Report($"Quarantined {detail}");
+                    Quarantine(file);
+                    ReportPercent(percent, handled + i + 1, totalFiles);
+                }
+            }
+        }
+
+        return (migrated, quarantined, errors);
     }
 
     private async Task<Instance> ReadInstanceAsync(string file, CancellationToken ct)
@@ -144,4 +251,7 @@ public class StorageMigrationService
         Directory.CreateDirectory(quarantineDir);
         File.Move(file, Path.Combine(quarantineDir, Path.GetFileName(file)), overwrite: true);
     }
+
+    private static void ReportPercent(IProgress<double>? percent, int numerator, int denominator)
+        => percent?.Report(100d * numerator / denominator);
 }

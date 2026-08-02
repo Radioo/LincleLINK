@@ -21,4 +21,12 @@ public interface IInstanceRepository
 
     Task SaveAsync(Instance instance, CancellationToken ct = default);
     Task<bool> DeleteAsync(string name, CancellationToken ct = default);
+
+    /// <summary>
+    /// Inserts a batch of instances (with children) in one operation. Used by the
+    /// one-time JSON → SQLite migration; the caller guarantees the names do not
+    /// already exist. Implementations may use a faster bulk path than
+    /// <see cref="SaveAsync"/> (SQLite inserts without change tracking).
+    /// </summary>
+    Task BulkInsertAsync(IReadOnlyList<Instance> instances, CancellationToken ct = default);
 }
