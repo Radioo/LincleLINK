@@ -20,7 +20,7 @@ public sealed class FirstLaunchServiceTests : IDisposable
     {
         var store = new JsonSettingsStore(SettingsPath);
         var dataDir = Path.Combine(_temp.Root, "data");
-        store.Save(new AppSettings(false, dataDir, 4));
+        store.Save(new AppSettings(AppTheme.Light, dataDir, 4));
 
         var result = new FirstLaunchService(store).ResolveDataDirectory();
 
@@ -33,7 +33,7 @@ public sealed class FirstLaunchServiceTests : IDisposable
     public void Resolve_with_existing_settings_and_null_dir_uses_cwd()
     {
         var store = new JsonSettingsStore(SettingsPath);
-        store.Save(new AppSettings(false, null, 1));
+        store.Save(new AppSettings(AppTheme.Light, null, 1));
 
         var original = Environment.CurrentDirectory;
         try
@@ -56,7 +56,7 @@ public sealed class FirstLaunchServiceTests : IDisposable
     public void Resolve_with_null_dir_persists_absolute_cwd()
     {
         var store = new JsonSettingsStore(SettingsPath);
-        store.Save(new AppSettings(false, null, 1));
+        store.Save(new AppSettings(AppTheme.Light, null, 1));
 
         var original = Environment.CurrentDirectory;
         try
@@ -136,7 +136,7 @@ public sealed class FirstLaunchServiceTests : IDisposable
         service.CompleteFirstLaunch(dataDir);
 
         var settings = store.Load();
-        settings.IsDarkTheme.Should().BeTrue();
+        settings.Theme.Should().Be(AppTheme.Dark);
         settings.DataDirectory.Should().Be(dataDir);
 
         // Next launch is no longer first launch.

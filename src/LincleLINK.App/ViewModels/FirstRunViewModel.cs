@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using LincleLINK.App.Abstractions;
 using LincleLINK.App.ViewModels.Base;
 using LincleLINK.Core.Abstractions.Dialogs;
+using LincleLINK.Core.Abstractions.Settings;
 using LincleLINK.Core.Application;
 
 namespace LincleLINK.App.ViewModels;
@@ -36,19 +37,18 @@ public partial class FirstRunViewModel : ViewModelBase
         IThemeManager themeManager,
         string defaultDirectory,
         bool hasLegacyV2Data,
-        bool defaultDarkTheme)
+        AppTheme defaultTheme)
     {
         _dialogs = dialogs;
         _themeManager = themeManager;
         _dataDirectory = defaultDirectory;
-        IsDarkTheme = defaultDarkTheme;
-        IsLightTheme = !defaultDarkTheme;
+        SetTheme(defaultTheme);
         _status = hasLegacyV2Data
             ? "Existing v2 data detected in the current directory."
             : "Choose the folder that contains (or will contain) your db/ and instance/ data.";
     }
 
-    protected override void OnThemeChanged(bool dark) => _themeManager.Apply(dark);
+    protected override void OnThemeChanged(AppTheme theme) => _themeManager.Apply(theme);
 
     [RelayCommand]
     private async Task BrowseAsync()

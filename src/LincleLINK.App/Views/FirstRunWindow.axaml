@@ -18,6 +18,7 @@
             <TextBlock Text="Theme" VerticalAlignment="Center" />
             <RadioButton Content="Light" GroupName="theme" IsChecked="{Binding IsLightTheme, Mode=TwoWay}" />
             <RadioButton Content="Dark" GroupName="theme" IsChecked="{Binding IsDarkTheme, Mode=TwoWay}" />
+            <RadioButton Content="System" GroupName="theme" IsChecked="{Binding IsSystemTheme, Mode=TwoWay}" />
         </StackPanel>
 
         <Button Content="Use this directory" Command="{Binding ConfirmCommand}" HorizontalAlignment="Right" MinWidth="160" />

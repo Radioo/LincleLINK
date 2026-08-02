@@ -2,6 +2,7 @@ using FluentAssertions;
 using LincleLINK.App.Abstractions;
 using LincleLINK.App.ViewModels;
 using LincleLINK.Core.Abstractions.Dialogs;
+using LincleLINK.Core.Abstractions.Settings;
 using NSubstitute;
 using Xunit;
 
@@ -15,8 +16,8 @@ public sealed class FirstRunViewModelTests
     private FirstRunViewModel Create(
         string defaultDirectory = @"C:\data",
         bool hasLegacyV2Data = false,
-        bool defaultDarkTheme = false)
-        => new(_dialogs, _themeManager, defaultDirectory, hasLegacyV2Data, defaultDarkTheme);
+        AppTheme defaultTheme = AppTheme.Light)
+        => new(_dialogs, _themeManager, defaultDirectory, hasLegacyV2Data, defaultTheme);
 
     [Fact]
     public void Constructor_sets_directory_and_status()
@@ -33,10 +34,17 @@ public sealed class FirstRunViewModelTests
         var light = Create();
         light.IsDarkTheme.Should().BeFalse();
         light.IsLightTheme.Should().BeTrue();
+        light.IsSystemTheme.Should().BeFalse();
 
-        var dark = Create(defaultDarkTheme: true);
+        var dark = Create(defaultTheme: AppTheme.Dark);
         dark.IsDarkTheme.Should().BeTrue();
         dark.IsLightTheme.Should().BeFalse();
+        dark.IsSystemTheme.Should().BeFalse();
+
+        var system = Create(defaultTheme: AppTheme.System);
+        system.IsDarkTheme.Should().BeFalse();
+        system.IsLightTheme.Should().BeFalse();
+        system.IsSystemTheme.Should().BeTrue();
     }
 
     [Fact]
@@ -46,19 +54,32 @@ public sealed class FirstRunViewModelTests
 
         vm.IsDarkTheme = true;
 
-        _themeManager.Received(1).Apply(true);
+        _themeManager.Received(1).Apply(AppTheme.Dark);
         vm.IsLightTheme.Should().BeFalse();
     }
 
     [Fact]
     public void Selecting_light_applies_theme_and_clears_dark()
     {
-        var vm = Create(defaultDarkTheme: true);
+        var vm = Create(defaultTheme: AppTheme.Dark);
 
         vm.IsLightTheme = true;
 
-        _themeManager.Received(1).Apply(false);
+        _themeManager.Received(1).Apply(AppTheme.Light);
         vm.IsDarkTheme.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Selecting_system_applies_theme_and_clears_others()
+    {
+        var vm = Create(defaultTheme: AppTheme.Dark);
+
+        vm.IsSystemTheme = true;
+
+        _themeManager.Received(1).Apply(AppTheme.System);
+        vm.IsDarkTheme.Should().BeFalse();
+        vm.IsLightTheme.Should().BeFalse();
+        vm.Theme.Should().Be(AppTheme.System);
     }
 
     [Fact]

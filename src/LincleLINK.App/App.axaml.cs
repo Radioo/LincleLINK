@@ -31,7 +31,7 @@ public partial class App : Application
                 var settings = _services.GetRequiredService<ISettingsStore>().Load();
                 var viewModel = _services.GetRequiredService<MainViewModel>();
                 desktop.MainWindow.DataContext = viewModel;
-                viewModel.IsDarkTheme = settings.IsDarkTheme;
+                viewModel.SetTheme(settings.Theme);
                 viewModel.ThreadCount = settings.HashThreadCount;
 
                 // The first-run dialog shows the main window before the DataContext is
