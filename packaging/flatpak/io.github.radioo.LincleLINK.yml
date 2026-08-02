@@ -23,9 +23,11 @@ rename-desktop-file: LincleLINK.desktop
 rename-icon: linclelink
 
 finish-args:
-  # Avalonia renders via X11 (XWayland on Wayland sessions).
-  - --socket=fallback-x11
-  - --socket=wayland
+  # Avalonia has no Wayland backend, so unconditional X11 access is required
+  # (XWayland on Wayland sessions). fallback-x11 would deny X11 whenever a
+  # Wayland socket exists and crash on Wayland desktops (e.g. Steam Deck).
+  # Switch to wayland + fallback-x11 if Avalonia gains Wayland support.
+  - --socket=x11
   - --share=ipc
   - --device=dri
   # The app's purpose is hardlinking game data anywhere on disk; hardlinks
