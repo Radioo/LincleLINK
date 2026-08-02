@@ -31,12 +31,12 @@ public sealed class InstanceServiceIntegrationTests : IDisposable
             return new Win32HardLinker();
         }
 
-        if (OperatingSystem.IsLinux())
+        if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
         {
             return new UnixHardLinker();
         }
 
-        throw new PlatformNotSupportedException("LincleLINK supports Windows and Linux only.");
+        throw new PlatformNotSupportedException("LincleLINK supports Windows, Linux and macOS only.");
     }
 
     [Fact]

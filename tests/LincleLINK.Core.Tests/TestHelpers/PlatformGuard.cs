@@ -9,12 +9,12 @@ namespace LincleLINK.Core.Tests.TestHelpers;
 /// </summary>
 public static class PlatformGuard
 {
-    /// <summary>Throws <see cref="SkipException"/> unless running on Windows or Linux.</summary>
+    /// <summary>Throws <see cref="SkipException"/> unless running on Windows, Linux or macOS.</summary>
     public static void EnsureSupportedOs()
     {
-        if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux())
+        if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
         {
-            throw SkipException.ForSkip("LincleLINK supports Windows and Linux only.");
+            throw SkipException.ForSkip("LincleLINK supports Windows, Linux and macOS only.");
         }
     }
 }

@@ -41,8 +41,10 @@ public sealed class FirstLaunchServiceTests : IDisposable
             var cwd = Path.Combine(_temp.Root, "cwd");
             Directory.CreateDirectory(cwd);
             Environment.CurrentDirectory = cwd;
+            // Compare against the canonical CWD: on macOS the temp root sits behind
+            // the /var -> /private/var symlink, which chdir resolves.
             var result = new FirstLaunchService(store).ResolveDataDirectory();
-            result.DataDirectory.Should().Be(cwd);
+            result.DataDirectory.Should().Be(Environment.CurrentDirectory);
         }
         finally
         {
@@ -90,7 +92,8 @@ public sealed class FirstLaunchServiceTests : IDisposable
             var result = new FirstLaunchService(new JsonSettingsStore(SettingsPath)).ResolveDataDirectory();
 
             result.Action.Should().Be(FirstLaunchAction.AdoptCurrentDirectory);
-            result.DataDirectory.Should().Be(cwd);
+            // Canonical CWD, not `cwd`: macOS resolves the /var -> /private/var symlink.
+            result.DataDirectory.Should().Be(Environment.CurrentDirectory);
             result.HasLegacyV2Data.Should().BeTrue();
             result.LegacyDarkTheme.Should().BeTrue();
         }

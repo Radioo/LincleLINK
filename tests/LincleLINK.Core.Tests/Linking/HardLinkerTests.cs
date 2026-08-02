@@ -7,9 +7,9 @@ using Xunit;
 namespace LincleLINK.Core.Tests.Linking;
 
 /// <summary>
-/// Runs on the CI OS present (Windows or Linux); explicitly skipped elsewhere so a
-/// green run always means the platform path executed. The analyzer needs explicit
-/// IsWindows/IsLinux guards to allow the platform-annotated impls.
+/// Runs on the CI OS present (Windows, Linux or macOS); explicitly skipped elsewhere
+/// so a green run always means the platform path executed. The analyzer needs explicit
+/// IsWindows/IsLinux/IsMacOS guards to allow the platform-annotated impls.
 /// </summary>
 public sealed class HardLinkerTests : IDisposable
 {
@@ -24,12 +24,12 @@ public sealed class HardLinkerTests : IDisposable
             return new Win32HardLinker();
         }
 
-        if (OperatingSystem.IsLinux())
+        if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
         {
             return new UnixHardLinker();
         }
 
-        throw new PlatformNotSupportedException("LincleLINK supports Windows and Linux only.");
+        throw new PlatformNotSupportedException("LincleLINK supports Windows, Linux and macOS only.");
     }
 
     [Fact]

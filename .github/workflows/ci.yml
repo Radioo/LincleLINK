@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [master, rewrite]
+    branches: [master]
   pull_request:
 
 permissions: 
@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5

@@ -45,7 +45,12 @@ public static class ServiceCollectionExtensions
                 return new UnixStatFsDriveInfoProvider();
             }
 
-            throw new PlatformNotSupportedException("LincleLINK supports Windows and Linux only.");
+            if (OperatingSystem.IsMacOS())
+            {
+                return new MacDriveInfoProvider();
+            }
+
+            throw new PlatformNotSupportedException("LincleLINK supports Windows, Linux and macOS only.");
         });
 
         services.AddSingleton<IHardLinker>(_ =>
@@ -55,12 +60,12 @@ public static class ServiceCollectionExtensions
                 return new Win32HardLinker();
             }
 
-            if (OperatingSystem.IsLinux())
+            if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
             {
                 return new UnixHardLinker();
             }
 
-            throw new PlatformNotSupportedException("LincleLINK supports Windows and Linux only.");
+            throw new PlatformNotSupportedException("LincleLINK supports Windows, Linux and macOS only.");
         });
 
         services.AddSingleton<IFileStore, FileStore>();

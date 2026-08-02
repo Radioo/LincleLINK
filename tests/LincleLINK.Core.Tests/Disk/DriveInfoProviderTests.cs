@@ -24,7 +24,12 @@ public sealed class DriveInfoProviderTests : IDisposable
             return new UnixStatFsDriveInfoProvider();
         }
 
-        throw new PlatformNotSupportedException("LincleLINK supports Windows and Linux only.");
+        if (OperatingSystem.IsMacOS())
+        {
+            return new MacDriveInfoProvider();
+        }
+
+        throw new PlatformNotSupportedException("LincleLINK supports Windows, Linux and macOS only.");
     }
 
     [Fact]
