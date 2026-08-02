@@ -264,11 +264,16 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
 
     private bool CanOperateWithSelection() => !IsBusy && SelectedInstance is not null;
 
-    protected override void OnThemeChanged(bool dark)
+    protected override void OnThemeChanged(AppTheme theme)
     {
-        _themeManager.Apply(dark);
-        SaveSettings(theme: dark);
-        LogLines.Add(dark ? "Dark mode enabled" : "Dark mode disabled");
+        _themeManager.Apply(theme);
+        SaveSettings(theme: theme);
+        LogLines.Add(theme switch
+        {
+            AppTheme.Dark => "Dark theme enabled",
+            AppTheme.Light => "Light theme enabled",
+            _ => "Following the system theme",
+        });
     }
 
     partial void OnThreadCountChanged(int value)
@@ -302,11 +307,11 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     /// Persists a single setting change, preserving the other fields from the
     /// currently stored settings so startup seeding never clobbers them.
     /// </summary>
-    private void SaveSettings(bool? theme = null, int? threads = null)
+    private void SaveSettings(AppTheme? theme = null, int? threads = null)
     {
         var current = _settingsStore.Load();
         _settingsStore.Save(new AppSettings(
-            theme ?? current.IsDarkTheme,
+            theme ?? current.Theme,
             current.DataDirectory,
             threads ?? current.HashThreadCount));
     }

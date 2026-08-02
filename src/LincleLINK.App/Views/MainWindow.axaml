@@ -93,6 +93,7 @@
                         <TextBlock Text="Theme" VerticalAlignment="Center" />
                         <RadioButton Content="Light" GroupName="theme" IsChecked="{Binding IsLightTheme, Mode=TwoWay}" />
                         <RadioButton Content="Dark" GroupName="theme" IsChecked="{Binding IsDarkTheme, Mode=TwoWay}" />
+                        <RadioButton Content="System" GroupName="theme" IsChecked="{Binding IsSystemTheme, Mode=TwoWay}" />
                     </StackPanel>
 
                     <StackPanel Margin="0,8,0,0">
