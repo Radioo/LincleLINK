@@ -1,0 +1,12 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="LincleLINK.App.Controls.MessageDialog">
+    <StackPanel Margin="20" Spacing="14" MinWidth="320" MaxWidth="480">
+        <TextBlock x:Name="MessageText" TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button x:Name="OkButton" Content="OK" MinWidth="80" Click="OnOk" IsVisible="False" />
+            <Button x:Name="YesButton" Content="Yes" MinWidth="80" Click="OnYes" />
+            <Button x:Name="NoButton" Content="No" MinWidth="80" Click="OnNo" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

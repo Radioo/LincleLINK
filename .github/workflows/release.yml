@@ -1,0 +1,65 @@
+name: release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    name: Build & test (linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet build LincleLINK.sln -c Release
+      - run: dotnet test LincleLINK.sln -c Release --no-build
+
+  publish:
+    name: Publish (${{ matrix.rid }})
+    needs: build-test
+    strategy:
+      matrix:
+        include:
+          - rid: win-x64
+            ext: zip
+          - rid: linux-x64
+            ext: tar.gz
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish ${{ matrix.rid }}
+        run: dotnet publish src/LincleLINK.App -c Release -r ${{ matrix.rid }} --self-contained -o artifacts/publish/${{ matrix.rid }}
+
+      - name: Package
+        shell: bash
+        run: |
+          cd artifacts/publish
+          if [ "${{ matrix.ext }}" = "zip" ]; then
+            zip -r LincleLINK-${{ matrix.rid }}.zip ${{ matrix.rid }}
+          else
+            tar -czf LincleLINK-${{ matrix.rid }}.tar.gz ${{ matrix.rid }}
+          fi
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: LincleLINK-${{ matrix.rid }}
+          path: artifacts/publish/LincleLINK-${{ matrix.rid }}.${{ matrix.ext }}
+
+  attach:
+    name: Attach to release
+    needs: publish
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
