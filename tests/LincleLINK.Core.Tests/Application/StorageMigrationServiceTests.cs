@@ -380,6 +380,29 @@ public sealed class StorageMigrationServiceTests : IDisposable
         Directory.GetFiles(_paths.InstanceDirectory, "*.json").Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task MigrateAsync_does_not_reinsert_when_finalize_verification_fails()
+    {
+        // The bulk insert succeeds but the post-write verification (ExistsAsync) then
+        // hits a DB error. That must not be routed through the "bulk insert failed;
+        // retry individually" path, which would re-write the whole batch for nothing.
+        // The finalize step lives outside the insert's try, so the failure propagates
+        // and the batch is left for the idempotent next launch.
+        var repository = Substitute.For<IInstanceRepository>();
+        repository.BulkInsertAsync(Arg.Any<IReadOnlyList<Instance>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+        repository.ExistsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<bool>(new TestDbException("db gone")));
+        repository.SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        WriteInstanceJson("IIDX28", TestData.V2InstanceJson);
+        var service = CreateService(repository);
+
+        var act = () => service.MigrateAsync();
+
+        await act.Should().ThrowAsync<TestDbException>();
+        await repository.DidNotReceive().SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>());
+    }
+
     /// <summary>Concrete <see cref="DbException"/> so the migration fallback filter can be exercised.</summary>
     private sealed class TestDbException : DbException
     {

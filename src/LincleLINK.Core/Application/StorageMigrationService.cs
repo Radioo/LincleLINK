@@ -247,11 +247,6 @@ public class StorageMigrationService
         try
         {
             await _repository.BulkInsertAsync(pending.Select(p => p.Instance).ToList(), ct);
-
-            for (var i = 0; i < pending.Count; i++)
-            {
-                await FinalizeAsync(pending[i].Instance, pending[i].File, i);
-            }
         }
         catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or DbException)
         {
@@ -272,10 +267,20 @@ public class StorageMigrationService
                     var detail = $"{instance.InstanceName}: {inner.Message}";
                     errors.Add(detail);
                     log?.Report($"Quarantined {detail}");
-                    Quarantine(file);
+                    TryQuarantine(file, log);
                     ReportPercent(percent, handled + i + 1, totalFiles);
                 }
             }
+
+            return (migrated, quarantined, errors);
+        }
+
+        // Bulk insert succeeded: finalize each manifest outside the insert's try so a
+        // post-write failure (verification or delete) is not misreported as a
+        // bulk-insert failure and does not trigger a pointless per-instance re-write.
+        for (var i = 0; i < pending.Count; i++)
+        {
+            await FinalizeAsync(pending[i].Instance, pending[i].File, i);
         }
 
         return (migrated, quarantined, errors);
