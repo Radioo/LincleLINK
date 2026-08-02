@@ -55,4 +55,15 @@ public static class PathNormalizer
         var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
         return string.Join('/', segments);
     }
+
+    /// <summary>
+    /// Whole-segment prefix test over canonicalized paths: 'data' matches 'data' and
+    /// 'data/x' but not 'database/x'. An empty prefix matches everything.
+    /// </summary>
+    public static bool IsWithin(string canonicalPath, string canonicalPrefix)
+        => canonicalPrefix.Length == 0
+           || canonicalPath == canonicalPrefix
+           || (canonicalPath.Length > canonicalPrefix.Length
+               && canonicalPath[canonicalPrefix.Length] == '/'
+               && canonicalPath.StartsWith(canonicalPrefix, StringComparison.Ordinal));
 }

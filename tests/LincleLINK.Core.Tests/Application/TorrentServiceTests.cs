@@ -53,6 +53,25 @@ public sealed class TorrentServiceTests
     }
 
     [Fact]
+    public async Task CheckFiles_does_not_match_sibling_directory_sharing_prefix()
+    {
+        (string, byte[])[] files =
+        [
+            ("data/a.bin", new byte[] { 1, 2, 3, 4 }),
+            ("database/a.bin", new byte[] { 1, 2, 3, 4 }),
+        ];
+        _source.LoadAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(TorrentTestFactory.BuildTorrentData(4, files));
+        _repository.GetAsync("inst", Arg.Any<CancellationToken>()).Returns(SampleInstance());
+
+        var result = await CreateService().CheckFilesAsync(new TorrentCheckRequest("inst", "x.torrent", "data"));
+
+        result.Success.Should().BeTrue();
+        result.Matched.Should().Be(1);
+        result.MatchedFilePaths.Should().Equal("a.bin");
+    }
+
+    [Fact]
     public async Task CheckFiles_with_wrong_relative_path_matches_nothing()
     {
         _source.LoadAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())

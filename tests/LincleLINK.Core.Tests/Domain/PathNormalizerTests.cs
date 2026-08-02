@@ -51,4 +51,17 @@ public sealed class PathNormalizerTests
     {
         PathNormalizer.Canonicalize(@"/contents\data").Should().Be("contents/data");
     }
+
+    [Theory]
+    [InlineData("data/a.bin", "", true)]
+    [InlineData("data", "data", true)]
+    [InlineData("data/a.bin", "data", true)]
+    [InlineData("data/sub/a.bin", "data/sub", true)]
+    [InlineData("database/a.bin", "data", false)]
+    [InlineData("dat", "data", false)]
+    [InlineData("other/a.bin", "data", false)]
+    public void IsWithin_matches_whole_segments_only(string path, string prefix, bool expected)
+    {
+        PathNormalizer.IsWithin(path, prefix).Should().Be(expected);
+    }
 }
