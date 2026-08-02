@@ -328,11 +328,67 @@ public sealed class StorageMigrationServiceTests : IDisposable
         File.Exists(Path.Combine(_paths.InstanceDirectory, "instance-corrupt", "iidx28.json")).Should().BeTrue();
     }
 
+    [Fact]
+    public async Task MigrateAsync_quarantines_invalid_inner_name_without_degrading_bulk_path()
+    {
+        // A reserved inner Name (CON) in an otherwise valid manifest must be
+        // quarantined during the parse phase, so the valid manifest still goes
+        // through the fast bulk path (one BulkInsertAsync, zero per-instance saves).
+        var recording = new RecordingRepository(_repository);
+        WriteInstanceJson("IIDX28", TestData.V2InstanceJson);
+        WriteInstanceJson("foo", """{"Name":"CON","TotalFileSize":0,"TotalFileCount":0,"TotalFileSizeString":"0 B"}""");
+        var service = CreateService(recording);
+
+        var result = await service.MigrateAsync();
+
+        result.Migrated.Should().Be(1);
+        result.Quarantined.Should().Be(1);
+        result.Errors.Should().ContainSingle().Which.Should().Contain("CON");
+        recording.BulkInsertCalls.Should().Be(1);
+        recording.SaveCalls.Should().Be(0);
+        File.Exists(Path.Combine(_paths.InstanceDirectory, "instance-corrupt", "foo.json")).Should().BeTrue();
+    }
+
     /// <summary>Concrete <see cref="DbException"/> so the migration fallback filter can be exercised.</summary>
     private sealed class TestDbException : DbException
     {
         public TestDbException(string message) : base(message)
         {
+        }
+    }
+
+    /// <summary>
+    /// Delegates to the real SQLite repository but counts the migration write paths,
+    /// so tests can assert the bulk insert is used (and the slow per-instance path
+    /// is not) for a given input.
+    /// </summary>
+    private sealed class RecordingRepository : IInstanceRepository
+    {
+        private readonly IInstanceRepository _inner;
+
+        public RecordingRepository(IInstanceRepository inner) => _inner = inner;
+
+        public int BulkInsertCalls { get; private set; }
+        public int SaveCalls { get; private set; }
+
+        public Task<IReadOnlyList<string>> GetNamesAsync(CancellationToken ct = default) => _inner.GetNamesAsync(ct);
+        public Task<IReadOnlyList<Instance>> GetAllAsync(CancellationToken ct = default) => _inner.GetAllAsync(ct);
+        public Task<IReadOnlyList<string>> GetAllHashedFileNamesAsync(CancellationToken ct = default) => _inner.GetAllHashedFileNamesAsync(ct);
+        public Task<IReadOnlyList<InstanceListEntry>> GetSummariesAsync(CancellationToken ct = default) => _inner.GetSummariesAsync(ct);
+        public Task<Instance?> GetAsync(string name, CancellationToken ct = default) => _inner.GetAsync(name, ct);
+        public Task<bool> ExistsAsync(string name, CancellationToken ct = default) => _inner.ExistsAsync(name, ct);
+        public Task<bool> DeleteAsync(string name, CancellationToken ct = default) => _inner.DeleteAsync(name, ct);
+
+        public async Task SaveAsync(Instance instance, CancellationToken ct = default)
+        {
+            SaveCalls++;
+            await _inner.SaveAsync(instance, ct);
+        }
+
+        public async Task BulkInsertAsync(IReadOnlyList<Instance> instances, CancellationToken ct = default)
+        {
+            BulkInsertCalls++;
+            await _inner.BulkInsertAsync(instances, ct);
         }
     }
 }

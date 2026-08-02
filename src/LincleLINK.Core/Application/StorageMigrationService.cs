@@ -3,6 +3,7 @@ using System.Text.Json;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Paths;
 using LincleLINK.Core.Domain;
+using LincleLINK.Core.Domain.Validation;
 using LincleLINK.Core.Infrastructure.Persistence;
 using LincleLINK.Core.Infrastructure.Serialization;
 using Microsoft.EntityFrameworkCore;
@@ -112,6 +113,15 @@ public class StorageMigrationService
             try
             {
                 var instance = await ReadInstanceAsync(file, ct);
+
+                // Validate the inner name before it can reach the bulk insert: the
+                // manifest file name can be valid while the inner Name is reserved or
+                // otherwise invalid. Quarantining here keeps the bulk path intact
+                // instead of degrading the whole chunk to per-instance writes.
+                if (InstanceNameValidator.FirstError(instance.InstanceName) is { } validationError)
+                {
+                    throw new ArgumentException(validationError);
+                }
 
                 // Idempotent: a partially-run migration that already wrote this name
                 // just discards the JSON on the next launch. The DB identity is the
