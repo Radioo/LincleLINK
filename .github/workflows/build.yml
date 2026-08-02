@@ -1,0 +1,80 @@
+name: build
+
+# Reusable build & packaging pipeline: builds, tests, publishes and packages
+# per-platform artifacts. Called by release.yml (tags) and package.yml (manual).
+
+on:
+  workflow_call:
+
+jobs:
+  build-test:
+    name: Build & test (linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet build LincleLINK.sln -c Release
+      - run: dotnet test LincleLINK.sln -c Release --no-build
+
+  publish:
+    name: Publish (${{ matrix.rid }})
+    needs: build-test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            os: windows-latest
+            name: LincleLINK-win-x64.exe
+          - rid: linux-x64
+            os: ubuntu-latest
+            name: LincleLINK-linux-x64.tar.gz
+          - rid: osx-x64
+            os: macos-latest
+            name: LincleLINK-osx-x64.app.zip
+          - rid: osx-arm64
+            os: macos-latest
+            name: LincleLINK-osx-arm64.app.zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish single-file
+        run: >-
+          dotnet publish src/LincleLINK.App -c Release -r ${{ matrix.rid }}
+          --self-contained -o artifacts/publish/${{ matrix.rid }}
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=None
+          -p:DebugSymbols=false
+          -p:EnableCompressionInSingleFile=true
+
+      - name: Package (Windows)
+        if: startsWith(matrix.rid, 'win')
+        shell: bash
+        run: cp artifacts/publish/${{ matrix.rid }}/LincleLINK.exe artifacts/${{ matrix.name }}
+
+      - name: Package (Linux)
+        if: startsWith(matrix.rid, 'linux')
+        run: |
+          mkdir -p artifacts/LincleLINK
+          cp artifacts/publish/${{ matrix.rid }}/LincleLINK artifacts/LincleLINK/
+          cp packaging/linux/LincleLINK.desktop packaging/linux/linclelink.png artifacts/LincleLINK/
+          tar -C artifacts -czf artifacts/${{ matrix.name }} LincleLINK
+
+      - name: Package (macOS .app bundle)
+        if: startsWith(matrix.rid, 'osx')
+        run: |
+          packaging/macos/make-app-bundle.sh artifacts/publish/${{ matrix.rid }} artifacts/bundle
+          ditto -c -k --keepParent artifacts/bundle/LincleLINK.app artifacts/${{ matrix.name }}
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: ${{ matrix.name }}
+          path: artifacts/${{ matrix.name }}
+          if-no-files-found: error
