@@ -45,7 +45,7 @@ public sealed class FirstLaunchService
 
             if (settings.DataDirectory is null)
             {
-                _settingsStore.Save(new AppSettings(settings.IsDarkTheme, dir, settings.HashThreadCount));
+                _settingsStore.Save(settings with { DataDirectory = dir });
             }
 
             return new FirstLaunchResult(FirstLaunchAction.UseExistingSettings, dir, false, null);
@@ -69,8 +69,13 @@ public sealed class FirstLaunchService
     public void CompleteFirstLaunch(string dataDirectory)
     {
         var settings = _settingsStore.Load();
-        var isDark = ReadLegacyDarkTheme(dataDirectory) ?? settings.IsDarkTheme;
-        _settingsStore.Save(new AppSettings(isDark, dataDirectory, settings.HashThreadCount));
+        var theme = ReadLegacyDarkTheme(dataDirectory) switch
+        {
+            true => AppTheme.Dark,
+            false => AppTheme.Light,
+            null => settings.Theme,
+        };
+        _settingsStore.Save(new AppSettings(theme, dataDirectory, settings.HashThreadCount));
     }
 
     private static bool HasLegacyData(string dir)

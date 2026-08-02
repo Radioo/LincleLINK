@@ -30,7 +30,7 @@ public static class AppBootstrapper
             var settingsStore = bootstrap.GetRequiredService<ISettingsStore>();
             var settings = settingsStore.Load();
             var themeManager = bootstrap.GetRequiredService<IThemeManager>();
-            themeManager.Apply(settings.IsDarkTheme);
+            themeManager.Apply(settings.Theme);
 
             var firstLaunch = bootstrap.GetRequiredService<FirstLaunchService>();
             var result = firstLaunch.ResolveDataDirectory();
@@ -42,13 +42,18 @@ public static class AppBootstrapper
 
                 var host = bootstrap.GetRequiredService<IAppDialogHost>();
                 var dialogs = bootstrap.GetRequiredService<IDialogService>();
+                var defaultTheme = result.LegacyDarkTheme switch
+                {
+                    true => AppTheme.Dark,
+                    false => AppTheme.Light,
+                    null => settings.Theme,
+                };
                 var vm = new FirstRunViewModel(
-                    dialogs, themeManager, result.DataDirectory, result.HasLegacyV2Data,
-                    result.LegacyDarkTheme ?? settings.IsDarkTheme);
+                    dialogs, themeManager, result.DataDirectory, result.HasLegacyV2Data, defaultTheme);
                 dataDirectory = await ShowFirstRunAsync(vm, host);
 
                 // Persist the explicit choice (directory + theme) made in the dialog.
-                settingsStore.Save(new AppSettings(vm.IsDarkTheme, dataDirectory, Environment.ProcessorCount));
+                settingsStore.Save(new AppSettings(vm.Theme, dataDirectory, Environment.ProcessorCount));
             }
             else
             {

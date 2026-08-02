@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using LincleLINK.Core.Abstractions.Settings;
 
 namespace LincleLINK.Core.Infrastructure.Settings;
@@ -12,7 +13,21 @@ public sealed class JsonSettingsStore : ISettingsStore
 {
     private readonly string _settingsFile;
 
-    private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions Options = new()
+    {
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter() },
+    };
+
+    /// <summary>
+    /// On-disk shape, tolerant of older files: v2/early-v3 stored a
+    /// <c>IsDarkTheme</c> bool instead of the <c>Theme</c> enum.
+    /// </summary>
+    private sealed record PersistedSettings(
+        AppTheme? Theme,
+        bool? IsDarkTheme,
+        string? DataDirectory,
+        int? HashThreadCount);
 
     public JsonSettingsStore(string settingsFile)
     {
@@ -31,7 +46,23 @@ public sealed class JsonSettingsStore : ISettingsStore
         try
         {
             var json = File.ReadAllText(_settingsFile);
-            return Normalize(JsonSerializer.Deserialize<AppSettings>(json, Options) ?? Defaults());
+            var persisted = JsonSerializer.Deserialize<PersistedSettings>(json, Options);
+            if (persisted is null)
+            {
+                return Defaults();
+            }
+
+            return Normalize(new AppSettings(
+                persisted.Theme ?? persisted.IsDarkTheme switch
+                {
+                    // Migrate the legacy bool: an existing explicit choice keeps its
+                    // look; only files without any theme value fall back to System.
+                    true => AppTheme.Dark,
+                    false => AppTheme.Light,
+                    null => AppTheme.System,
+                },
+                persisted.DataDirectory,
+                persisted.HashThreadCount ?? Environment.ProcessorCount));
         }
         catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException)
         {
@@ -42,7 +73,7 @@ public sealed class JsonSettingsStore : ISettingsStore
         }
     }
 
-    private static AppSettings Defaults() => new(false, null, Environment.ProcessorCount);
+    private static AppSettings Defaults() => new(AppTheme.System, null, Environment.ProcessorCount);
 
     private static AppSettings Normalize(AppSettings settings)
         => settings with

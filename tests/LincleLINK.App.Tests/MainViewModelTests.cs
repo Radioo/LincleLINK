@@ -79,7 +79,7 @@ public sealed class MainViewModelTests
     public async Task OpenAddInstance_hosts_dialog_and_forwards_thread_count()
     {
         StubStatus();
-        _settingsStore.Load().Returns(new AppSettings(false, "C:\\data", 2));
+        _settingsStore.Load().Returns(new AppSettings(AppTheme.Light, "C:\\data", 2));
         var vm = CreateViewModel();
         AddInstanceViewModel? shown = null;
         _dialogHost.When(x => x.ShowDialogAsync(Arg.Any<AddInstanceViewModel>()))
@@ -158,7 +158,7 @@ public sealed class MainViewModelTests
     [Fact]
     public void IsDarkTheme_applies_theme_and_persists()
     {
-        _settingsStore.Load().Returns(new AppSettings(false, "C:\\data", 2));
+        _settingsStore.Load().Returns(new AppSettings(AppTheme.Light, "C:\\data", 2));
         AppSettings? saved = null;
         _settingsStore.When(x => x.Save(Arg.Any<AppSettings>()))
             .Do(callInfo => saved = callInfo.Arg<AppSettings>());
@@ -166,34 +166,56 @@ public sealed class MainViewModelTests
         var vm = CreateViewModel();
 
         vm.IsDarkTheme = true;
-        _themeManager.Received(1).Apply(true);
+        _themeManager.Received(1).Apply(AppTheme.Dark);
         saved.Should().NotBeNull();
-        saved!.IsDarkTheme.Should().BeTrue();
+        saved!.Theme.Should().Be(AppTheme.Dark);
         saved.DataDirectory.Should().Be("C:\\data");
         saved.HashThreadCount.Should().Be(2);
         vm.IsLightTheme.Should().BeFalse();
+        vm.IsSystemTheme.Should().BeFalse();
 
-        vm.IsDarkTheme = false;
-        _themeManager.Received(1).Apply(false);
+        vm.IsLightTheme = true;
+        _themeManager.Received(1).Apply(AppTheme.Light);
+        vm.IsDarkTheme.Should().BeFalse();
     }
 
     [Fact]
     public void IsLightTheme_turns_dark_off_and_persists()
     {
-        _settingsStore.Load().Returns(new AppSettings(true, "C:\\data", 2));
+        _settingsStore.Load().Returns(new AppSettings(AppTheme.Dark, "C:\\data", 2));
         var vm = CreateViewModel();
         vm.IsDarkTheme = true;
 
         vm.IsLightTheme = true;
 
         vm.IsDarkTheme.Should().BeFalse();
-        _themeManager.Received(1).Apply(false);
+        _themeManager.Received(1).Apply(AppTheme.Light);
+    }
+
+    [Fact]
+    public void IsSystemTheme_applies_system_theme_and_persists()
+    {
+        _settingsStore.Load().Returns(new AppSettings(AppTheme.Light, "C:\\data", 2));
+        AppSettings? saved = null;
+        _settingsStore.When(x => x.Save(Arg.Any<AppSettings>()))
+            .Do(callInfo => saved = callInfo.Arg<AppSettings>());
+
+        var vm = CreateViewModel();
+
+        vm.IsSystemTheme = true;
+
+        _themeManager.Received(1).Apply(AppTheme.System);
+        saved.Should().NotBeNull();
+        saved!.Theme.Should().Be(AppTheme.System);
+        vm.IsLightTheme.Should().BeFalse();
+        vm.IsDarkTheme.Should().BeFalse();
+        vm.Theme.Should().Be(AppTheme.System);
     }
 
     [Fact]
     public void ThreadCount_persists_and_clamps()
     {
-        _settingsStore.Load().Returns(new AppSettings(false, "C:\\data", 2));
+        _settingsStore.Load().Returns(new AppSettings(AppTheme.Light, "C:\\data", 2));
         AppSettings? saved = null;
         _settingsStore.When(x => x.Save(Arg.Any<AppSettings>()))
             .Do(callInfo => saved = callInfo.Arg<AppSettings>());
@@ -201,11 +223,11 @@ public sealed class MainViewModelTests
         var vm = CreateViewModel();
         int threadCount = vm.MaxThreadCount;
         int requested = Math.Max(1, threadCount-1);
-        vm.ThreadCount = requested; 
+        vm.ThreadCount = requested;
 
         saved.Should().NotBeNull();
         saved!.HashThreadCount.Should().Be(requested);
-        saved.IsDarkTheme.Should().BeFalse();
+        saved.Theme.Should().Be(AppTheme.Light);
         saved.DataDirectory.Should().Be("C:\\data");
 
         // Below the minimum clamps back to 1.

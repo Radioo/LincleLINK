@@ -21,7 +21,7 @@ public sealed class JsonSettingsStoreTests : IDisposable
 
         store.Exists.Should().BeFalse();
         var settings = store.Load();
-        settings.IsDarkTheme.Should().BeFalse();
+        settings.Theme.Should().Be(AppTheme.System);
         settings.DataDirectory.Should().BeNull();
         settings.HashThreadCount.Should().Be(Environment.ProcessorCount);
     }
@@ -30,12 +30,12 @@ public sealed class JsonSettingsStoreTests : IDisposable
     public void Save_then_Load_roundtrips()
     {
         var store = new JsonSettingsStore(SettingsPath);
-        store.Save(new AppSettings(true, Path.Combine(_temp.Root, "data"), 2));
+        store.Save(new AppSettings(AppTheme.Dark, Path.Combine(_temp.Root, "data"), 2));
 
         var reloaded = new JsonSettingsStore(SettingsPath);
         reloaded.Exists.Should().BeTrue();
         var settings = reloaded.Load();
-        settings.IsDarkTheme.Should().BeTrue();
+        settings.Theme.Should().Be(AppTheme.Dark);
         settings.DataDirectory.Should().Be(Path.Combine(_temp.Root, "data"));
         settings.HashThreadCount.Should().Be(2);
     }
@@ -44,7 +44,7 @@ public sealed class JsonSettingsStoreTests : IDisposable
     public void Save_creates_missing_directories()
     {
         var store = new JsonSettingsStore(SettingsPath);
-        store.Save(new AppSettings(false, null, 1));
+        store.Save(new AppSettings(AppTheme.Light, null, 1));
         File.Exists(SettingsPath).Should().BeTrue();
     }
 
@@ -56,9 +56,29 @@ public sealed class JsonSettingsStoreTests : IDisposable
 
         var store = new JsonSettingsStore(SettingsPath);
         var settings = store.Load();
-        settings.IsDarkTheme.Should().BeFalse();
+        settings.Theme.Should().Be(AppTheme.System);
         settings.DataDirectory.Should().BeNull();
         settings.HashThreadCount.Should().Be(Environment.ProcessorCount);
+    }
+
+    [Theory]
+    [InlineData("true", AppTheme.Dark)]
+    [InlineData("false", AppTheme.Light)]
+    public void Legacy_IsDarkTheme_bool_migrates_to_theme(string isDark, AppTheme expected)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
+        File.WriteAllText(SettingsPath, $$"""{"IsDarkTheme": {{isDark}}, "DataDirectory": null, "HashThreadCount": 2}""");
+
+        new JsonSettingsStore(SettingsPath).Load().Theme.Should().Be(expected);
+    }
+
+    [Fact]
+    public void Theme_value_wins_over_legacy_IsDarkTheme()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
+        File.WriteAllText(SettingsPath, """{"Theme": "System", "IsDarkTheme": true, "DataDirectory": null, "HashThreadCount": 2}""");
+
+        new JsonSettingsStore(SettingsPath).Load().Theme.Should().Be(AppTheme.System);
     }
 
     [Fact]
