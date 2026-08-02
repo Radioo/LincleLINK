@@ -22,6 +22,9 @@
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
     <!-- Torrent -->
     <PackageVersion Include="MonoTorrent" Version="3.0.2" />
+    <!-- Session-bus access for the Linux taskbar (Unity LauncherEntry) progress
+         signal; pinned to the version Avalonia.FreeDesktop already pulls in. -->
+    <PackageVersion Include="Tmds.DBus.Protocol" Version="0.94.1" />
     <!-- Storage (SQLite instance metadata) -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
     <!-- Design-time only; powers `dotnet ef` migrations, never ships in App (PrivateAssets=All) -->

@@ -374,6 +374,13 @@
           "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.10"
         }
       }
+    },
+    "net10.0/osx-arm64": {
+      "SQLite": {
+        "type": "Transitive",
+        "resolved": "3.53.4",
+        "contentHash": "KN7jeWqgUPeBRe1FlcpZURzxomuKKEKHmBBQfg+Nx7NkY1LjKhzHvH+3ASkNvhayESE34nMBinL9CV21JfPRJw=="
+      }
     }
   }
 }

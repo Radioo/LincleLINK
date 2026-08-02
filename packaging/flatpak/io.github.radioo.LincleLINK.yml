@@ -1,0 +1,54 @@
+# Flatpak manifest: wraps the published self-contained linux-x64 binary.
+#
+# The binary is NOT built inside the sandbox — stage it first:
+#   dotnet publish src/LincleLINK.App -c Release -r linux-x64 --self-contained \
+#     -o artifacts/publish/linux-x64 -p:PublishSingleFile=true \
+#     -p:IncludeNativeLibrariesForSelfExtract=true
+# then build with:
+#   flatpak-builder --user --install-deps-from=flathub --force-clean \
+#     build-dir packaging/flatpak/io.github.radioo.LincleLINK.yml
+#
+# CI (build.yml, "flatpak" job) stages the binary from the tarball artifact and
+# produces a distributable single-file .flatpak bundle via `flatpak build-bundle`.
+app-id: io.github.radioo.LincleLINK
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: LincleLINK
+
+# Reuse packaging/linux/* unchanged: flatpak-builder renames the desktop file
+# and icon to the app-id-prefixed names required for export, and rewrites the
+# desktop file's Icon key to match.
+rename-desktop-file: LincleLINK.desktop
+rename-icon: linclelink
+
+finish-args:
+  # Avalonia renders via X11 (XWayland on Wayland sessions).
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --share=ipc
+  - --device=dri
+  # The app's purpose is hardlinking game data anywhere on disk; hardlinks
+  # cannot cross the document portal, so broad filesystem access is required.
+  - --filesystem=host
+  # Unity LauncherEntry taskbar-progress broadcasts on the session bus.
+  - --talk-name=com.canonical.Unity
+
+modules:
+  - name: linclelink
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 LincleLINK /app/bin/LincleLINK
+      - install -Dm644 LincleLINK.desktop /app/share/applications/LincleLINK.desktop
+      - install -Dm644 linclelink.png /app/share/icons/hicolor/256x256/apps/linclelink.png
+      - install -Dm644 io.github.radioo.LincleLINK.metainfo.xml
+        /app/share/metainfo/io.github.radioo.LincleLINK.metainfo.xml
+    sources:
+      - type: file
+        path: ../../artifacts/publish/linux-x64/LincleLINK
+      - type: file
+        path: ../linux/LincleLINK.desktop
+      - type: file
+        path: ../linux/linclelink.png
+      - type: file
+        path: io.github.radioo.LincleLINK.metainfo.xml

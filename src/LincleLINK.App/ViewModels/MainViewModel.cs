@@ -24,6 +24,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     private readonly IAppDialogHost _dialogHost;
     private readonly IThemeManager _themeManager;
     private readonly ISettingsStore _settingsStore;
+    private readonly ITaskbarProgress _taskbarProgress;
     private readonly Func<AddInstanceViewModel> _addInstanceFactory;
 
     public ObservableCollection<InstanceListEntry> Instances { get; } = [];
@@ -80,6 +81,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         IAppDialogHost dialogHost,
         IThemeManager themeManager,
         ISettingsStore settingsStore,
+        ITaskbarProgress taskbarProgress,
         Func<AddInstanceViewModel> addInstanceFactory)
     {
         _instanceService = instanceService;
@@ -92,6 +94,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         _dialogHost = dialogHost;
         _themeManager = themeManager;
         _settingsStore = settingsStore;
+        _taskbarProgress = taskbarProgress;
         _addInstanceFactory = addInstanceFactory;
         TorrentCheck = new TorrentCheckViewModel(torrentService, dialogs, this);
     }
@@ -235,10 +238,15 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         Func<IProgress<string>, IProgress<double>, Task> operation)
     {
         IsBusy = true;
+        _taskbarProgress.BeginOperation();
         try
         {
             var log = ProgressBridge.Create<string>(LogLines.Add, batchSize: 100);
-            var percent = ProgressBridge.Create<double>(p => Progress = p);
+            var percent = ProgressBridge.Create<double>(p =>
+            {
+                Progress = p;
+                _taskbarProgress.Report(p);
+            });
             await operation(log, percent);
         }
         catch (Exception ex)
@@ -249,6 +257,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         {
             Progress = 0;
             IsBusy = false;
+            _taskbarProgress.EndOperation();
         }
     }
 

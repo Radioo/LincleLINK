@@ -4,6 +4,14 @@
 > are unchanged between the v2 and v3 (rewrite) lines; architecture, data layout and
 > the rewrite plan live in [`docs/plan/`](docs/plan/).
 
+# Installation
+
+Grab the build for your platform from the [releases page](https://github.com/Radioo/LincleLINK/releases):
+
+- **Windows** — `LincleLINK-win-x64.exe`, portable, just run it.
+- **Linux / Steam Deck** — `LincleLINK-linux-x64.flatpak` is recommended: install it with `flatpak install <file>` (on the Deck, open it in Desktop Mode and Discover handles it). The Flatpak registers the app with your desktop, so extras like taskbar progress work out of the box. The `.tar.gz` is a portable alternative; install its bundled `.desktop` file and icon manually if you want desktop integration.
+- **macOS** — `LincleLINK-osx-{x64,arm64}.app.zip`, unzip and drop the `.app` into Applications.
+
 # How does it work?
 
 ## File storage
