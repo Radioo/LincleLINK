@@ -6,6 +6,7 @@ using LincleLINK.App.Composition;
 using LincleLINK.App.Services;
 using LincleLINK.App.ViewModels;
 using LincleLINK.App.Views;
+using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Settings;
 using LincleLINK.Core.Application;
 using Microsoft.Extensions.DependencyInjection;
@@ -73,15 +74,42 @@ public partial class App : Application
             }
             catch (Exception ex)
             {
-                // Log, then exit cleanly with a non-zero code. Rethrowing from an
-                // async-void override would surface as an unhandled crash; a Shutdown
-                // keeps the process exit observable (CI, scripts) without a dialog
-                // (no UI/services exist yet at this point).
+                // Log, then surface the failure and exit cleanly with a non-zero
+                // code. Rethrowing from an async-void override would surface as an
+                // unhandled crash; a Shutdown keeps the process exit observable
+                // (CI, scripts). A corrupt or locked linclelink.db (EnsureSchemaAsync)
+                // must not die silently, so show an error dialog when the services
+                // needed to render one exist.
                 Console.Error.WriteLine($"Startup failed: {ex}");
-                desktop.Shutdown(1);
+                await ReportStartupFailureAsync(desktop, ex);
             }
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private async Task ReportStartupFailureAsync(
+        IClassicDesktopStyleApplicationLifetime desktop, Exception ex)
+    {
+        if (_services is { } services)
+        {
+            try
+            {
+                if (desktop.MainWindow is { IsVisible: false } mainWindow)
+                {
+                    mainWindow.Show();
+                }
+
+                var dialogs = services.GetRequiredService<IDialogService>();
+                await dialogs.ErrorAsync($"LincleLINK could not start:\n\n{ex.Message}", "Startup failed");
+            }
+            catch
+            {
+                // No UI to report through (dialog infrastructure not ready yet);
+                // the console line above remains the record.
+            }
+        }
+
+        desktop.Shutdown(1);
     }
 }
