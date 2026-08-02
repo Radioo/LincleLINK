@@ -103,6 +103,15 @@ public class StorageMigrationService
         long pendingFileCount = 0;
         int handled = 0;
 
+        // Snapshot the names already in the DB once (one query) instead of issuing a
+        // round-trip per manifest. Nothing else writes during the migration, so the
+        // snapshot stays current as long as each flush below updates it.
+        var existingKeys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var existing in await _repository.GetNamesAsync(ct))
+        {
+            existingKeys.Add(LincleLinkPersistence.NameKeyOf(existing));
+        }
+
         for (var index = 0; index < files.Count; index++)
         {
             ct.ThrowIfCancellationRequested();
@@ -125,8 +134,9 @@ public class StorageMigrationService
 
                 // Idempotent: a partially-run migration that already wrote this name
                 // just discards the JSON on the next launch. The DB identity is the
-                // inner Name, so the existence check must use it, not the file name.
-                if (await _repository.ExistsAsync(instance.InstanceName, ct))
+                // inner Name, so the existence check uses its key, not the file name.
+                var key = LincleLinkPersistence.NameKeyOf(instance.InstanceName);
+                if (existingKeys.Contains(key))
                 {
                     skipped++;
                     handled++;
@@ -136,10 +146,10 @@ public class StorageMigrationService
                 }
 
                 // Two manifests can collide on the inner name (identical, or case
-                // variants on Linux) even when their file names differ. ExistsAsync
+                // variants on Linux) even when their file names differ. The snapshot
                 // only sees the DB, not the current pending batch, so the duplicate
                 // is quarantined here rather than tripping the primary key on insert.
-                if (!pendingKeys.Add(LincleLinkPersistence.NameKeyOf(instance.InstanceName)))
+                if (!pendingKeys.Add(key))
                 {
                     quarantined++;
                     handled++;
@@ -172,6 +182,10 @@ public class StorageMigrationService
                 quarantined += q;
                 errors.AddRange(e);
                 handled += pending.Count;
+                foreach (var (instance, _) in pending)
+                {
+                    existingKeys.Add(LincleLinkPersistence.NameKeyOf(instance.InstanceName));
+                }
                 pending.Clear();
                 pendingKeys.Clear();
                 pendingFileCount = 0;

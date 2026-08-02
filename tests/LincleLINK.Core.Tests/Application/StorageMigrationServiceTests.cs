@@ -49,6 +49,13 @@ public sealed class StorageMigrationServiceTests : IDisposable
         File.WriteAllText(Path.Combine(_paths.InstanceDirectory, name + ".json"), json);
     }
 
+    private static string MinimalJson(string name)
+        => $$"""{"Name":"{{name}}","TotalFileSize":0,"TotalFileCount":0,"TotalFileSizeString":"0 B"}""";
+
+    // Mirrors StorageMigrationService.BulkFlushThreshold: the test needs to push a
+    // manifest past a flush so it lands in a different batch than the name it dupes.
+    private const int BulkFlushThreshold = 50;
+
     [Fact]
     public void NeedsMigration_with_empty_instance_dir_returns_false()
     {
@@ -347,6 +354,30 @@ public sealed class StorageMigrationServiceTests : IDisposable
         recording.BulkInsertCalls.Should().Be(1);
         recording.SaveCalls.Should().Be(0);
         File.Exists(Path.Combine(_paths.InstanceDirectory, "instance-corrupt", "foo.json")).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task MigrateAsync_skips_name_already_flushed_in_an_earlier_batch()
+    {
+        // A name that was flushed in an earlier chunk must be skipped when it
+        // reappears in a later one (the existing-key snapshot is updated after each
+        // flush); otherwise the duplicate would be re-inserted and trip the unique
+        // NameKey, silently overwriting the earlier instance via the upsert fallback.
+        for (var i = 0; i < BulkFlushThreshold; i++)
+        {
+            WriteInstanceJson($"IIDX{i:D3}", MinimalJson($"IIDX{i:D3}"));
+        }
+
+        WriteInstanceJson("IIDX999", MinimalJson("IIDX000"));
+        var service = CreateService();
+
+        var result = await service.MigrateAsync();
+
+        result.Migrated.Should().Be(BulkFlushThreshold);
+        result.Skipped.Should().Be(1);
+        result.Quarantined.Should().Be(0);
+        result.Errors.Should().BeEmpty();
+        Directory.GetFiles(_paths.InstanceDirectory, "*.json").Should().BeEmpty();
     }
 
     /// <summary>Concrete <see cref="DbException"/> so the migration fallback filter can be exercised.</summary>
