@@ -71,8 +71,10 @@ public sealed class UnusedFilesService
         await Parallel.ForEachAsync(unused, options, async (name, token) =>
         {
             await _store.DeleteAsync(name, token);
-            Interlocked.Increment(ref deleted);
-            log?.Report($"{deleted} unused files deleted.");
+            // Use the increment's return value: reading the shared field afterwards
+            // lets parallel workers log duplicate or out-of-order counts.
+            var count = Interlocked.Increment(ref deleted);
+            log?.Report($"{count} unused files deleted.");
         });
 
         return new UnusedFilesResult(false, unused.Count, deleted);
