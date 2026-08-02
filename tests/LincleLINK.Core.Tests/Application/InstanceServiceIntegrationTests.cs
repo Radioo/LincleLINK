@@ -79,4 +79,40 @@ public sealed class InstanceServiceIntegrationTests : IDisposable
         loaded.Should().NotBeNull();
         loaded!.FileList.Should().ContainSingle(f => f.FileName == "a.bin");
     }
+
+    [Fact]
+    public async Task Empty_directories_are_recorded_in_the_manifest()
+    {
+        PlatformGuard.EnsureSupportedOs();
+
+        var linker = CreateLinker();
+        var dataPath = Path.Combine(_temp.Root, "source");
+        var emptyDir = Path.Combine(dataPath, "empty");
+        Directory.CreateDirectory(emptyDir);
+        var nested = Path.Combine(dataPath, "sub", "nested");
+        Directory.CreateDirectory(nested);
+        var sourceFile = Path.Combine(dataPath, "a.bin");
+        await File.WriteAllBytesAsync(sourceFile, [1, 2, 3, 4]);
+
+        var paths = new AppPaths(Path.Combine(_temp.Root, "data"));
+        var driveInfo = Substitute.For<IDriveInfoProvider>();
+        driveInfo.GetAvailableFreeSpace(dataPath).Returns(1_000_000_000_000L);
+        var service = new InstanceService(
+            new FileSystem(),
+            new Md5FileHasher(),
+            new FileStore(paths),
+            linker,
+            new JsonInstanceRepository(paths),
+            driveInfo,
+            Substitute.For<IDialogService>());
+
+        var result = await service.CreateInstanceAsync(new AddInstanceRequest("inst", dataPath, CopyMoveMode.Copy));
+
+        result.Success.Should().BeTrue();
+
+        var loaded = await new JsonInstanceRepository(paths).GetAsync("inst");
+        loaded.Should().NotBeNull();
+        loaded!.DirectoryList.Should().Contain(Path.Combine("empty"));
+        loaded.DirectoryList.Should().Contain(Path.Combine("sub", "nested"));
+    }
 }

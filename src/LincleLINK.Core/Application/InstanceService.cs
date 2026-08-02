@@ -136,6 +136,16 @@ public sealed class InstanceService
     private static AddInstanceResult Fail(string error) => new(false, error, 0, 0, 0, 0);
 
     /// <summary>
+    /// Converts a full path under the data root to its relative form for the
+    /// manifest, mapping the root itself to an empty string (v2 behavior).
+    /// </summary>
+    private static string RelativePathFrom(string dataPath, string path)
+    {
+        var relativePath = Path.GetRelativePath(dataPath, path);
+        return relativePath == "." ? string.Empty : relativePath;
+    }
+
+    /// <summary>
     /// Phase A + Phase B of add-instance: parallel hashing, then serialized dedup
     /// copy/move into the store and the manifest save. Runs on the thread pool
     /// (called via <see cref="Task.Run"/>); progress and log lines marshal to the
@@ -152,7 +162,14 @@ public sealed class InstanceService
         int alreadyExisted = 0;
         long bytesAdded = 0;
         var instanceFiles = new List<InstanceFile>(files.Count);
-        var directories = new HashSet<string>(StringComparer.Ordinal);
+
+        // V2 parity: collect every directory recursively (including empty ones) so
+        // empty folders survive add-instance -> link. File-only derivation below
+        // would drop directories that contain no files.
+        var directories = new HashSet<string>(
+            _fileSystem.EnumerateDirectories(request.DataPath, recursive: true)
+                .Select(path => RelativePathFrom(request.DataPath, path)),
+            StringComparer.Ordinal);
 
         log?.Report($"Hashing {files.Count} files...");
 
@@ -186,12 +203,7 @@ public sealed class InstanceService
             var storeName = result.Hash + Path.GetExtension(result.Path);
             var fileLength = result.Length;
 
-            var relativePath = Path.GetRelativePath(request.DataPath, Path.GetDirectoryName(result.Path) ?? request.DataPath);
-            if (relativePath == ".")
-            {
-                relativePath = string.Empty;
-            }
-
+            var relativePath = RelativePathFrom(request.DataPath, Path.GetDirectoryName(result.Path) ?? request.DataPath);
             directories.Add(relativePath);
             instanceFiles.Add(new InstanceFile(Path.GetFileName(result.Path), relativePath, fileLength, storeName));
 

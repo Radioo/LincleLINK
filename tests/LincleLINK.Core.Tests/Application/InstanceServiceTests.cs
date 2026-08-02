@@ -38,6 +38,7 @@ public sealed class InstanceServiceTests
     {
         _fs.DirectoryExists(dataPath).Returns(true);
         _fs.EnumerateFiles(dataPath, true).Returns(files);
+        _fs.EnumerateDirectories(dataPath, true).Returns([]);
         foreach (var file in files)
         {
             _fs.GetFileLength(file).Returns(100);
@@ -208,6 +209,27 @@ public sealed class InstanceServiceTests
         saved.FileList[0].RelativePath.Should().Be(string.Empty);
         saved.FileList[1].RelativePath.Should().Be(Path.Combine("sub"));
         saved.DirectoryList.Should().Contain(string.Empty).And.Contain(Path.Combine("sub"));
+    }
+
+    [Fact]
+    public async Task Empty_directories_are_preserved_in_DirectoryList()
+    {
+        StubDataPath(Data, FileA);
+        _fs.EnumerateDirectories(Data, true).Returns(
+        [
+            Path.Combine(Data, "empty"),
+            Path.Combine(Data, "sub", "nested"),
+        ]);
+
+        Instance? saved = null;
+        _repository.SaveAsync(Arg.Do<Instance>(i => saved = i), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Copy));
+
+        saved.Should().NotBeNull();
+        // Directories that contain no files must still be recorded (v2 parity).
+        saved!.DirectoryList.Should().Contain(Path.Combine("empty"));
+        saved.DirectoryList.Should().Contain(Path.Combine("sub", "nested"));
     }
 
     [Fact]
