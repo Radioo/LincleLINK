@@ -156,7 +156,7 @@ public class StorageMigrationService
                     var detail = $"{instance.InstanceName}: Duplicate manifest name; quarantined.";
                     errors.Add(detail);
                     log?.Report($"Quarantined {detail}");
-                    Quarantine(file);
+                    TryQuarantine(file, log);
                     ReportPercent(percent, handled, files.Count);
                     continue;
                 }
@@ -171,7 +171,7 @@ public class StorageMigrationService
                 var detail = $"{name}: {ex.Message}";
                 errors.Add(detail);
                 log?.Report($"Quarantined {detail}");
-                Quarantine(file);
+                TryQuarantine(file, log);
                 ReportPercent(percent, handled, files.Count);
             }
 
@@ -229,7 +229,7 @@ public class StorageMigrationService
             if (await _repository.ExistsAsync(instance.InstanceName, ct))
             {
                 migrated++;
-                File.Delete(file);
+                TryDeleteLegacyFile(file, log);
                 log?.Report($"Migrated {instance.InstanceName}");
             }
             else
@@ -238,7 +238,7 @@ public class StorageMigrationService
                 var detail = $"{instance.InstanceName}: Verification failed after writing.";
                 errors.Add(detail);
                 log?.Report($"Quarantined {detail}");
-                Quarantine(file);
+                TryQuarantine(file, log);
             }
 
             ReportPercent(percent, handled + withinFlush + 1, totalFiles);
@@ -279,6 +279,23 @@ public class StorageMigrationService
         }
 
         return (migrated, quarantined, errors);
+    }
+
+    /// <summary>
+    /// Moves a bad manifest into <c>instance-corrupt/</c>, tolerating a locked file:
+    /// it is left in place and re-classified on the next launch, so one unmovable
+    /// file never aborts the rest of the migration.
+    /// </summary>
+    private void TryQuarantine(string file, IProgress<string>? log)
+    {
+        try
+        {
+            Quarantine(file);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            log?.Report($"Could not quarantine {Path.GetFileName(file)} ({ex.Message}); will retry next launch.");
+        }
     }
 
     private async Task<Instance> ReadInstanceAsync(string file, CancellationToken ct)
