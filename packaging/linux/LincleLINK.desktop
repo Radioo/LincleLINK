@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=LincleLINK
+Comment=Deduplicated game data storage and instance linking tool
+Exec=LincleLINK
+Icon=linclelink
+Terminal=false
+Categories=Utility;
+StartupWMClass=LincleLINK

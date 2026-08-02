@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Platform;
 using Avalonia.Platform.Storage;
 using LincleLINK.App.Abstractions;
 using LincleLINK.App.Controls;
@@ -14,6 +15,11 @@ namespace LincleLINK.App.Services;
 /// </summary>
 public sealed class DialogService : IDialogService, IAppDialogHost
 {
+    // Taskbar/title-bar icon for code-created dialog windows (used on Windows/Linux;
+    // macOS takes the icon from the .app bundle instead).
+    private static readonly WindowIcon AppIcon =
+        new(AssetLoader.Open(new Uri("avares://LincleLINK/Assets/LL_logo.ico")));
+
     private readonly Func<Window?> _ownerProvider;
 
     public DialogService(Func<Window?> ownerProvider)
@@ -73,6 +79,7 @@ public sealed class DialogService : IDialogService, IAppDialogHost
             MinHeight = vm.DialogMinSize.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             CanResize = true,
+            Icon = AppIcon,
         };
         ThemeManager.ApplyTitleBar(window);
 
@@ -108,6 +115,7 @@ public sealed class DialogService : IDialogService, IAppDialogHost
             SizeToContent = SizeToContent.WidthAndHeight,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             CanResize = false,
+            Icon = AppIcon,
         };
         ThemeManager.ApplyTitleBar(window);
 

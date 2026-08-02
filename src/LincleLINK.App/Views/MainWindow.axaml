@@ -5,6 +5,7 @@
         xmlns:behaviors="using:LincleLINK.App.Behaviors"
         x:Class="LincleLINK.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
+        Icon="/Assets/LL_logo.ico"
         Title="LincleLINK &quot;It never ends&quot;"
         Width="860" Height="520">
 
