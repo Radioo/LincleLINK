@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using LincleLINK.App.Abstractions;
 using LincleLINK.App.Services;
 using LincleLINK.App.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -13,6 +14,7 @@ public partial class AddInstanceViewModel : ViewModelBase
 {
     private readonly InstanceService _service;
     private readonly IDialogService _dialogs;
+    private readonly ITaskbarProgress _taskbarProgress;
 
     public ObservableCollection<string> LogLines { get; } = [];
 
@@ -44,10 +46,12 @@ public partial class AddInstanceViewModel : ViewModelBase
     [ObservableProperty]
     private int _threadCount = Environment.ProcessorCount;
 
-    public AddInstanceViewModel(InstanceService service, IDialogService dialogs)
+    public AddInstanceViewModel(
+        InstanceService service, IDialogService dialogs, ITaskbarProgress taskbarProgress)
     {
         _service = service;
         _dialogs = dialogs;
+        _taskbarProgress = taskbarProgress;
     }
 
     public CopyMoveMode Mode => IsCopyChecked ? CopyMoveMode.Copy : CopyMoveMode.Move;
@@ -66,8 +70,13 @@ public partial class AddInstanceViewModel : ViewModelBase
     private async Task CreateInstanceAsync()
     {
         IsBusy = true;
+        _taskbarProgress.BeginOperation();
         var log = ProgressBridge.Create<string>(LogLines.Add, batchSize: 100);
-        var percent = ProgressBridge.Create<double>(p => Progress = p);
+        var percent = ProgressBridge.Create<double>(p =>
+        {
+            Progress = p;
+            _taskbarProgress.Report(p);
+        });
 
         try
         {
@@ -95,6 +104,7 @@ public partial class AddInstanceViewModel : ViewModelBase
         finally
         {
             IsBusy = false;
+            _taskbarProgress.EndOperation();
         }
     }
 

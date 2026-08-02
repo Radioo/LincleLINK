@@ -24,6 +24,9 @@
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
     <!-- Torrent -->
     <PackageVersion Include="MonoTorrent" Version="3.0.2" />
+    <!-- Session-bus access for the Linux taskbar (Unity LauncherEntry) progress
+         signal; pinned to the version Avalonia.FreeDesktop already pulls in. -->
+    <PackageVersion Include="Tmds.DBus.Protocol" Version="0.94.1" />
     <!-- Testing -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
