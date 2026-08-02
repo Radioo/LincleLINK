@@ -93,23 +93,30 @@ finally: IsBusy = false; RefreshStatus()
 - `BrowseCommand`: `dialogService.PickFolder(...)`.
 - No validation logic here — all in `InstanceService` (`05`).
 
-## 6. `IDialogService` — Avalonia adapter
+## 6. Dialog ports — Core `IDialogService` + App `IAppDialogHost`
 
 ```csharp
+// Core.Abstractions.Dialogs — UI-independent; implemented by the Avalonia app.
 public interface IDialogService
 {
-    bool Confirm(string message, string title = "");
-    void Info(string message, string title = "");
-    void Error(string message, string title = "");
-    string? PickFolder(string title);                 // StorageProvider, null = cancelled
-    string? PickOpenFile(string title, string filter); // .torrent / DBInfo.xml
-    Task<bool?> ShowDialogAsync(ViewModelBase vm);    // hosts any VM's View in a Window
+    Task<bool> ConfirmAsync(string message, string title = "");   // async: Avalonia dialogs are async
+    Task InfoAsync(string message, string title = "");
+    Task ErrorAsync(string message, string title = "");
+    Task<string?> PickFolderAsync(string title);                  // StorageProvider, null = cancelled
+    Task<string?> PickOpenFileAsync(string title, FileType fileType); // .torrent / DBInfo.xml
+}
+
+// App.Abstractions — App-only window hosting of arbitrary VMs (see ViewLocator, 01).
+public interface IAppDialogHost
+{
+    Task ShowDialogAsync(IDialogViewModel vm);   // hosts any VM's View in a Window
 }
 ```
 
-- `DialogService` captures the owner `Window` (set from `MainWindow` on load) and calls pickers via `TopLevel.StorageProvider` on the UI thread.
-- `MessageDialog` is a styled `UserControl` (message + OK / YesNo buttons), reused by `Confirm`/`Info`/`Error`; avoids any WinForms.
-- `ShowDialogAsync` uses `ViewHostWindow` + the app `ViewLocator` (VM → View by name convention, `01`) — the add-instance and first-run windows are driven this way, so VMs never reference `Window` types.
+- Two ports keep Core UI-free: `IDialogService` (confirmations + pickers) lives in Core so services stay testable; `IAppDialogHost` (window hosting of a `ViewModelBase`-derived VM) is App-side because it depends on Avalonia `Window` + the app `ViewLocator`.
+- `DialogService` implements both. It captures the owner `Window` (set from `MainWindow` on load) and calls pickers via `TopLevel.StorageProvider` on the UI thread.
+- `MessageDialog` is a styled `UserControl` (message + OK / YesNo buttons), reused by `ConfirmAsync`/`InfoAsync`/`ErrorAsync`; avoids any WinForms.
+- `ShowDialogAsync` uses `DialogService`'s `Window` hosting + the app `ViewLocator` (VM → View by name convention, `01`) — the add-instance and first-run windows are driven this way, so VMs never reference `Window` types.
 
 ## 7. Theming & thread-count binding (detail in `09`)
 

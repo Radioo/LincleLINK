@@ -31,26 +31,24 @@ public partial class MessageDialog : UserControl
         NoButton.IsVisible = false;
     }
 
-    public string Message
+    /// <summary>
+    /// Sets the message text and the visible button set. Called once from code
+    /// (never bound), which is why this is a method rather than properties.
+    /// </summary>
+    public void Configure(string message, MessageDialogButtons buttons)
     {
-        set => MessageText.Text = value;
-    }
+        MessageText.Text = message;
 
-    public MessageDialogButtons Buttons
-    {
-        set
+        if (buttons == MessageDialogButtons.Ok)
         {
-            if (value == MessageDialogButtons.Ok)
-            {
-                OkButton.IsVisible = true;
-                OkButton.Focus();
-            }
-            else
-            {
-                YesButton.IsVisible = true;
-                NoButton.IsVisible = true;
-                YesButton.Focus();
-            }
+            OkButton.IsVisible = true;
+            OkButton.Focus();
+        }
+        else
+        {
+            YesButton.IsVisible = true;
+            NoButton.IsVisible = true;
+            YesButton.Focus();
         }
     }
 

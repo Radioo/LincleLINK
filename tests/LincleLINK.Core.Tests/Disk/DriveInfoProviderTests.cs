@@ -12,7 +12,7 @@ public sealed class DriveInfoProviderTests : IDisposable
 
     public void Dispose() => _temp.Dispose();
 
-    private static IDriveInfoProvider? CreateProvider()
+    private static IDriveInfoProvider CreateProvider()
     {
         if (OperatingSystem.IsWindows())
         {
@@ -24,42 +24,15 @@ public sealed class DriveInfoProviderTests : IDisposable
             return new UnixStatFsDriveInfoProvider();
         }
 
-        return null;
+        throw new PlatformNotSupportedException("LincleLINK supports Windows and Linux only.");
     }
 
     [Fact]
     public void Free_space_on_current_volume_is_positive()
     {
-        var provider = CreateProvider();
-        if (provider is null)
-        {
-            return;
-        }
+        PlatformGuard.EnsureSupportedOs();
 
+        var provider = CreateProvider();
         provider.GetAvailableFreeSpace(_temp.Root).Should().BeGreaterThan(0);
-    }
-
-    [Fact]
-    public void Total_size_on_current_volume_is_positive()
-    {
-        var provider = CreateProvider();
-        if (provider is null)
-        {
-            return;
-        }
-
-        provider.GetTotalSize(_temp.Root).Should().BeGreaterThan(0);
-    }
-
-    [Fact]
-    public void Free_space_is_less_than_total_size()
-    {
-        var provider = CreateProvider();
-        if (provider is null)
-        {
-            return;
-        }
-
-        provider.GetAvailableFreeSpace(_temp.Root).Should().BeLessThan(provider.GetTotalSize(_temp.Root));
     }
 }

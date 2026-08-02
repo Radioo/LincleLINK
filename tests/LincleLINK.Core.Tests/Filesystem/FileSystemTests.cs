@@ -37,31 +37,6 @@ public sealed class FileSystemTests : IDisposable
     }
 
     [Fact]
-    public async Task CopyFile_overwrite_semantics()
-    {
-        var src = _temp.CreateFile("src.txt", "new"u8.ToArray());
-        var dest = _temp.CreateFile("dest.txt", "old"u8.ToArray());
-
-        var actNoOverwrite = () => _fs.CopyFileAsync(src, dest, overwrite: false);
-        await actNoOverwrite.Should().ThrowAsync<IOException>();
-
-        await _fs.CopyFileAsync(src, dest, overwrite: true);
-        File.ReadAllText(dest).Should().Be("new");
-    }
-
-    [Fact]
-    public async Task MoveFile_with_overwrite()
-    {
-        var src = _temp.CreateFile("src.txt", "data"u8.ToArray());
-        var dest = Path.Combine(_temp.Root, "dest.txt");
-
-        await _fs.MoveFileAsync(src, dest, overwrite: true);
-
-        _fs.FileExists(src).Should().BeFalse();
-        _fs.FileExists(dest).Should().BeTrue();
-    }
-
-    [Fact]
     public void DeleteFile_returns_whether_it_existed()
     {
         var path = _temp.CreateFile("f.txt");

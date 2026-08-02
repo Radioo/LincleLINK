@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace LincleLINK.Core.Domain;
 
 /// <summary>
@@ -8,7 +10,8 @@ namespace LincleLINK.Core.Domain;
 /// </summary>
 public sealed class Instance
 {
-    public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("Name")]
+    public string InstanceName { get; set; } = string.Empty;
     public long TotalFileSize { get; set; }
     public int TotalFileCount { get; set; }
     public string TotalFileSizeString { get; set; } = string.Empty;
@@ -24,23 +27,26 @@ public sealed class Instance
         IEnumerable<InstanceFile> files,
         IEnumerable<string> directories)
     {
-        var fileList = files.ToList();
-        var directoryList = directories.ToList();
-
-        long total = 0;
-        foreach (var file in fileList)
+        var instance = new Instance
         {
-            total += file.FileSize;
-        }
-
-        return new Instance
-        {
-            Name = name,
-            FileList = fileList,
-            DirectoryList = directoryList,
-            TotalFileSize = total,
-            TotalFileCount = fileList.Count,
-            TotalFileSizeString = SizeFormatter.Format(total),
+            InstanceName = name,
+            FileList = files.ToList(),
+            DirectoryList = directories.ToList(),
         };
+        instance.RecomputeTotals();
+        return instance;
+    }
+
+    /// <summary>
+    /// Recomputes the denormalized totals from <see cref="FileList"/> so the derived
+    /// fields have a single definition in the Domain (used by <see cref="Create"/>
+    /// and by the repository on save). Keeps <c>TotalFileSizeString</c> a persisted
+    /// field to match the v2 JSON schema.
+    /// </summary>
+    public void RecomputeTotals()
+    {
+        TotalFileCount = FileList.Count;
+        TotalFileSize = FileList.Sum(f => f.FileSize);
+        TotalFileSizeString = SizeFormatter.Format(TotalFileSize);
     }
 }

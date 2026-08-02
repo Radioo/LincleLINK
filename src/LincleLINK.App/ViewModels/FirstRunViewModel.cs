@@ -1,7 +1,8 @@
 using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using LincleLINK.App.Services;
+using LincleLINK.App.Abstractions;
+using LincleLINK.App.ViewModels.Base;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Application;
 
@@ -30,12 +31,6 @@ public partial class FirstRunViewModel : ViewModelBase
     [ObservableProperty]
     private string _status = string.Empty;
 
-    [ObservableProperty]
-    private bool _isDarkTheme;
-
-    [ObservableProperty]
-    private bool _isLightTheme = true;
-
     public FirstRunViewModel(
         IDialogService dialogs,
         IThemeManager themeManager,
@@ -46,30 +41,14 @@ public partial class FirstRunViewModel : ViewModelBase
         _dialogs = dialogs;
         _themeManager = themeManager;
         _dataDirectory = defaultDirectory;
-        _isDarkTheme = defaultDarkTheme;
-        _isLightTheme = !defaultDarkTheme;
+        IsDarkTheme = defaultDarkTheme;
+        IsLightTheme = !defaultDarkTheme;
         _status = hasLegacyV2Data
             ? "Existing v2 data detected in the current directory."
             : "Choose the folder that contains (or will contain) your db/ and instance/ data.";
     }
 
-    partial void OnIsDarkThemeChanged(bool value)
-    {
-        if (value)
-        {
-            IsLightTheme = false;
-        }
-
-        _themeManager.Apply(value);
-    }
-
-    partial void OnIsLightThemeChanged(bool value)
-    {
-        if (value)
-        {
-            IsDarkTheme = false;
-        }
-    }
+    protected override void OnThemeChanged(bool dark) => _themeManager.Apply(dark);
 
     [RelayCommand]
     private async Task BrowseAsync()

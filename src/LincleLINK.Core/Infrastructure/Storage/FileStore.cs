@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Abstractions.Paths;
 using LincleLINK.Core.Abstractions.Storage;
 
@@ -11,12 +10,10 @@ public sealed class FileStore : IFileStore
         new(@"^[0-9A-F]{32}(\.[^\\/]+)?$", RegexOptions.CultureInvariant);
 
     private readonly IAppPaths _paths;
-    private readonly IHardLinker _hardLinker;
 
-    public FileStore(IAppPaths paths, IHardLinker hardLinker)
+    public FileStore(IAppPaths paths)
     {
         _paths = paths;
-        _hardLinker = hardLinker;
     }
 
     public bool Exists(string hashedFileName)
@@ -43,23 +40,7 @@ public sealed class FileStore : IFileStore
         await CopyFileAsync(sourcePath, GetPath(hashedFileName), ct);
     }
 
-    public Task MoveToStoreAsync(string sourcePath, string hashedFileName, CancellationToken ct = default)
-    {
-        ValidateHashName(hashedFileName);
-        ct.ThrowIfCancellationRequested();
-
-        if (Exists(hashedFileName))
-        {
-            // v2 dedup quirk: source is left in place, counted as "already exists".
-            return Task.CompletedTask;
-        }
-
-        Directory.CreateDirectory(_paths.DbDirectory);
-        File.Move(sourcePath, GetPath(hashedFileName));
-        return Task.CompletedTask;
-    }
-
-    public async Task CopyOutAsync(string hashedFileName, string destinationPath, CancellationToken ct = default)
+    public async Task CopyFromStoreAsync(string hashedFileName, string destinationPath, CancellationToken ct = default)
     {
         ValidateHashName(hashedFileName);
         if (File.Exists(destinationPath))
@@ -70,25 +51,22 @@ public sealed class FileStore : IFileStore
         await CopyFileAsync(GetPath(hashedFileName), destinationPath, ct);
     }
 
-    public Task<bool> LinkOutAsync(string hashedFileName, string destinationPath, CancellationToken ct = default)
-    {
-        ValidateHashName(hashedFileName);
-        ct.ThrowIfCancellationRequested();
-        return Task.FromResult(_hardLinker.TryCreateLink(GetPath(hashedFileName), destinationPath, out _));
-    }
-
     public Task DeleteAsync(string hashedFileName, CancellationToken ct = default)
     {
         ValidateHashName(hashedFileName);
         ct.ThrowIfCancellationRequested();
 
         var path = GetPath(hashedFileName);
-        if (File.Exists(path))
+        if (!File.Exists(path))
         {
-            File.Delete(path);
+            return Task.CompletedTask;
         }
 
-        return Task.CompletedTask;
+        return Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            File.Delete(path);
+        }, ct);
     }
 
     public Task<IReadOnlyList<string>> GetAllHashedFileNamesAsync(CancellationToken ct = default)
@@ -100,6 +78,8 @@ public sealed class FileStore : IFileStore
                 return [];
             }
 
+            // Path.GetFileName returns null only for a trailing-separator path,
+            // impossible here since every element comes from Directory.GetFiles.
             return Directory.GetFiles(_paths.DbDirectory, "*", SearchOption.TopDirectoryOnly)
                 .Select(f => Path.GetFileName(f)!)
                 .Order(StringComparer.Ordinal)

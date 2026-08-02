@@ -145,6 +145,43 @@ public sealed class LinkingServiceTests
     }
 
     [Fact]
+    public async Task Unsafe_file_paths_cannot_escape_target_directory()
+    {
+        var instance = Instance.Create(
+            "inst",
+            [
+                new InstanceFile("evil.bin", @"..\..\escape", 10, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin"),
+                new InstanceFile("rooted.bin", "C:\\absolute", 10, "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.bin"),
+                new InstanceFile("badname.bin", "sub", 10, "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC.bin"),
+            ],
+            ["sub"]);
+        _dialogs.PickFolderAsync(Arg.Any<string>()).Returns("C:\\target");
+        _repository.GetAsync("inst", Arg.Any<CancellationToken>()).Returns(instance);
+        _fs.FileExists(Arg.Any<string>()).Returns(false);
+        _hardLinker.TryCreateLink(Arg.Any<string>(), Arg.Any<string>(), out _).Returns(x =>
+        {
+            x[2] = null;
+            return true;
+        });
+
+        var result = await CreateService().LinkInstanceAsync("inst");
+
+        // The '..' and rooted relative paths are rejected; only the safe one links.
+        var receivedTargets = _hardLinker.ReceivedCalls()
+            .Select(c => c.GetArguments()[1] as string)
+            .Where(s => s is not null)
+            .Cast<string>()
+            .ToList();
+
+        receivedTargets.Should().HaveCount(1);
+        receivedTargets[0].Should().NotContain(@"..\..");
+        receivedTargets[0].Should().NotContain(@"C:\absolute");
+        result.Linked.Should().Be(1);
+        result.Failed.Should().Be(2);
+        result.Errors.Should().Contain(e => e.Contains("unsafe path skipped"));
+    }
+
+    [Fact]
     public async Task Copy_hashed_skips_existing_and_copies_new()
     {
         _dialogs.PickFolderAsync(Arg.Any<string>()).Returns("C:\\dest");
@@ -157,7 +194,7 @@ public sealed class LinkingServiceTests
         result.Cancelled.Should().BeFalse();
         result.AlreadyExisted.Should().Be(1);
         result.Copied.Should().Be(1);
-        await _store.Received(1).CopyOutAsync(
+        await _store.Received(1).CopyFromStoreAsync(
             "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.bin",
             Path.Combine("C:\\dest", "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.bin"),
             Arg.Any<CancellationToken>());

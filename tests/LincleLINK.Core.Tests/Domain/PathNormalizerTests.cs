@@ -15,15 +15,6 @@ public sealed class PathNormalizerTests
     }
 
     [Theory]
-    [InlineData(@"\sound\25063", @"sound\25063")]
-    [InlineData("/sound/25063", "sound/25063")]
-    [InlineData(@"\a\b\c", "a\\b\\c")]
-    public void StripLeadingSeparators_removes_leading_separators(string input, string expected)
-    {
-        PathNormalizer.StripLeadingSeparators(input).Should().Be(expected);
-    }
-
-    [Theory]
     [InlineData("")]
     [InlineData("a/b")]
     [InlineData("a\\b")]

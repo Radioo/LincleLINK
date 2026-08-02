@@ -51,10 +51,10 @@ public sealed class LinkingService
             return new LinkResult(true, null, 0, 0, []);
         }
 
-        var instance = await _repository.GetAsync(instanceName, ct);
+        var (instance, notFound) = await InstanceLookup.GetAsync(_repository, instanceName, ct);
         if (instance is null)
         {
-            return new LinkResult(false, $"Instance '{instanceName}' not found.", 0, 0, []);
+            return new LinkResult(false, notFound, 0, 0, []);
         }
 
         var errors = new List<string>();
@@ -77,7 +77,8 @@ public sealed class LinkingService
 
         // 2. Duplicate detection.
         var dupes = instance.FileList.Count(f =>
-            _fileSystem.FileExists(BuildTargetPath(target, f.RelativePath, f.FileName)));
+            TryBuildTargetPath(target, f.RelativePath, f.FileName, out var p)
+            && _fileSystem.FileExists(p));
 
         if (dupes > 0)
         {
@@ -94,8 +95,8 @@ public sealed class LinkingService
 
             foreach (var file in instance.FileList)
             {
-                var existing = BuildTargetPath(target, file.RelativePath, file.FileName);
-                if (_fileSystem.FileExists(existing))
+                if (TryBuildTargetPath(target, file.RelativePath, file.FileName, out var existing)
+                    && _fileSystem.FileExists(existing))
                 {
                     _fileSystem.DeleteFile(existing);
                 }
@@ -104,14 +105,19 @@ public sealed class LinkingService
 
         // 3. Link each file; per-file failures log and continue.
         log?.Report("Linking...");
-        double step = instance.FileList.Count == 0 ? 0 : 100d / instance.FileList.Count;
+        var progress = ProgressStep.Over(instance.FileList.Count);
         int index = 0;
 
         foreach (var file in instance.FileList)
         {
             ct.ThrowIfCancellationRequested();
 
-            var targetPath = BuildTargetPath(target, file.RelativePath, file.FileName);
+            if (!TryBuildTargetPath(target, file.RelativePath, file.FileName, out var targetPath))
+            {
+                errors.Add($"{file.FileName}: unsafe path skipped.");
+                continue;
+            }
+
             if (_hardLinker.TryCreateLink(_store.GetPath(file.HashedFileName), targetPath, out var error))
             {
                 linked++;
@@ -121,7 +127,7 @@ public sealed class LinkingService
                 errors.Add($"{file.FileName}: {error}");
             }
 
-            percent?.Report(++index * step);
+            percent?.Report(progress.Report(ref index));
         }
 
         if (errors.Count > 0)
@@ -148,15 +154,15 @@ public sealed class LinkingService
             return new CopyHashedResult(true, null, 0, 0);
         }
 
-        var instance = await _repository.GetAsync(instanceName, ct);
+        var (instance, notFound) = await InstanceLookup.GetAsync(_repository, instanceName, ct);
         if (instance is null)
         {
-            return new CopyHashedResult(false, $"Instance '{instanceName}' not found.", 0, 0);
+            return new CopyHashedResult(false, notFound, 0, 0);
         }
 
         int copied = 0;
         int alreadyExisted = 0;
-        double step = instance.FileList.Count == 0 ? 0 : 100d / instance.FileList.Count;
+        var progress = ProgressStep.Over(instance.FileList.Count);
         int index = 0;
 
         foreach (var file in instance.FileList)
@@ -171,22 +177,39 @@ public sealed class LinkingService
             }
             else
             {
-                await _store.CopyOutAsync(file.HashedFileName, destination, ct);
+                await _store.CopyFromStoreAsync(file.HashedFileName, destination, ct);
                 copied++;
             }
 
-            percent?.Report(++index * step);
+            percent?.Report(progress.Report(ref index));
         }
 
         return new CopyHashedResult(false, null, copied, alreadyExisted);
     }
 
-    private static string BuildTargetPath(string target, string relativePath, string fileName)
+    /// <summary>
+    /// Builds a path under <paramref name="target"/>, rejecting any component that
+    /// could escape it (rooted, '..', drive-letter segments). Mirrors the guard in
+    /// <see cref="TorrentService.LinkToTorrentAsync"/> so manifest-derived paths
+    /// cannot write outside the user-chosen directory.
+    /// </summary>
+    private static bool TryBuildTargetPath(string target, string relativePath, string fileName, out string path)
     {
+        if (!PathNormalizer.IsSafeRelativePath(relativePath)
+            || string.IsNullOrWhiteSpace(fileName)
+            || fileName.Contains(Path.DirectorySeparatorChar)
+            || fileName.Contains('/')
+            || fileName.Contains('\\'))
+        {
+            path = string.Empty;
+            return false;
+        }
+
         var combined = string.IsNullOrEmpty(relativePath)
             ? Path.Combine(target, fileName)
             : Path.Combine(target, relativePath, fileName);
 
-        return PathNormalizer.ToPlatformSeparators(combined);
+        path = PathNormalizer.ToPlatformSeparators(combined);
+        return true;
     }
 }

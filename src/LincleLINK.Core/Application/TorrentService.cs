@@ -8,10 +8,9 @@ using LincleLINK.Core.Domain;
 
 namespace LincleLINK.Core.Application;
 
-public sealed record CheckFilesRequest(string InstanceName, string TorrentPath, string RelativePath);
+public sealed record TorrentCheckRequest(string InstanceName, string TorrentPath, string RelativePath);
 public sealed record CheckFilesResult(bool Success, string? Error, int Matched, int Total, IReadOnlyList<string> MatchedFilePaths);
 
-public sealed record CheckPiecesRequest(string InstanceName, string TorrentPath, string RelativePath);
 public sealed record CheckPiecesResult(
     bool Success,
     string? Error,
@@ -51,7 +50,7 @@ public sealed class TorrentService
     }
 
     public async Task<CheckFilesResult> CheckFilesAsync(
-        CheckFilesRequest request,
+        TorrentCheckRequest request,
         IProgress<string>? log = null,
         IProgress<double>? percent = null,
         CancellationToken ct = default)
@@ -62,15 +61,15 @@ public sealed class TorrentService
             return new CheckFilesResult(false, error, 0, 0, []);
         }
 
-        var instance = await _repository.GetAsync(request.InstanceName, ct);
+        var (instance, notFound) = await InstanceLookup.GetAsync(_repository, request.InstanceName, ct);
         if (instance is null)
         {
-            return new CheckFilesResult(false, $"Instance '{request.InstanceName}' not found.", 0, 0, []);
+            return new CheckFilesResult(false, notFound, 0, 0, []);
         }
 
         var relativePrefix = PathNormalizer.Canonicalize(request.RelativePath);
         var matched = new List<string>();
-        double step = torrent.Files.Count == 0 ? 0 : 100d / torrent.Files.Count;
+        var progress = ProgressStep.Over(torrent.Files.Count);
         int fileIndex = 0;
 
         foreach (var file in torrent.Files)
@@ -80,22 +79,20 @@ public sealed class TorrentService
             var full = PathNormalizer.Canonicalize(file.FullPath);
             if (!full.StartsWith(relativePrefix, StringComparison.Ordinal))
             {
-                percent?.Report(++fileIndex * step);
+                percent?.Report(progress.Report(ref fileIndex));
                 continue;
             }
 
             var relQ = relativePrefix.Length == 0 ? full : full[relativePrefix.Length..].TrimStart('/');
 
-            var hit = instance.FileList.FirstOrDefault(f =>
-                string.Equals(PathNormalizer.Canonicalize(f.RelativePath + "/" + f.FileName), relQ, StringComparison.Ordinal)
-                && f.FileSize == file.Length);
+            var hit = MatchInstanceFile(file, relQ, instance);
 
             if (hit is not null)
             {
                 matched.Add(relQ);
             }
 
-            percent?.Report(++fileIndex * step);
+            percent?.Report(progress.Report(ref fileIndex));
         }
 
         log?.Report($"Matched {matched.Count} out of {torrent.Files.Count} files (compared names and sizes).");
@@ -103,7 +100,7 @@ public sealed class TorrentService
     }
 
     public async Task<CheckPiecesResult> CheckPiecesAsync(
-        CheckPiecesRequest request,
+        TorrentCheckRequest request,
         IProgress<string>? log = null,
         IProgress<double>? percent = null,
         CancellationToken ct = default)
@@ -114,10 +111,10 @@ public sealed class TorrentService
             return new CheckPiecesResult(false, error, false, 0, 0, [], []);
         }
 
-        var instance = await _repository.GetAsync(request.InstanceName, ct);
+        var (instance, notFound) = await InstanceLookup.GetAsync(_repository, request.InstanceName, ct);
         if (instance is null)
         {
-            return new CheckPiecesResult(false, $"Instance '{request.InstanceName}' not found.", false, 0, 0, [], []);
+            return new CheckPiecesResult(false, notFound, false, 0, 0, [], []);
         }
 
         log?.Report($"Piece length: {torrent.PieceLength}");
@@ -160,7 +157,7 @@ public sealed class TorrentService
 
         log?.Report("Linking...");
 
-        double step = request.Files.Count == 0 ? 0 : 100d / request.Files.Count;
+        var progress = ProgressStep.Over(request.Files.Count);
         int index = 0;
 
         foreach (var file in request.Files)
@@ -173,13 +170,16 @@ public sealed class TorrentService
                 continue;
             }
 
-            var target = PathNormalizer.ToPlatformSeparators(Path.Combine(request.DownloadPath, file.TorrentPath));
+            // Validate before Path.Combine: a rooted/'..' TorrentPath must not be
+            // turned into a path outside DownloadPath.
             if (!PathNormalizer.IsSafeRelativePath(file.TorrentPath))
             {
                 log?.Report($"Skipped unsafe path '{file.TorrentPath}'.");
                 skipped++;
                 continue;
             }
+
+            var target = PathNormalizer.ToPlatformSeparators(Path.Combine(request.DownloadPath, file.TorrentPath));
 
             var dir = Path.GetDirectoryName(target);
             if (!string.IsNullOrEmpty(dir))
@@ -201,7 +201,7 @@ public sealed class TorrentService
                 skipped++;
             }
 
-            percent?.Report(++index * step);
+            percent?.Report(progress.Report(ref index));
         }
 
         log?.Report("Linking finished");
@@ -225,9 +225,7 @@ public sealed class TorrentService
 
             var relQ = relativePrefix.Length == 0 ? full : full[relativePrefix.Length..].TrimStart('/');
 
-            var hit = instance.FileList.FirstOrDefault(f =>
-                string.Equals(PathNormalizer.Canonicalize(f.RelativePath + "/" + f.FileName), relQ, StringComparison.Ordinal)
-                && f.FileSize == file.Length);
+            var hit = MatchInstanceFile(file, relQ, instance);
 
             if (hit is not null)
             {
@@ -238,6 +236,19 @@ public sealed class TorrentService
         return map;
     }
 
+    /// <summary>
+    /// Matches a torrent file to the instance file with the same canonical relative
+    /// path and size. Shared by <see cref="CheckFilesAsync"/> and
+    /// <see cref="BuildLocalFileMap"/> so matching semantics stay in one place.
+    /// </summary>
+    private static InstanceFile? MatchInstanceFile(
+        Domain.Torrents.TorrentFileData file,
+        string relQ,
+        Instance instance)
+        => instance.FileList.FirstOrDefault(f =>
+            string.Equals(PathNormalizer.Canonicalize(f.RelativePath + "/" + f.FileName), relQ, StringComparison.Ordinal)
+            && f.FileSize == file.Length);
+
     private async Task<(Domain.Torrents.TorrentData? Torrent, string? Error)> LoadAsync(string torrentPath, CancellationToken ct)
     {
         try
@@ -247,11 +258,9 @@ public sealed class TorrentService
         }
         catch (TorrentNotSupportedException ex)
         {
+            // Unsupported torrent is a user-presentable condition; other failures
+            // (IO, permission, bugs) propagate to the VM boundary like every service.
             return (null, ex.Message);
-        }
-        catch (Exception ex)
-        {
-            return (null, $"Could not load torrent file: {ex.Message}");
         }
     }
 }

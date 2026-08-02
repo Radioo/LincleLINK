@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using LincleLINK.App.Abstractions;
 using LincleLINK.App.Services;
 using LincleLINK.App.ViewModels;
 using LincleLINK.Core.Abstractions.Dialogs;
@@ -32,7 +33,7 @@ public static class AppBootstrapper
             themeManager.Apply(settings.IsDarkTheme);
 
             var firstLaunch = bootstrap.GetRequiredService<FirstLaunchService>();
-            var result = firstLaunch.Resolve();
+            var result = firstLaunch.ResolveDataDirectory();
 
             if (result.Action == FirstLaunchAction.PromptForDirectory)
             {
@@ -65,15 +66,10 @@ public static class AppBootstrapper
 
         var services = new ServiceCollection();
         services.AddLincleLINKCore();
-        services.AddSingleton<ISettingsStore>(new JsonSettingsStore(settingsFile));
         services.AddSingleton<IAppPaths>(paths);
 
-        var dialogService = new DialogService(ownerProvider);
-        services.AddSingleton(dialogService);
-        services.AddSingleton<IDialogService>(dialogService);
-        services.AddSingleton<IAppDialogHost>(dialogService);
+        RegisterSharedServices(services, settingsFile, ownerProvider);
 
-        services.AddSingleton<IThemeManager, ThemeManager>();
         // Transient so the Add Instance dialog starts fresh (no remembered fields/log).
         services.AddTransient<AddInstanceViewModel>();
         services.AddSingleton<MainViewModel>();
@@ -93,15 +89,29 @@ public static class AppBootstrapper
         return chosen.Task.IsCompleted ? await chosen.Task : vm.DataDirectory;
     }
 
-    private static ServiceProvider CreateBootstrapContainer(string settingsFile, Func<Window?> ownerProvider)
+    /// <summary>
+    /// Registers the services shared by the bootstrap and main containers so wiring
+    /// has a single definition (one construction path for the dialog/theme/settings
+    /// services).
+    /// </summary>
+    private static void RegisterSharedServices(
+        IServiceCollection services,
+        string settingsFile,
+        Func<Window?> ownerProvider)
     {
         var dialogService = new DialogService(ownerProvider);
 
-        var services = new ServiceCollection();
         services.AddSingleton<ISettingsStore>(new JsonSettingsStore(settingsFile));
+        services.AddSingleton(dialogService);
         services.AddSingleton<IDialogService>(dialogService);
         services.AddSingleton<IAppDialogHost>(dialogService);
         services.AddSingleton<IThemeManager, ThemeManager>();
+    }
+
+    private static ServiceProvider CreateBootstrapContainer(string settingsFile, Func<Window?> ownerProvider)
+    {
+        var services = new ServiceCollection();
+        RegisterSharedServices(services, settingsFile, ownerProvider);
         services.AddSingleton<FirstLaunchService>();
         return services.BuildServiceProvider();
     }

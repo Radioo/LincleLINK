@@ -32,7 +32,6 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<IFileSystem, FileSystem>();
         services.AddSingleton<IFileHasher, Md5FileHasher>();
-        services.AddSingleton<IAppPathsFactory, AppPathsFactory>();
 
         services.AddSingleton<IDriveInfoProvider>(_ =>
         {
@@ -68,7 +67,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IInstanceRepository, JsonInstanceRepository>();
         services.AddSingleton<ITorrentSource, MonoTorrentSource>();
 
-        services.AddSingleton<FirstLaunchService>();
         services.AddSingleton<LegacyImporter>();
         services.AddSingleton<InstanceService>();
         services.AddSingleton<StatusService>();

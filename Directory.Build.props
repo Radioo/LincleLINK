@@ -8,6 +8,10 @@
     <Version>3.0.0</Version>
     <Company>LincleLINK</Company>
     <Product>LincleLINK</Product>
+
+    <!-- Pin resolved transitive dependency versions for auditable, reproducible restores. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
 
 </Project>

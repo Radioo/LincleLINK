@@ -1,5 +1,5 @@
 using FluentAssertions;
-using LincleLINK.App.Services;
+using LincleLINK.App.Abstractions;
 using LincleLINK.App.ViewModels;
 using LincleLINK.Core.Abstractions.Dialogs;
 using NSubstitute;

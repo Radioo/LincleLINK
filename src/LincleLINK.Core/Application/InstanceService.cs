@@ -130,7 +130,7 @@ public sealed class InstanceService
         }
 
         // Hash, dedup-copy and save off the UI thread; log/percent marshal back to it.
-        return await Task.Run(() => RunPhasesAsync(request, files, log, percent, ct), ct);
+        return await Task.Run(() => HashAndStoreAsync(request, files, log, percent, ct), ct);
     }
 
     private static AddInstanceResult Fail(string error) => new(false, error, 0, 0, 0, 0);
@@ -141,7 +141,7 @@ public sealed class InstanceService
     /// (called via <see cref="Task.Run"/>); progress and log lines marshal to the
     /// caller's context through <paramref name="log"/> / <paramref name="percent"/>.
     /// </summary>
-    private async Task<AddInstanceResult> RunPhasesAsync(
+    private async Task<AddInstanceResult> HashAndStoreAsync(
         AddInstanceRequest request,
         IReadOnlyList<string> files,
         IProgress<string>? log,
@@ -160,7 +160,7 @@ public sealed class InstanceService
         // mutation. Results are index-aligned so phase B stays in enumeration order.
         var hashResults = new HashResult[files.Count];
         int hashed = 0;
-        double hashStep = files.Count == 0 ? 0 : 50d / files.Count;
+        double hashStep = 50d / files.Count;
         var maxDegree = Math.Clamp(request.MaxDegreeOfParallelism ?? Environment.ProcessorCount, 1, Environment.ProcessorCount);
 
         await Parallel.ForEachAsync(
@@ -176,7 +176,7 @@ public sealed class InstanceService
             });
 
         // Phase B: write to the store in original order (dedup, copy / move-link-back, count).
-        double writeStep = files.Count == 0 ? 0 : 50d / files.Count;
+        double writeStep = 50d / files.Count;
         int written = 0;
 
         foreach (var result in hashResults)
@@ -240,7 +240,7 @@ public sealed class InstanceService
         await _repository.SaveAsync(instance, ct);
 
         log?.Report(
-            $"Instance added. {alreadyExisted} files already exist. " +
+            $"{LogMessages.InstanceAdded} {alreadyExisted} files already exist. " +
             $"{SizeFormatter.Format(bytesAdded)} added to the db.");
         percent?.Report(100);
 

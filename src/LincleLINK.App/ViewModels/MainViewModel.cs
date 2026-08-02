@@ -1,23 +1,23 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LincleLINK.App.Abstractions;
 using LincleLINK.App.Services;
+using LincleLINK.App.ViewModels.Base;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Settings;
 using LincleLINK.Core.Application;
-using LincleLINK.Core.Application.Torrents;
 using LincleLINK.Core.Domain;
 
 namespace LincleLINK.App.ViewModels;
 
-public partial class MainViewModel : ViewModelBase
+public partial class MainViewModel : ViewModelBase, IOperationHost
 {
     private readonly InstanceService _instanceService;
     private readonly LinkingService _linkingService;
     private readonly UnusedFilesService _unusedFilesService;
     private readonly LegacyImporter _legacyImporter;
-    private readonly TorrentService _torrentService;
     private readonly IInstanceRepository _repository;
     private readonly StatusService _statusService;
     private readonly IDialogService _dialogs;
@@ -26,12 +26,11 @@ public partial class MainViewModel : ViewModelBase
     private readonly ISettingsStore _settingsStore;
     private readonly Func<AddInstanceViewModel> _addInstanceFactory;
 
-    private IReadOnlyList<TorrentFileCheck> _checkedFiles = [];
-    private IReadOnlyList<long> _badPieces = [];
-
     public ObservableCollection<InstanceListEntry> Instances { get; } = [];
     public ObservableCollection<string> LogLines { get; } = [];
-    public ObservableCollection<string> MatchedFiles { get; } = [];
+
+    /// <summary>The "Link to torrent" tab (paths, piece gates, commands).</summary>
+    public TorrentCheckViewModel TorrentCheck { get; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(
@@ -41,20 +40,11 @@ public partial class MainViewModel : ViewModelBase
         nameof(CopyHashedCommand))]
     private InstanceListEntry? _selectedInstance;
 
-    [ObservableProperty]
-    private bool _isDarkTheme;
-
-    [ObservableProperty]
-    private bool _isLightTheme = true;
-
     /// <summary>Worker count used while adding a new instance (1..<see cref="MaxThreadCount"/>).</summary>
     [ObservableProperty]
     private int _threadCount = Environment.ProcessorCount;
 
     public int MaxThreadCount => Environment.ProcessorCount;
-
-    [ObservableProperty]
-    private double _progress;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(
@@ -67,6 +57,9 @@ public partial class MainViewModel : ViewModelBase
     private bool _isBusy;
 
     [ObservableProperty]
+    private double _progress;
+
+    [ObservableProperty]
     private string _dbSize = string.Empty;
 
     [ObservableProperty]
@@ -74,26 +67,6 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _freeSpace = string.Empty;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(CheckFilesCommand))]
-    private string _torrentFilePath = string.Empty;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(CheckFilesCommand))]
-    private string _relativePath = string.Empty;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(CheckFilesCommand), nameof(LinkToTorrentCommand))]
-    private string _torrentDownloadPath = string.Empty;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(CheckPiecesCommand), nameof(LinkToTorrentCommand))]
-    private bool _canCheckPieces;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(LinkToTorrentCommand))]
-    private bool _canLinkTorrent;
 
     public MainViewModel(
         InstanceService instanceService,
@@ -113,7 +86,6 @@ public partial class MainViewModel : ViewModelBase
         _linkingService = linkingService;
         _unusedFilesService = unusedFilesService;
         _legacyImporter = legacyImporter;
-        _torrentService = torrentService;
         _repository = repository;
         _statusService = statusService;
         _dialogs = dialogs;
@@ -121,16 +93,25 @@ public partial class MainViewModel : ViewModelBase
         _themeManager = themeManager;
         _settingsStore = settingsStore;
         _addInstanceFactory = addInstanceFactory;
+        TorrentCheck = new TorrentCheckViewModel(torrentService, dialogs, this);
     }
 
-    partial void OnTorrentFilePathChanged(string value) => ResetTorrentGates();
-    partial void OnRelativePathChanged(string value) => ResetTorrentGates();
-    partial void OnTorrentDownloadPathChanged(string value) => ResetTorrentGates();
+    string? IOperationHost.SelectedInstanceName => SelectedInstance?.InstanceName;
+
+    private bool _initialized;
 
     public async Task InitializeAsync()
     {
-        await RefreshInstancesAsync();
-        await RefreshStatusAsync();
+        // Idempotent: InitializeAsync can be triggered from both App.axaml.cs (when
+        // the main window is already visible for the first-run path) and
+        // MainWindow.OnOpened, whose ordering is window-lifecycle-dependent.
+        if (_initialized)
+        {
+            return;
+        }
+
+        _initialized = true;
+        await RefreshAllAsync();
     }
 
     [RelayCommand(CanExecute = nameof(CanOpenAddInstance))]
@@ -148,46 +129,35 @@ public partial class MainViewModel : ViewModelBase
             IsBusy = false;
         }
 
-        await RefreshInstancesAsync();
-        await RefreshStatusAsync();
+        await RefreshAllAsync();
     }
 
     [RelayCommand(CanExecute = nameof(CanDeleteInstance))]
     private async Task DeleteInstanceAsync()
     {
-        if (SelectedInstance is null)
-        {
-            return;
-        }
+        var instanceName = SelectedInstance!.InstanceName;
 
-        var result = await _instanceService.DeleteInstanceAsync(SelectedInstance.InstanceName);
+        var result = await _instanceService.DeleteInstanceAsync(instanceName);
         if (result.Deleted)
         {
-            LogLines.Add($"Instance {SelectedInstance.InstanceName} deleted");
+            LogLines.Add($"Instance {instanceName} deleted");
         }
 
-        if (SelectedInstance is not null)
-        {
-            SelectedInstance = null;
-        }
+        SelectedInstance = null;
 
-        await RefreshInstancesAsync();
-        await RefreshStatusAsync();
+        await RefreshAllAsync();
     }
 
-    private bool CanOpenAddInstance() => !IsBusy;
+    private bool CanOpenAddInstance() => CanOperate();
 
     [RelayCommand(CanExecute = nameof(CanLinkFiles))]
     private async Task LinkFilesAsync()
     {
-        if (SelectedInstance is null)
-        {
-            return;
-        }
+        var instanceName = SelectedInstance!.InstanceName;
 
         await RunOperationAsync(async (log, percent) =>
         {
-            var result = await _linkingService.LinkInstanceAsync(SelectedInstance!.InstanceName, log, percent);
+            var result = await _linkingService.LinkInstanceAsync(instanceName, log, percent);
             if (result.Cancelled)
             {
                 LogLines.Add("Link operation aborted.");
@@ -202,14 +172,11 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanCopyHashed))]
     private async Task CopyHashedAsync()
     {
-        if (SelectedInstance is null)
-        {
-            return;
-        }
+        var instanceName = SelectedInstance!.InstanceName;
 
         await RunOperationAsync(async (log, percent) =>
         {
-            var result = await _linkingService.CopyHashedFilesAsync(SelectedInstance!.InstanceName, log, percent);
+            var result = await _linkingService.CopyHashedFilesAsync(instanceName, log, percent);
             if (result.Cancelled)
             {
                 LogLines.Add("Copy operation aborted.");
@@ -233,14 +200,14 @@ public partial class MainViewModel : ViewModelBase
             }
         });
 
-        await RefreshInstancesAsync();
-        await RefreshStatusAsync();
+        await RefreshAllAsync();
     }
 
     [RelayCommand(CanExecute = nameof(CanImportLegacy))]
     private async Task ImportLegacyAsync()
     {
-        var path = await _dialogs.PickOpenFileAsync("Select legacy DBInfo.xml", "Legacy DBInfo|*.xml");
+        var path = await _dialogs.PickOpenFileAsync(
+            "Select legacy DBInfo.xml", new FileType("Legacy DBInfo", ["*.xml"]));
         if (path is null)
         {
             LogLines.Add("Import operation aborted.");
@@ -263,17 +230,16 @@ public partial class MainViewModel : ViewModelBase
             log.Report("Importing finished");
         });
 
-        await RefreshInstancesAsync();
-        await RefreshStatusAsync();
+        await RefreshAllAsync();
     }
 
-    private async Task RunOperationAsync(
+    public async Task RunOperationAsync(
         Func<IProgress<string>, IProgress<double>, Task> operation)
     {
         IsBusy = true;
         try
         {
-            var log = ProgressBridge.Create<string>(LogLines.Add);
+            var log = ProgressBridge.Create<string>(LogLines.Add, batchSize: 100);
             var percent = ProgressBridge.Create<double>(p => Progress = p);
             await operation(log, percent);
         }
@@ -288,154 +254,23 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    private bool CanLinkFiles() => !IsBusy && SelectedInstance is not null;
+    // Distinct names required by the [RelayCommand(CanExecute=nameof(...))] source
+    // generator; bodies delegate to two shared gates.
+    private bool CanLinkFiles() => CanOperateWithSelection();
+    private bool CanCopyHashed() => CanOperateWithSelection();
+    private bool CanDeleteInstance() => CanOperateWithSelection();
+    private bool CanCheckUnused() => CanOperate();
+    private bool CanImportLegacy() => CanOperate();
 
-    private bool CanCopyHashed() => !IsBusy && SelectedInstance is not null;
+    private bool CanOperate() => !IsBusy;
 
-    private bool CanCheckUnused() => !IsBusy;
+    private bool CanOperateWithSelection() => !IsBusy && SelectedInstance is not null;
 
-    private bool CanImportLegacy() => !IsBusy;
-
-    [RelayCommand(CanExecute = nameof(CanBrowseTorrent))]
-    private async Task BrowseTorrentFileAsync()
+    protected override void OnThemeChanged(bool dark)
     {
-        var path = await _dialogs.PickOpenFileAsync("Select a torrent file", "Torrent file|*.torrent");
-        if (path is not null)
-        {
-            TorrentFilePath = path;
-        }
-    }
-
-    [RelayCommand(CanExecute = nameof(CanBrowseTorrent))]
-    private async Task BrowseTorrentDlPathAsync()
-    {
-        var path = await _dialogs.PickFolderAsync("Select torrent download and link target location");
-        if (path is not null)
-        {
-            TorrentDownloadPath = path;
-        }
-    }
-
-    [RelayCommand(CanExecute = nameof(CanCheckFiles))]
-    private async Task CheckFilesAsync()
-    {
-        if (SelectedInstance is null)
-        {
-            return;
-        }
-
-        await RunOperationAsync(async (log, percent) =>
-        {
-            var result = await _torrentService.CheckFilesAsync(
-                new CheckFilesRequest(SelectedInstance!.InstanceName, TorrentFilePath, RelativePath), log, percent);
-
-            if (!result.Success)
-            {
-                if (result.Error is not null)
-                {
-                    LogLines.Add(result.Error);
-                }
-
-                CanCheckPieces = false;
-                return;
-            }
-
-            MatchedFiles.Clear();
-            foreach (var path in result.MatchedFilePaths)
-            {
-                MatchedFiles.Add(path);
-            }
-
-            CanCheckPieces = result.Matched > 0;
-            if (result.Matched == 0)
-            {
-                LogLines.Add(@"Check if your relative path is correct. (example: contents\data)");
-            }
-        });
-    }
-
-    [RelayCommand(CanExecute = nameof(CanRunCheckPieces))]
-    private async Task CheckPiecesAsync()
-    {
-        await RunOperationAsync(async (log, percent) =>
-        {
-            var result = await _torrentService.CheckPiecesAsync(
-                new CheckPiecesRequest(SelectedInstance!.InstanceName, TorrentFilePath, RelativePath), log, percent);
-
-            if (!result.Success)
-            {
-                if (result.Error is not null)
-                {
-                    LogLines.Add(result.Error);
-                }
-
-                CanLinkTorrent = false;
-                _checkedFiles = [];
-                _badPieces = [];
-                return;
-            }
-
-            _checkedFiles = result.Files;
-            _badPieces = result.BadPieces;
-            CanLinkTorrent = !string.IsNullOrWhiteSpace(TorrentDownloadPath);
-        });
-    }
-
-    [RelayCommand(CanExecute = nameof(CanRunLinkToTorrent))]
-    private async Task LinkToTorrentAsync()
-    {
-        await RunOperationAsync(async (log, percent) =>
-        {
-            var result = await _torrentService.LinkToTorrentAsync(
-                new LinkToTorrentRequest(TorrentDownloadPath, _checkedFiles, _badPieces), log, percent);
-
-            if (result.Error is not null)
-            {
-                LogLines.Add(result.Error);
-            }
-        });
-
-        CanCheckPieces = false;
-        CanLinkTorrent = false;
-        _checkedFiles = [];
-        _badPieces = [];
-    }
-
-    private bool CanBrowseTorrent() => !IsBusy;
-
-    private bool CanCheckFiles()
-        => !IsBusy && SelectedInstance is not null && !string.IsNullOrWhiteSpace(TorrentFilePath);
-
-    private bool CanRunCheckPieces() => !IsBusy && CanCheckPieces;
-
-    private bool CanRunLinkToTorrent() => !IsBusy && CanLinkTorrent;
-
-    private void ResetTorrentGates()
-    {
-        CanCheckPieces = false;
-        CanLinkTorrent = false;
-    }
-
-    private bool CanDeleteInstance() => !IsBusy && SelectedInstance is not null;
-
-    partial void OnIsDarkThemeChanged(bool value)
-    {
-        if (value)
-        {
-            IsLightTheme = false;
-        }
-
-        _themeManager.Apply(value);
-        SaveSettings(theme: value);
-        LogLines.Add(value ? "Dark mode enabled" : "Dark mode disabled");
-    }
-
-    partial void OnIsLightThemeChanged(bool value)
-    {
-        if (value)
-        {
-            IsDarkTheme = false;
-        }
+        _themeManager.Apply(dark);
+        SaveSettings(theme: dark);
+        LogLines.Add(dark ? "Dark mode enabled" : "Dark mode disabled");
     }
 
     partial void OnThreadCountChanged(int value)
@@ -443,11 +278,12 @@ public partial class MainViewModel : ViewModelBase
         var clamped = Math.Clamp(value, 1, MaxThreadCount);
         if (clamped != value)
         {
-            ThreadCount = clamped;
-            return;
+            // Set the backing field directly (no re-entrant handler call), then save
+            // the clamped value in the same pass.
+            SetProperty(ref _threadCount, clamped);
         }
 
-        SaveSettings(threads: value);
+        SaveSettings(threads: clamped);
     }
 
     /// <summary>
@@ -461,6 +297,13 @@ public partial class MainViewModel : ViewModelBase
             theme ?? current.IsDarkTheme,
             current.DataDirectory,
             threads ?? current.HashThreadCount));
+    }
+
+    /// <summary>Refreshes the instance list and status panel together after an operation.</summary>
+    public async Task RefreshAllAsync()
+    {
+        await RefreshInstancesAsync();
+        await RefreshStatusAsync();
     }
 
     public async Task RefreshInstancesAsync()
@@ -480,14 +323,24 @@ public partial class MainViewModel : ViewModelBase
                 string.Equals(i.InstanceName, selectedName, StringComparison.OrdinalIgnoreCase));
         }
 
-        LogLines.Add("Instance list updated.");
+        LogLines.Add(LogMessages.InstanceListUpdated);
     }
 
     public async Task RefreshStatusAsync()
     {
-        var summary = await _statusService.GetSummaryAsync();
-        DbSize = summary.DbSizeString;
-        Savings = summary.SavingsString;
-        FreeSpace = summary.FreeSpaceString;
+        try
+        {
+            var summary = await _statusService.GetSummaryAsync();
+            DbSize = summary.DbSizeString;
+            Savings = summary.SavingsString;
+            FreeSpace = summary.FreeSpaceString;
+        }
+        catch (Exception ex)
+        {
+            // A transient drive-info failure (unplugged volume, statvfs error) must
+            // not escape to the startup handler; degrade gracefully and leave the
+            // last-known status fields in place.
+            LogLines.Add($"Could not refresh status: {ex.Message}");
+        }
     }
 }

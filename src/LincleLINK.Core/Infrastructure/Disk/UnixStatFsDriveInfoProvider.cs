@@ -17,12 +17,6 @@ public sealed class UnixStatFsDriveInfoProvider : IDriveInfoProvider
         return checked((long)(info.f_bavail * info.f_frsize));
     }
 
-    public long GetTotalSize(string path)
-    {
-        var info = Statvfs(path);
-        return checked((long)(info.f_blocks * info.f_frsize));
-    }
-
     private static StatVfs Statvfs(string path)
     {
         if (statvfs(path, out var info) != 0)

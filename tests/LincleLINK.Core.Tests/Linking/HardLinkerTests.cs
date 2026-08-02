@@ -7,8 +7,9 @@ using Xunit;
 namespace LincleLINK.Core.Tests.Linking;
 
 /// <summary>
-/// Runs on the CI OS present (Windows or Linux); skipped elsewhere. The analyzer
-/// needs explicit IsWindows/IsLinux guards to allow the platform-annotated impls.
+/// Runs on the CI OS present (Windows or Linux); explicitly skipped elsewhere so a
+/// green run always means the platform path executed. The analyzer needs explicit
+/// IsWindows/IsLinux guards to allow the platform-annotated impls.
 /// </summary>
 public sealed class HardLinkerTests : IDisposable
 {
@@ -16,7 +17,7 @@ public sealed class HardLinkerTests : IDisposable
 
     public void Dispose() => _temp.Dispose();
 
-    private static IHardLinker? CreateLinker()
+    private static IHardLinker CreateLinker()
     {
         if (OperatingSystem.IsWindows())
         {
@@ -28,18 +29,15 @@ public sealed class HardLinkerTests : IDisposable
             return new UnixHardLinker();
         }
 
-        return null;
+        throw new PlatformNotSupportedException("LincleLINK supports Windows and Linux only.");
     }
 
     [Fact]
     public void Create_link_produces_real_hard_link()
     {
-        var linker = CreateLinker();
-        if (linker is null)
-        {
-            return;
-        }
+        PlatformGuard.EnsureSupportedOs();
 
+        var linker = CreateLinker();
         var source = _temp.CreateFile("src.txt", "hello"u8.ToArray());
         var target = Path.Combine(_temp.Root, "target.txt");
 
@@ -52,12 +50,9 @@ public sealed class HardLinkerTests : IDisposable
     [Fact]
     public void Deleting_source_keeps_target_intact()
     {
-        var linker = CreateLinker();
-        if (linker is null)
-        {
-            return;
-        }
+        PlatformGuard.EnsureSupportedOs();
 
+        var linker = CreateLinker();
         var source = _temp.CreateFile("src.txt", "hello"u8.ToArray());
         var target = Path.Combine(_temp.Root, "target.txt");
 
@@ -71,12 +66,9 @@ public sealed class HardLinkerTests : IDisposable
     [Fact]
     public void Missing_source_returns_false_with_error()
     {
-        var linker = CreateLinker();
-        if (linker is null)
-        {
-            return;
-        }
+        PlatformGuard.EnsureSupportedOs();
 
+        var linker = CreateLinker();
         var result = linker.TryCreateLink(
             Path.Combine(_temp.Root, "missing.txt"),
             Path.Combine(_temp.Root, "t.txt"),
@@ -89,12 +81,9 @@ public sealed class HardLinkerTests : IDisposable
     [Fact]
     public void Existing_target_returns_false_with_error()
     {
-        var linker = CreateLinker();
-        if (linker is null)
-        {
-            return;
-        }
+        PlatformGuard.EnsureSupportedOs();
 
+        var linker = CreateLinker();
         var source = _temp.CreateFile("src.txt", "hello"u8.ToArray());
         var target = _temp.CreateFile("target.txt", "existing"u8.ToArray());
 

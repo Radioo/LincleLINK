@@ -1,5 +1,9 @@
 # LincleLINK
 
+> User guide for the LincleLINK workflow. The user-facing features described here
+> are unchanged between the v2 and v3 (rewrite) lines; architecture, data layout and
+> the rewrite plan live in [`docs/plan/`](docs/plan/).
+
 # How does it work?
 
 ## File storage

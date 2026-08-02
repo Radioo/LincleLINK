@@ -43,18 +43,25 @@ public sealed class TorrentPieceVerifier
             ? (_torrent.TotalSize + _torrent.PieceLength - 1) / _torrent.PieceLength
             : 0;
 
+        // A zero/non-positive piece length makes piece math undefined and would
+        // divide by zero / loop forever below; treat it as a mismatch.
+        if (_torrent.PieceLength <= 0)
+        {
+            return new VerificationResult(true, [], []);
+        }
+
         if (expectedPieces != _torrent.PieceHashes.Count)
         {
             return new VerificationResult(true, [], []);
         }
 
         var buffer = new byte[_torrent.PieceLength];
-        int filled = 0;              // bytes filled in the current piece buffer
-        long pieceIndex = 0;         // current piece being built
+        int filled = 0;
+        long pieceIndex = 0;
         var badPieces = new List<long>();
         var fileChecks = new List<TorrentFileCheck>(_torrent.Files.Count);
 
-        double step = _torrent.Files.Count == 0 ? 0 : 100d / _torrent.Files.Count;
+        var progress = ProgressStep.Over(_torrent.Files.Count);
         int fileIndex = 0;
 
         foreach (var file in _torrent.Files)
@@ -118,7 +125,7 @@ public sealed class TorrentPieceVerifier
                 dbPath is not null ? Path.GetFileName(dbPath) : null,
                 piecesForFile));
 
-            percent?.Report(++fileIndex * step);
+            percent?.Report(progress.Report(ref fileIndex));
         }
 
         // Final partial piece (zero-padded).

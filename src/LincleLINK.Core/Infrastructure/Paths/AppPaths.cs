@@ -21,8 +21,3 @@ public sealed class AppPaths : IAppPaths
         Directory.CreateDirectory(InstanceDirectory);
     }
 }
-
-public sealed class AppPathsFactory : IAppPathsFactory
-{
-    public IAppPaths Create(string dataDirectory) => new AppPaths(dataDirectory);
-}

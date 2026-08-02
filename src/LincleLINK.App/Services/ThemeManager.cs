@@ -2,13 +2,9 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
+using LincleLINK.App.Abstractions;
 
 namespace LincleLINK.App.Services;
-
-public interface IThemeManager
-{
-    void Apply(bool dark);
-}
 
 public sealed class ThemeManager : IThemeManager
 {

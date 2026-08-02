@@ -16,6 +16,6 @@ public interface IDialogService
     /// <summary>Returns null when the user cancels.</summary>
     Task<string?> PickFolderAsync(string title);
 
-    /// <summary>Returns null when the user cancels. Filter is "Label|*.ext;*.ext2".</summary>
-    Task<string?> PickOpenFileAsync(string title, string filter);
+    /// <summary>Returns null when the user cancels.</summary>
+    Task<string?> PickOpenFileAsync(string title, FileType fileType);
 }

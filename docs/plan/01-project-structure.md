@@ -124,21 +124,28 @@ LincleLINK.App/
 ├─ ViewLocator.cs                      # VM → View name-convention IDataTemplate
 ├─ app.manifest                        # Windows DPI awareness (ignored on Linux)
 ├─ Assets/                             # LL_logo.ico (moved from v2) + window icon
-├─ Styles/
-│  ├─ Themes.axaml                     # theme-variant resources (accent/status brushes)
-│  └─ ...                              # light/dark specifics (see 09-theming)
+├─ Abstractions/                       # App-side ports shared by VMs and Services
+│  ├─ IAppDialogHost.cs                # hosts any VM's View via ViewLocator (see 08)
+│  ├─ IThemeManager.cs                 # light/dark switch port (see 09)
+│  ├─ IDialogViewModel.cs              # VM contract for dialog-window hosting
+│  └─ IOperationHost.cs                # shared busy/log/operation runner for feature VMs
 ├─ Composition/
 │  └─ AppBootstrapper.cs               # builds ServiceProvider: AddLincleLINKCore() + App services
 ├─ Services/
-│  ├─ DialogService.cs                 # Avalonia impl of IDialogService (StorageProvider, dialogs)
-│  └─ ViewHostWindow.cs                # hosts any VM's View via ViewLocator (see 08)
+│  ├─ DialogService.cs                 # Avalonia impl of IDialogService + IAppDialogHost
+│  ├─ ThemeManager.cs                  # IThemeManager impl + title-bar theming
+│  └─ Win32DarkTitleBar.cs             # native Windows title-bar darkening
 ├─ Controls/
 │  └─ MessageDialog.axaml              # OK/YesNo message box (Confirm/Info/Error, see 08)
+├─ Behaviors/
+│  └─ AutoScrollBehavior.cs            # attached behavior: pin log list to bottom
 ├─ ViewModels/
-│  ├─ Base/ViewModelBase.cs            # ObservableObject (CommunityToolkit.Mvvm)
-│  ├─ MainViewModel.cs                 # shell VM for MainWindow
+│  ├─ Base/ViewModelBase.cs            # ObservableObject (CommunityToolkit.Mvvm) + shared theme pair
+│  ├─ MainViewModel.cs                 # shell VM for MainWindow (instance/linking orchestration)
+│  ├─ TorrentCheckViewModel.cs         # "Link to torrent" tab (paths, gates, commands)
 │  ├─ AddInstanceViewModel.cs
 │  └─ FirstRunViewModel.cs             # first-launch data-dir prompt (see 03/08)
+├─ ProgressBridge.cs                   # IProgress<T> factory (sync in tests, marshaled/batched in UI)
 └─ Views/
    ├─ MainWindow.axaml / .axaml.cs
    ├─ AddInstanceWindow.axaml / .axaml.cs
@@ -152,7 +159,7 @@ Key decisions:
 - `App.axaml.cs` `OnFrameworkInitializationCompleted`: resolve `MainViewModel` from the bootstrapped provider, set as `MainWindow.DataContext`. No service resolution scattered in views.
 - Dialog windows use Avalonia `Window`; file/folder pickers use `StorageProvider` (cross-platform). No WinForms.
 - ViewModels use `[ObservableProperty]` / `[RelayCommand]` / `[AsyncRelayCommand]` source generators. Async commands get proper `IProgress<double>` + `CancellationToken` handling — the v2 `async void` + `IsFree` pattern is replaced by an operation-gating design (details in `08-viewmodels-ui.md`).
-- Namespaces: `LincleLINK.App`, `LincleLINK.App.ViewModels`, `LincleLINK.App.Views`, `LincleLINK.App.Services`, `LincleLINK.App.Composition`. File-scoped.
+- Namespaces: `LincleLINK.App`, `LincleLINK.App.Abstractions`, `LincleLINK.App.ViewModels` (+ `.ViewModels.Base`), `LincleLINK.App.Views`, `LincleLINK.App.Services`, `LincleLINK.App.Composition`. File-scoped.
 
 ## 7. Composition / DI split
 

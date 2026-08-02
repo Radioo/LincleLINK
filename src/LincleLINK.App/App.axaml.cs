@@ -44,8 +44,12 @@ public partial class App : Application
             }
             catch (Exception ex)
             {
+                // Log, then exit cleanly with a non-zero code. Rethrowing from an
+                // async-void override would surface as an unhandled crash; a Shutdown
+                // keeps the process exit observable (CI, scripts) without a dialog
+                // (no UI/services exist yet at this point).
                 Console.Error.WriteLine($"Startup failed: {ex}");
-                throw;
+                desktop.Shutdown(1);
             }
         }
 

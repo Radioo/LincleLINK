@@ -20,7 +20,7 @@ public sealed class FileStoreTests : IDisposable
     public FileStoreTests()
     {
         _paths = new AppPaths(Path.Combine(_temp.Root, "data"));
-        _store = new FileStore(_paths, new TestHardLinker());
+        _store = new FileStore(_paths);
     }
 
     public void Dispose() => _temp.Dispose();
@@ -44,7 +44,7 @@ public sealed class FileStoreTests : IDisposable
         await _store.CopyToStoreAsync(_temp.CreateFile("src.2dx", "new"u8.ToArray()), HashA);
         var dest = _temp.CreateFile("dest.bin", "old"u8.ToArray());
 
-        await _store.CopyOutAsync(HashA, dest);
+        await _store.CopyFromStoreAsync(HashA, dest);
 
         File.ReadAllBytes(dest).Should().Equal("old"u8.ToArray());
     }
@@ -55,21 +55,9 @@ public sealed class FileStoreTests : IDisposable
         await _store.CopyToStoreAsync(_temp.CreateFile("src.2dx", "hello"u8.ToArray()), HashA);
         var dest = Path.Combine(_temp.Root, "out.bin");
 
-        await _store.CopyOutAsync(HashA, dest);
+        await _store.CopyFromStoreAsync(HashA, dest);
 
         File.ReadAllBytes(dest).Should().Equal("hello"u8.ToArray());
-    }
-
-    [Fact]
-    public async Task LinkOut_delegates_to_hard_linker_and_reports_result()
-    {
-        await _store.CopyToStoreAsync(_temp.CreateFile("src.2dx", "hello"u8.ToArray()), HashA);
-        var dest = Path.Combine(_temp.Root, "linked.bin");
-
-        (await _store.LinkOutAsync(HashA, dest)).Should().BeTrue();
-
-        var failingStore = new FileStore(_paths, new TestHardLinker { Result = false });
-        (await failingStore.LinkOutAsync(HashA, dest)).Should().BeFalse();
     }
 
     [Fact]

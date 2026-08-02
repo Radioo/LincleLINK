@@ -85,4 +85,17 @@ public sealed class TorrentPieceVerifierTests : IDisposable
         result.PieceCountMismatch.Should().BeTrue();
         result.BadPieceIndices.Should().BeEmpty();
     }
+
+    [Fact]
+    public async Task Non_positive_piece_length_is_a_mismatch_not_a_loop()
+    {
+        var files = Files.Select(f => (f.Item1, f.Item2)).ToArray();
+        var torrent = TorrentTestFactory.BuildTorrentData(4, files) with { PieceLength = 0 };
+
+        var result = await new TorrentPieceVerifier(torrent, WriteLocalFiles()).VerifyAsync(_fs);
+
+        result.PieceCountMismatch.Should().BeTrue();
+        result.BadPieceIndices.Should().BeEmpty();
+        result.Files.Should().BeEmpty();
+    }
 }

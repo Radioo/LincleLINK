@@ -13,8 +13,3 @@ public interface IAppPaths
     /// <summary>Creates <c>db/</c> and <c>instance/</c> under the data root (v2 CheckDirs).</summary>
     void EnsureCreated();
 }
-
-public interface IAppPathsFactory
-{
-    IAppPaths Create(string dataDirectory);
-}

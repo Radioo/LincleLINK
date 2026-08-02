@@ -10,5 +10,5 @@ public sealed record InstanceListEntry(
     string TotalFileSizeString)
 {
     public static InstanceListEntry From(Instance instance) =>
-        new(instance.Name, instance.FileList.Count, instance.TotalFileSize, instance.TotalFileSizeString);
+        new(instance.InstanceName, instance.FileList.Count, instance.TotalFileSize, instance.TotalFileSizeString);
 }

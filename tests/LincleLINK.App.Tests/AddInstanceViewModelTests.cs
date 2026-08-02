@@ -44,7 +44,7 @@ public sealed class AddInstanceViewModelTests
     }
 
     [Fact]
-    public async Task MakeInstance_success_raises_close()
+    public async Task CreateInstance_success_raises_close()
     {
         StubDataPath();
         var vm = Create();
@@ -53,15 +53,15 @@ public sealed class AddInstanceViewModelTests
         vm.InstanceName = "inst";
         vm.DataPath = Data;
 
-        await vm.MakeInstanceCommand.ExecuteAsync(null);
+        await vm.CreateInstanceCommand.ExecuteAsync(null);
 
         closeRequested.Should().BeTrue();
-        vm.LogLines.Should().Contain(m => m.StartsWith("Instance added.", StringComparison.Ordinal));
+        vm.LogLines.Should().Contain(m => m.StartsWith(LogMessages.InstanceAdded, StringComparison.Ordinal));
         await _repository.Received(1).SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task MakeInstance_error_shows_error_and_does_not_close()
+    public async Task CreateInstance_error_shows_error_and_does_not_close()
     {
         _fs.DirectoryExists(Data).Returns(true);
         _fs.EnumerateFiles(Data, true).Returns([]);
@@ -72,7 +72,7 @@ public sealed class AddInstanceViewModelTests
         vm.InstanceName = "inst";
         vm.DataPath = Data;
 
-        await vm.MakeInstanceCommand.ExecuteAsync(null);
+        await vm.CreateInstanceCommand.ExecuteAsync(null);
 
         await _dialogs.Received(1).ErrorAsync(Arg.Any<string>(), Arg.Any<string>());
         closed.Should().BeFalse();
@@ -95,7 +95,7 @@ public sealed class AddInstanceViewModelTests
         vm.IsCopyChecked = false;
         vm.IsMoveChecked = true;
 
-        await vm.MakeInstanceCommand.ExecuteAsync(null);
+        await vm.CreateInstanceCommand.ExecuteAsync(null);
 
         await _store.Received(1).CopyToStoreAsync(FileA, Arg.Any<string>(), Arg.Any<CancellationToken>());
         _fs.Received(1).DeleteFile(FileA);

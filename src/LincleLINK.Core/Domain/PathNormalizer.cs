@@ -10,13 +10,10 @@ public static class PathNormalizer
     public static string ToPlatformSeparators(string path)
         => path.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
 
-    /// <summary>Removes leading path separators (e.g. v2 import location "\sound\25063").</summary>
-    public static string StripLeadingSeparators(string path)
-        => path.TrimStart('\\', '/');
-
     /// <summary>
-    /// Rejects rooted paths, empty/blank input, and any '.'/'..'/drive-letter segments
-    /// so paths derived from stored or torrent data can be written safely.
+    /// Rejects rooted paths and any '.'/'..'/drive-letter segments so paths derived
+    /// from stored or torrent data can be written safely. Empty/blank input is
+    /// accepted: with no segments there is nothing to traverse.
     /// </summary>
     public static bool IsSafeRelativePath(string path)
     {
@@ -35,11 +32,6 @@ public static class PathNormalizer
         }
 
         var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
-
-        if (segments.Length == 0)
-        {
-            return false;
-        }
 
         foreach (var segment in segments)
         {

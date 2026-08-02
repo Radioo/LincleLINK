@@ -2,8 +2,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
+using LincleLINK.App.Abstractions;
 using LincleLINK.App.Controls;
-using LincleLINK.App.ViewModels;
 using LincleLINK.Core.Abstractions.Dialogs;
 
 namespace LincleLINK.App.Services;
@@ -42,15 +42,14 @@ public sealed class DialogService : IDialogService, IAppDialogHost
         return result.Count > 0 ? result[0].TryGetLocalPath() : null;
     }
 
-    public async Task<string?> PickOpenFileAsync(string title, string filter)
+    public async Task<string?> PickOpenFileAsync(string title, FileType fileType)
     {
         var storage = GetStorageProvider();
-        var (label, patterns) = ParseFilter(filter);
         var result = await storage.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = title,
             AllowMultiple = false,
-            FileTypeFilter = [new FilePickerFileType(label) { Patterns = patterns }],
+            FileTypeFilter = [new FilePickerFileType(fileType.Label) { Patterns = [.. fileType.Patterns] }],
         });
 
         return result.Count > 0 ? result[0].TryGetLocalPath() : null;
@@ -62,7 +61,7 @@ public sealed class DialogService : IDialogService, IAppDialogHost
     /// that grows (e.g. a log panel) scrolls instead of stretching the window.
     /// Completes when the view closes its host window.
     /// </summary>
-    public async Task ShowDialogAsync(ViewModelBase vm)
+    public async Task ShowDialogAsync(IDialogViewModel vm)
     {
         var window = new Window
         {
@@ -88,13 +87,20 @@ public sealed class DialogService : IDialogService, IAppDialogHost
         }
         else
         {
+            // No owner (e.g. before the main window exists): show non-modally but
+            // still wait for close so the contract "completes when the host window
+            // closes" holds in both branches.
+            var closed = new TaskCompletionSource();
+            window.Closed += (_, _) => closed.TrySetResult();
             window.Show();
+            await closed.Task;
         }
     }
 
     private async Task<MessageDialogResult> ShowMessageAsync(string message, string title, MessageDialogButtons buttons)
     {
-        var dialog = new MessageDialog { Message = message, Buttons = buttons };
+        var dialog = new MessageDialog();
+        dialog.Configure(message, buttons);
         var window = new Window
         {
             Title = title,
@@ -111,6 +117,11 @@ public sealed class DialogService : IDialogService, IAppDialogHost
             tcs.TrySetResult(result);
             window.Close();
         };
+
+        // Closing via the title-bar X must not hang the caller: treat it as the
+        // safe dismissal result for the button set (Ok, or No for YesNo).
+        window.Closed += (_, _) => tcs.TrySetResult(
+            buttons == MessageDialogButtons.Ok ? MessageDialogResult.Ok : MessageDialogResult.No);
 
         var owner = _ownerProvider();
         if (owner is not null)
@@ -137,16 +148,5 @@ public sealed class DialogService : IDialogService, IAppDialogHost
 
         return topLevel?.StorageProvider
             ?? throw new InvalidOperationException("No window is available to host a file picker.");
-    }
-
-    private static (string Label, string[] Patterns) ParseFilter(string filter)
-    {
-        var parts = filter.Split('|');
-        var label = parts.Length > 0 && !string.IsNullOrWhiteSpace(parts[0]) ? parts[0] : "Files";
-        var patterns = parts.Length > 1
-            ? parts[1].Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            : ["*.*"];
-
-        return (label, patterns);
     }
 }

@@ -1,4 +1,4 @@
-namespace LincleLINK.Core.Storage;
+namespace LincleLINK.Core.Infrastructure.Instances;
 
 /// <summary>
 /// Thrown when a persisted instance manifest exists but cannot be deserialized.

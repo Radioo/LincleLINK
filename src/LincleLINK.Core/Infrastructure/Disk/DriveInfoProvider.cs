@@ -15,12 +15,6 @@ public sealed class DriveInfoProvider : IDriveInfoProvider
         return drive.AvailableFreeSpace;
     }
 
-    public long GetTotalSize(string path)
-    {
-        var drive = ResolveDrive(path);
-        return drive.TotalSize;
-    }
-
     private static DriveInfo ResolveDrive(string path)
     {
         var root = Path.GetPathRoot(path);

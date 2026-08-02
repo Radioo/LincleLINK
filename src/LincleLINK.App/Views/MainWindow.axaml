@@ -55,28 +55,28 @@
 
                     <TextBlock Grid.Row="2" Text="Torrent file path" />
                     <Grid Grid.Row="3" ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                        <TextBox Grid.Column="0" Text="{Binding TorrentFilePath, Mode=TwoWay}" />
-                        <Button Grid.Column="1" Content="Browse..." Command="{Binding BrowseTorrentFileCommand}" />
+                        <TextBox Grid.Column="0" Text="{Binding TorrentCheck.TorrentFilePath, Mode=TwoWay}" />
+                        <Button Grid.Column="1" Content="Browse..." Command="{Binding TorrentCheck.BrowseTorrentFileCommand}" />
                     </Grid>
 
                     <TextBlock Grid.Row="4" Text="Torrent relative data path" />
-                    <TextBox Grid.Row="5" Text="{Binding RelativePath, Mode=TwoWay}" PlaceholderText="contents\data" />
+                    <TextBox Grid.Row="5" Text="{Binding TorrentCheck.RelativePath, Mode=TwoWay}" PlaceholderText="contents\data" />
 
                     <TextBlock Grid.Row="6" Text="Torrent download &amp; link target location" />
                     <Grid Grid.Row="7" ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                        <TextBox Grid.Column="0" Text="{Binding TorrentDownloadPath, Mode=TwoWay}" />
-                        <Button Grid.Column="1" Content="Browse..." Command="{Binding BrowseTorrentDlPathCommand}" />
+                        <TextBox Grid.Column="0" Text="{Binding TorrentCheck.TorrentDownloadPath, Mode=TwoWay}" />
+                        <Button Grid.Column="1" Content="Browse..." Command="{Binding TorrentCheck.BrowseTorrentDlPathCommand}" />
                     </Grid>
 
                     <Grid Grid.Row="8" ColumnDefinitions="*,*,*" ColumnSpacing="8">
-                        <Button Grid.Column="0" Content="Check files" Command="{Binding CheckFilesCommand}" />
-                        <Button Grid.Column="1" Content="Check pieces" Command="{Binding CheckPiecesCommand}" />
-                        <Button Grid.Column="2" Content="Start linking" Command="{Binding LinkToTorrentCommand}" />
+                        <Button Grid.Column="0" Content="Check files" Command="{Binding TorrentCheck.CheckFilesCommand}" />
+                        <Button Grid.Column="1" Content="Check pieces" Command="{Binding TorrentCheck.CheckPiecesCommand}" />
+                        <Button Grid.Column="2" Content="Start linking" Command="{Binding TorrentCheck.LinkToTorrentCommand}" />
                     </Grid>
 
                     <TextBlock Grid.Row="9" Text="Matched instance files" />
                     <ScrollViewer Grid.Row="10">
-                        <ItemsControl ItemsSource="{Binding MatchedFiles}" />
+                        <ItemsControl ItemsSource="{Binding TorrentCheck.MatchedFiles}" />
                     </ScrollViewer>
 
                 </Grid>

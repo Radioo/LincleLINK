@@ -1,5 +1,5 @@
 using FluentAssertions;
-using LincleLINK.App.Services;
+using LincleLINK.App.Abstractions;
 using LincleLINK.App.ViewModels;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Disk;
@@ -72,7 +72,7 @@ public sealed class MainViewModelTests
         vm.DbSize.Should().Be("10 B");
         vm.Savings.Should().Be("0 B"); // (10 + 0) - 10
         vm.FreeSpace.Should().Be("500 B");
-        vm.LogLines.Should().Contain("Instance list updated.");
+        vm.LogLines.Should().Contain(LogMessages.InstanceListUpdated);
     }
 
     [Fact]
@@ -219,17 +219,35 @@ public sealed class MainViewModelTests
         var vm = CreateViewModel();
         vm.SelectedInstance = new InstanceListEntry("X", 0, 0, "0 B");
 
-        vm.TorrentFilePath = "x.torrent";
-        vm.CheckFilesCommand.CanExecute(null).Should().BeTrue();
-        vm.CanCheckPieces.Should().BeFalse();
+        vm.TorrentCheck.TorrentFilePath = "x.torrent";
+        vm.TorrentCheck.CheckFilesCommand.CanExecute(null).Should().BeTrue();
+        vm.TorrentCheck.PiecesChecked.Should().BeFalse();
 
-        vm.CanCheckPieces = true;
-        vm.TorrentDownloadPath = "C:\\dl";
-        vm.CanLinkTorrent = true;
+        vm.TorrentCheck.PiecesChecked = true;
+        vm.TorrentCheck.TorrentDownloadPath = "C:\\dl";
+        vm.TorrentCheck.LinkReady = true;
 
-        vm.RelativePath = @"contents\data";
+        vm.TorrentCheck.RelativePath = @"contents\data";
 
-        vm.CanCheckPieces.Should().BeFalse();
-        vm.CanLinkTorrent.Should().BeFalse();
+        vm.TorrentCheck.PiecesChecked.Should().BeFalse();
+        vm.TorrentCheck.LinkReady.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Torrent_check_files_gated_on_selection_and_busy()
+    {
+        StubStatus();
+        var vm = CreateViewModel();
+
+        // No selected instance: not executable.
+        vm.TorrentCheck.TorrentFilePath = "x.torrent";
+        vm.TorrentCheck.CheckFilesCommand.CanExecute(null).Should().BeFalse();
+
+        vm.SelectedInstance = new InstanceListEntry("X", 0, 0, "0 B");
+        vm.TorrentCheck.CheckFilesCommand.CanExecute(null).Should().BeTrue();
+
+        // Busy gates it again through the shared host.
+        vm.IsBusy = true;
+        vm.TorrentCheck.CheckFilesCommand.CanExecute(null).Should().BeFalse();
     }
 }

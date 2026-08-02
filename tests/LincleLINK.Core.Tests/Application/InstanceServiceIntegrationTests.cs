@@ -24,7 +24,7 @@ public sealed class InstanceServiceIntegrationTests : IDisposable
 
     public void Dispose() => _temp.Dispose();
 
-    private static IHardLinker? CreateLinker()
+    private static IHardLinker CreateLinker()
     {
         if (OperatingSystem.IsWindows())
         {
@@ -36,18 +36,15 @@ public sealed class InstanceServiceIntegrationTests : IDisposable
             return new UnixHardLinker();
         }
 
-        return null;
+        throw new PlatformNotSupportedException("LincleLINK supports Windows and Linux only.");
     }
 
     [Fact]
     public async Task Move_mode_copies_to_db_and_hard_links_original_back()
     {
-        var linker = CreateLinker();
-        if (linker is null)
-        {
-            return;
-        }
+        PlatformGuard.EnsureSupportedOs();
 
+        var linker = CreateLinker();
         var dataPath = Path.Combine(_temp.Root, "source");
         Directory.CreateDirectory(dataPath);
         var sourceFile = Path.Combine(dataPath, "a.bin");
@@ -57,7 +54,7 @@ public sealed class InstanceServiceIntegrationTests : IDisposable
         var service = new InstanceService(
             new FileSystem(),
             new Md5FileHasher(),
-            new FileStore(paths, linker),
+            new FileStore(paths),
             linker,
             new JsonInstanceRepository(paths),
             Substitute.For<IDriveInfoProvider>(),
@@ -73,7 +70,7 @@ public sealed class InstanceServiceIntegrationTests : IDisposable
         storeName = storeName + Path.GetExtension(sourceFile);
 
         // The db has the hashed copy AND the original path still works (hard link back).
-        new FileStore(paths, linker).Exists(storeName).Should().BeTrue();
+        new FileStore(paths).Exists(storeName).Should().BeTrue();
         File.Exists(sourceFile).Should().BeTrue();
         File.ReadAllBytes(sourceFile).Should().Equal(1, 2, 3, 4);
 

@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using LincleLINK.App.ViewModels.Base;
 using Avalonia.Controls.Templates;
 using LincleLINK.App.ViewModels;
 

@@ -29,9 +29,10 @@ public sealed class TempDir : IDisposable
         {
             Directory.Delete(Root, recursive: true);
         }
-        catch
+        catch (Exception e)
         {
-            // best-effort cleanup
+            // Best-effort cleanup; surface so a stuck temp dir is not invisible.
+            Console.Error.WriteLine($"Failed to clean up temp dir {Root}: {e.Message}");
         }
     }
 }

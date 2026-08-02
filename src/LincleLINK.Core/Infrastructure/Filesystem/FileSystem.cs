@@ -8,26 +8,6 @@ public sealed class FileSystem : IFileSystem
 
     public long GetFileLength(string path) => new FileInfo(path).Length;
 
-    public async Task CopyFileAsync(string source, string dest, bool overwrite, CancellationToken ct = default)
-    {
-        await using var src = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true);
-        await using var dst = new FileStream(
-            dest,
-            overwrite ? FileMode.Create : FileMode.CreateNew,
-            FileAccess.Write,
-            FileShare.None,
-            81920,
-            useAsync: true);
-        await src.CopyToAsync(dst, 81920, ct);
-    }
-
-    public Task MoveFileAsync(string source, string dest, bool overwrite, CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested();
-        File.Move(source, dest, overwrite);
-        return Task.CompletedTask;
-    }
-
     public bool DeleteFile(string path)
     {
         if (!File.Exists(path))

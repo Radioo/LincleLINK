@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using LincleLINK.App.Services;
+using LincleLINK.App.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LincleLINK.Core.Abstractions.Dialogs;
@@ -29,7 +31,7 @@ public partial class AddInstanceViewModel : ViewModelBase
     private bool _isMoveChecked;
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(BrowseCommand), nameof(MakeInstanceCommand))]
+    [NotifyCanExecuteChangedFor(nameof(BrowseCommand), nameof(CreateInstanceCommand))]
     private bool _isBusy;
 
     [ObservableProperty]
@@ -61,10 +63,10 @@ public partial class AddInstanceViewModel : ViewModelBase
     }
 
     [RelayCommand(CanExecute = nameof(CanInteract))]
-    private async Task MakeInstanceAsync()
+    private async Task CreateInstanceAsync()
     {
         IsBusy = true;
-        var log = BatchedLog.Create<string>(LogLines.Add);
+        var log = ProgressBridge.Create<string>(LogLines.Add, batchSize: 100);
         var percent = ProgressBridge.Create<double>(p => Progress = p);
 
         try

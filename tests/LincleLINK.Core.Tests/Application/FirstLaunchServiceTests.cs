@@ -22,7 +22,7 @@ public sealed class FirstLaunchServiceTests : IDisposable
         var dataDir = Path.Combine(_temp.Root, "data");
         store.Save(new AppSettings(false, dataDir, 4));
 
-        var result = new FirstLaunchService(store).Resolve();
+        var result = new FirstLaunchService(store).ResolveDataDirectory();
 
         result.Action.Should().Be(FirstLaunchAction.UseExistingSettings);
         result.DataDirectory.Should().Be(dataDir);
@@ -41,13 +41,38 @@ public sealed class FirstLaunchServiceTests : IDisposable
             var cwd = Path.Combine(_temp.Root, "cwd");
             Directory.CreateDirectory(cwd);
             Environment.CurrentDirectory = cwd;
-            var result = new FirstLaunchService(store).Resolve();
+            var result = new FirstLaunchService(store).ResolveDataDirectory();
             result.DataDirectory.Should().Be(cwd);
         }
         finally
         {
             Environment.CurrentDirectory = original;
         }
+    }
+
+    [Fact]
+    public void Resolve_with_null_dir_persists_absolute_cwd()
+    {
+        var store = new JsonSettingsStore(SettingsPath);
+        store.Save(new AppSettings(false, null, 1));
+
+        var original = Environment.CurrentDirectory;
+        try
+        {
+            var cwd = Path.Combine(_temp.Root, "cwd");
+            Directory.CreateDirectory(cwd);
+            Environment.CurrentDirectory = cwd;
+            _ = new FirstLaunchService(store).ResolveDataDirectory();
+        }
+        finally
+        {
+            Environment.CurrentDirectory = original;
+        }
+
+        // The legacy null value is normalized to an absolute path on load, so the
+        // data location no longer depends on the launching directory at every boot.
+        store.Load().DataDirectory.Should().NotBeNull();
+        Path.IsPathRooted(store.Load().DataDirectory!).Should().BeTrue();
     }
 
     [Fact]
@@ -62,7 +87,7 @@ public sealed class FirstLaunchServiceTests : IDisposable
         try
         {
             Environment.CurrentDirectory = cwd;
-            var result = new FirstLaunchService(new JsonSettingsStore(SettingsPath)).Resolve();
+            var result = new FirstLaunchService(new JsonSettingsStore(SettingsPath)).ResolveDataDirectory();
 
             result.Action.Should().Be(FirstLaunchAction.AdoptCurrentDirectory);
             result.DataDirectory.Should().Be(cwd);
@@ -85,7 +110,7 @@ public sealed class FirstLaunchServiceTests : IDisposable
             Directory.CreateDirectory(cwd);
             Environment.CurrentDirectory = cwd;
 
-            var result = new FirstLaunchService(new JsonSettingsStore(SettingsPath)).Resolve();
+            var result = new FirstLaunchService(new JsonSettingsStore(SettingsPath)).ResolveDataDirectory();
 
             result.Action.Should().Be(FirstLaunchAction.PromptForDirectory);
             result.HasLegacyV2Data.Should().BeFalse();
@@ -112,7 +137,7 @@ public sealed class FirstLaunchServiceTests : IDisposable
         settings.DataDirectory.Should().Be(dataDir);
 
         // Next launch is no longer first launch.
-        var result = service.Resolve();
+        var result = service.ResolveDataDirectory();
         result.Action.Should().Be(FirstLaunchAction.UseExistingSettings);
     }
 }

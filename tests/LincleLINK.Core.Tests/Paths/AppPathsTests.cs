@@ -32,13 +32,4 @@ public sealed class AppPathsTests : IDisposable
         Directory.Exists(paths.DbDirectory).Should().BeTrue();
         Directory.Exists(paths.InstanceDirectory).Should().BeTrue();
     }
-
-    [Fact]
-    public void Factory_creates_paths_for_arbitrary_roots()
-    {
-        IAppPathsFactory factory = new AppPathsFactory();
-        var root = Path.Combine(_temp.Root, "custom");
-        var paths = factory.Create(root);
-        paths.DataDirectory.Should().Be(root);
-    }
 }

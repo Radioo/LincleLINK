@@ -35,6 +35,9 @@ public sealed class JsonSettingsStore : ISettingsStore
         }
         catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException)
         {
+            // Corrupt settings reset to defaults; surface so a silently reset config
+            // cannot go unnoticed (same visibility as a failed save).
+            Console.Error.WriteLine($"Failed to load settings from {_settingsFile}: {e.Message}");
             return Defaults();
         }
     }
@@ -63,7 +66,8 @@ public sealed class JsonSettingsStore : ISettingsStore
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            // best-effort, like v2
+            // Best-effort, like v2 — but surface the failure so it is not invisible.
+            Console.Error.WriteLine($"Failed to save settings to {_settingsFile}: {e.Message}");
         }
     }
 }

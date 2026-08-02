@@ -30,13 +30,24 @@ public sealed class FirstLaunchService
         _settingsStore = settingsStore;
     }
 
-    public FirstLaunchResult Resolve()
+    public FirstLaunchResult ResolveDataDirectory()
     {
         var settings = _settingsStore.Load();
 
         if (_settingsStore.Exists)
         {
-            var dir = settings.DataDirectory ?? Environment.CurrentDirectory;
+            // A null DataDirectory is a legacy v2 value meaning "CWD". Resolve it to
+            // an absolute path once and persist it, so app data location does not
+            // silently depend on the launching directory on every boot.
+            var dir = settings.DataDirectory is null
+                ? Path.GetFullPath(Environment.CurrentDirectory)
+                : settings.DataDirectory;
+
+            if (settings.DataDirectory is null)
+            {
+                _settingsStore.Save(new AppSettings(settings.IsDarkTheme, dir, settings.HashThreadCount));
+            }
+
             return new FirstLaunchResult(FirstLaunchAction.UseExistingSettings, dir, false, null);
         }
 

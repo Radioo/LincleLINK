@@ -4,7 +4,6 @@ using LincleLINK.Core.Abstractions.Paths;
 using LincleLINK.Core.Domain;
 using LincleLINK.Core.Infrastructure.Instances;
 using LincleLINK.Core.Infrastructure.Paths;
-using LincleLINK.Core.Storage;
 using LincleLINK.Core.Tests.TestHelpers;
 using Xunit;
 
@@ -35,7 +34,7 @@ public sealed class JsonInstanceRepositoryTests : IDisposable
         var loaded = await repo.GetAsync("IIDX28");
 
         loaded.Should().NotBeNull();
-        loaded!.Name.Should().Be("IIDX28");
+        loaded!.InstanceName.Should().Be("IIDX28");
         loaded.TotalFileSize.Should().Be(463806);
         loaded.TotalFileCount.Should().Be(1);
         loaded.TotalFileSizeString.Should().Be("452.94 KB");
@@ -68,7 +67,7 @@ public sealed class JsonInstanceRepositoryTests : IDisposable
         var loaded = await repo.GetAsync("IIDX28");
 
         loaded.Should().NotBeNull();
-        loaded!.Name.Should().Be("IIDX28");
+        loaded!.InstanceName.Should().Be("IIDX28");
         loaded.FileList.Should().ContainSingle();
         loaded.FileList[0].RelativePath.Should().Be(@"sound\25063");
     }
@@ -101,6 +100,20 @@ public sealed class JsonInstanceRepositoryTests : IDisposable
         (await repo.ExistsAsync("iidx28")).Should().BeTrue();
         (await repo.ExistsAsync("IIDX28")).Should().BeTrue();
         (await repo.ExistsAsync("other")).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Get_and_Delete_resolve_case_insensitively()
+    {
+        var repo = new JsonInstanceRepository(_paths);
+        await repo.SaveAsync(Instance.Create("IIDX28", [], []));
+
+        var loaded = await repo.GetAsync("iidx28");
+        loaded.Should().NotBeNull();
+        loaded!.InstanceName.Should().Be("IIDX28");
+
+        (await repo.DeleteAsync("iidx28")).Should().BeTrue();
+        (await repo.ExistsAsync("IIDX28")).Should().BeFalse();
     }
 
     [Fact]
@@ -151,6 +164,19 @@ public sealed class JsonInstanceRepositoryTests : IDisposable
         var repo = new JsonInstanceRepository(_paths);
 
         var act = () => repo.GetAsync("bad");
+        await act.Should().ThrowAsync<InstanceStorageException>();
+    }
+
+    [Fact]
+    public async Task Explicit_null_for_non_nullable_field_throws_InstanceStorageException()
+    {
+        Directory.CreateDirectory(_paths.InstanceDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(_paths.InstanceDirectory, "nullname.json"),
+            """{ "Name": null, "TotalFileSize": 0, "TotalFileCount": 0, "TotalFileSizeString": "0 B" }""");
+        var repo = new JsonInstanceRepository(_paths);
+
+        var act = () => repo.GetAsync("nullname");
         await act.Should().ThrowAsync<InstanceStorageException>();
     }
 

@@ -115,9 +115,7 @@ public interface IFileStore
     bool Exists(string hashedFileName);
     string GetPath(string hashedFileName);
     Task CopyToStoreAsync(string sourcePath, string hashedFileName, CancellationToken ct = default);
-    Task MoveToStoreAsync(string sourcePath, string hashedFileName, CancellationToken ct = default);
     Task CopyOutAsync(string hashedFileName, string destinationPath, CancellationToken ct = default); // skip if exists
-    Task LinkOutAsync(string hashedFileName, string destinationPath, CancellationToken ct = default);
     Task DeleteAsync(string hashedFileName, CancellationToken ct = default);
     Task<IReadOnlyList<string>> GetAllHashedFileNamesAsync(CancellationToken ct = default);
     Task<long> GetTotalSizeAsync(CancellationToken ct = default);
@@ -126,7 +124,7 @@ public interface IFileStore
 
 - All names resolve to `Path.Combine(dbDir, hashedFileName)`.
 - **Traversal guard (D4):** names must match `^[0-9A-F]{32}(\.[^\\/]+)?$` before touching the FS.
-- Dedup on write (skip if exists); `MoveToStoreAsync` via `File.Move`; `CopyOutAsync` never overwrites; `LinkOutAsync` delegates to `IHardLinker` (04).
+- Dedup on write (skip if exists); `CopyOutAsync` never overwrites; move-mode is handled in `InstanceService` via `CopyToStoreAsync` + hard-link back (05).
 - `GetTotalSizeAsync` / `GetAllHashedFileNamesAsync` feed status panel + unused-files scan.
 
 ## 8. `InstanceJson` (serialization helper)
