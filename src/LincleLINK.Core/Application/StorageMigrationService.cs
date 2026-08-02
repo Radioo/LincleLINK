@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Text.Json;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Paths;
@@ -97,6 +98,7 @@ public class StorageMigrationService
         // The source file path travels with each instance so delete/quarantine uses
         // the actual manifest file, which can differ from the inner name.
         var pending = new List<(Instance Instance, string File)>();
+        var pendingKeys = new HashSet<string>(StringComparer.Ordinal);
         long pendingFileCount = 0;
         int handled = 0;
 
@@ -112,12 +114,29 @@ public class StorageMigrationService
                 var instance = await ReadInstanceAsync(file, ct);
 
                 // Idempotent: a partially-run migration that already wrote this name
-                // just discards the JSON on the next launch.
-                if (await _repository.ExistsAsync(name, ct))
+                // just discards the JSON on the next launch. The DB identity is the
+                // inner Name, so the existence check must use it, not the file name.
+                if (await _repository.ExistsAsync(instance.InstanceName, ct))
                 {
                     skipped++;
                     handled++;
                     File.Delete(file);
+                    ReportPercent(percent, handled, files.Count);
+                    continue;
+                }
+
+                // Two manifests can collide on the inner name (identical, or case
+                // variants on Linux) even when their file names differ. ExistsAsync
+                // only sees the DB, not the current pending batch, so the duplicate
+                // is quarantined here rather than tripping the primary key on insert.
+                if (!pendingKeys.Add(LincleLinkPersistence.NameKeyOf(instance.InstanceName)))
+                {
+                    quarantined++;
+                    handled++;
+                    var detail = $"{instance.InstanceName}: Duplicate manifest name; quarantined.";
+                    errors.Add(detail);
+                    log?.Report($"Quarantined {detail}");
+                    Quarantine(file);
                     ReportPercent(percent, handled, files.Count);
                     continue;
                 }
@@ -144,6 +163,7 @@ public class StorageMigrationService
                 errors.AddRange(e);
                 handled += pending.Count;
                 pending.Clear();
+                pendingKeys.Clear();
                 pendingFileCount = 0;
             }
         }
@@ -209,7 +229,7 @@ public class StorageMigrationService
                 await FinalizeAsync(pending[i].Instance, pending[i].File, i);
             }
         }
-        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or DbException)
         {
             log?.Report($"Bulk insert failed ({ex.Message}); retrying individually.");
 
@@ -222,7 +242,7 @@ public class StorageMigrationService
                     await _repository.SaveAsync(instance, ct);
                     await FinalizeAsync(instance, file, i);
                 }
-                catch (Exception inner) when (inner is JsonException or IOException or UnauthorizedAccessException or ArgumentException)
+                catch (Exception inner) when (inner is JsonException or IOException or UnauthorizedAccessException or ArgumentException or DbException)
                 {
                     quarantined++;
                     var detail = $"{instance.InstanceName}: {inner.Message}";

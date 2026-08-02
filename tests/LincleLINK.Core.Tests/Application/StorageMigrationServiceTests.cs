@@ -1,3 +1,4 @@
+using System.Data.Common;
 using FluentAssertions;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Paths;
@@ -282,5 +283,56 @@ public sealed class StorageMigrationServiceTests : IDisposable
         result.Quarantined.Should().Be(1);
         result.Errors.Should().ContainSingle().Which.Should().Contain("Instance JSON was null");
         File.Exists(Path.Combine(_paths.InstanceDirectory, "instance-corrupt", "bad.json")).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task MigrateAsync_falls_back_when_bulk_insert_throws_db_exception()
+    {
+        // SQLite database failures (locked/corrupt DB, constraint violation, disk
+        // full) surface as SqliteException/DbUpdateException, not the IOException the
+        // original filter caught. They must trigger the same per-instance fallback so
+        // one bad manifest is quarantined instead of stranding the whole batch.
+        var repository = Substitute.For<IInstanceRepository>();
+        repository.BulkInsertAsync(Arg.Any<IReadOnlyList<Instance>>(), Arg.Any<CancellationToken>())
+            .Returns(_ => throw new TestDbException("database is locked"));
+        repository.ExistsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(false);
+        repository.SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        WriteInstanceJson("IIDX28", TestData.V2InstanceJson);
+        var service = CreateService(repository);
+
+        var result = await service.MigrateAsync();
+
+        await repository.Received(1).SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>());
+        result.Migrated.Should().Be(0);
+        result.Quarantined.Should().Be(1);
+        result.Errors.Should().ContainSingle().Which.Should().Contain("Verification failed after writing IIDX28");
+        File.Exists(Path.Combine(_paths.InstanceDirectory, "instance-corrupt", "IIDX28.json")).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task MigrateAsync_quarantines_duplicate_inner_name_in_same_batch()
+    {
+        // Two manifests whose inner Names collide (identical, or case variants on
+        // Linux where both files coexist) share one primary-key value; the second
+        // must be quarantined rather than violate the unique NameKey on insert.
+        WriteInstanceJson("IIDX28", TestData.V2InstanceJson);
+        WriteInstanceJson("iidx28", """{"Name":"IIDX28","TotalFileSize":0,"TotalFileCount":0,"TotalFileSizeString":"0 B"}""");
+        var service = CreateService();
+
+        var result = await service.MigrateAsync();
+
+        result.Migrated.Should().Be(1);
+        result.Quarantined.Should().Be(1);
+        result.Errors.Should().ContainSingle().Which.Should().Contain("Duplicate manifest name");
+        Directory.GetFiles(_paths.InstanceDirectory, "*.json").Should().BeEmpty();
+        File.Exists(Path.Combine(_paths.InstanceDirectory, "instance-corrupt", "iidx28.json")).Should().BeTrue();
+    }
+
+    /// <summary>Concrete <see cref="DbException"/> so the migration fallback filter can be exercised.</summary>
+    private sealed class TestDbException : DbException
+    {
+        public TestDbException(string message) : base(message)
+        {
+        }
     }
 }
