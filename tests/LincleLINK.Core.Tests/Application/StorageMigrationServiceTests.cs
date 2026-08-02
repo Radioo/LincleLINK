@@ -319,11 +319,13 @@ public sealed class StorageMigrationServiceTests : IDisposable
     [Fact]
     public async Task MigrateAsync_quarantines_duplicate_inner_name_in_same_batch()
     {
-        // Two manifests whose inner Names collide (identical, or case variants on
-        // Linux where both files coexist) share one primary-key value; the second
-        // must be quarantined rather than violate the unique NameKey on insert.
-        WriteInstanceJson("IIDX28", TestData.V2InstanceJson);
-        WriteInstanceJson("iidx28", """{"Name":"IIDX28","TotalFileSize":0,"TotalFileCount":0,"TotalFileSizeString":"0 B"}""");
+        // Two manifests whose inner Names collide (identical, or case variants) share
+        // one primary-key value. The file names must stay distinct on every platform:
+        // on a case-insensitive filesystem (Windows, default macOS) IIDX28.json and
+        // iidx28.json are the same file, so the collision is expressed through the
+        // inner Name, not the file name.
+        WriteInstanceJson("first", TestData.V2InstanceJson);
+        WriteInstanceJson("second", MinimalJson("iidx28"));
         var service = CreateService();
 
         var result = await service.MigrateAsync();
@@ -332,7 +334,7 @@ public sealed class StorageMigrationServiceTests : IDisposable
         result.Quarantined.Should().Be(1);
         result.Errors.Should().ContainSingle().Which.Should().Contain("Duplicate manifest name");
         Directory.GetFiles(_paths.InstanceDirectory, "*.json").Should().BeEmpty();
-        File.Exists(Path.Combine(_paths.InstanceDirectory, "instance-corrupt", "iidx28.json")).Should().BeTrue();
+        File.Exists(Path.Combine(_paths.InstanceDirectory, "instance-corrupt", "second.json")).Should().BeTrue();
     }
 
     [Fact]
