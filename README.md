@@ -6,6 +6,8 @@ recreated ("deployed") anywhere on the same drive using hard links - at no extra
 disk cost. Adding several versions of the same game costs you roughly the size
 of one, plus what's unique to each.
 
+<img width="1120" height="700" alt="image" src="https://github.com/user-attachments/assets/832ce7fa-680b-45df-9607-a1707a04427c" />
+
 ## Installation
 
 Grab the build for your platform from the [releases page](https://github.com/Radioo/LincleLINK/releases):
