@@ -5,8 +5,8 @@
              x:DataType="vm:FirstRunViewModel">
     <StackPanel Margin="24" Spacing="10">
         <TextBlock Text="Welcome to LincleLINK" FontSize="16" FontWeight="SemiBold" />
-        <TextBlock Text="LincleLINK keeps your game data deduplicated in its own storage folder and can recreate any entry anywhere on the same drive using hard links — at no extra disk cost." TextWrapping="Wrap" />
-        <TextBlock Text="Choose where LincleLINK should keep its storage. Pick a drive with room for your data — deploying entries only works onto that same drive." TextWrapping="Wrap" />
+        <TextBlock Text="LincleLINK keeps your game data deduplicated in its own storage folder and can recreate any entry anywhere on the same drive using hard links - at no extra disk cost." TextWrapping="Wrap" />
+        <TextBlock Text="Choose where LincleLINK should keep its storage. Pick a drive with room for your data - deploying entries only works onto that same drive." TextWrapping="Wrap" />
         <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Opacity="0.8"
                    IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 

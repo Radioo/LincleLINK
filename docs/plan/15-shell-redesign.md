@@ -1,7 +1,7 @@
-# 15 — Shell redesign (M9)
+# 15 - Shell redesign (M9)
 
 Status: **Approved / locked**. Expansion of `00-high-level.md` §14; follows M8 (`14-ux-clarity.md`).
-Implements "Concept A — sidebar + inspector" from the approved layout proposal.
+Implements "Concept A - sidebar + inspector" from the approved layout proposal.
 
 The tab strip becomes a modern desktop shell: left sidebar navigation with a permanent
 storage card, page-based content, a Library master-detail with an inspector panel, a
@@ -22,17 +22,17 @@ additions (D2, D3). Vocabulary and behavior from plan 14 are unchanged.
   state). A later milestone may promote pages to their own VMs; out of scope here.
 - Theme-variant brushes (`LLSidebar`, `LLCard`, `LLHairline`, `LLAccentSoft`,
   `LLDanger`, `LLWarning`, `LLSuccess`, `LLVeil`, `LLSurface`) are defined in
-  `App.axaml` ThemeDictionaries — deliberately **not** Semi's internal color keys,
+  `App.axaml` ThemeDictionaries - deliberately **not** Semi's internal color keys,
   whose names are unverifiable at build time.
 
 ## 2. Library page (D2)
 
 - Header: title + entry count, filter box (`FilterText` filters the grid,
   case-insensitive substring on the name), primary "Add folder…" button.
-- Master-detail: the DataGrid plus an **inspector** for the selected entry —
+- Master-detail: the DataGrid plus an **inspector** for the selected entry -
   Files / Size when deployed / **Unique to this entry**, and the Deploy / Export /
   Remove buttons (replacing the global button row; the row context menu stays).
-- **D2 (Core):** `IInstanceRepository.GetUniqueSizeAsync(name)` — total bytes of
+- **D2 (Core):** `IInstanceRepository.GetUniqueSizeAsync(name)` - total bytes of
   hashes referenced by this entry and no other. SQLite: one whole-table
   `GROUP BY HashedFileName HAVING COUNT(DISTINCT InstanceName)=1` raw query (same
   cost class as the unused-files scan); JSON: in-memory equivalent. Loaded lazily
@@ -58,7 +58,7 @@ three states, identical on every page:
 - **Idle:** last outcome line (`LastOutcome`, e.g. "✓ Deployed 48,213 files").
 - **Running:** transient status text + compact progress + percent + **Cancel**.
 - **Finished with issues:** the outcome line renders in the warning color
-  (`LastOutcomeIsWarning`), e.g. "⚠ Deployed 4,812 files; 3 failed — see log".
+  (`LastOutcomeIsWarning`), e.g. "⚠ Deployed 4,812 files; 3 failed - see log".
 
 "Activity log ▸" toggles a 160 px drawer above the bar containing the full log.
 `IOperationHost` gains `ReportOutcome(message, isWarning)` so feature VMs (torrent)
@@ -86,4 +86,4 @@ Data location (path + change + restart note), Import from v1. Same bindings.
   in Avalonia DataGrid rows are deferred until the shell settles).
 - Relative timestamps in the activity bar; entry history; integrity page.
 - Sidebar collapse-to-icons below ~800 px (window min-width instead).
-- Animated slide-in transition — added only if it survives manual testing.
+- Animated slide-in transition - added only if it survives manual testing.

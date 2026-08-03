@@ -27,7 +27,7 @@ public interface IInstanceRepository
     Task<bool> ExistsAsync(string name, CancellationToken ct = default);
 
     /// <summary>
-    /// Total bytes of dedup files referenced by this instance and by no other —
+    /// Total bytes of dedup files referenced by this instance and by no other -
     /// what the storage cleanup could reclaim after removing the entry (plan 15
     /// D2, the inspector's "Unique to this entry" figure). Returns 0 for an
     /// unknown name. Duplicated hashes within the same instance count once.

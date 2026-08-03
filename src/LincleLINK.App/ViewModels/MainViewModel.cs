@@ -307,7 +307,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
             {
                 ReportOutcome(
                     result.Failed > 0
-                        ? $"⚠ Deployed {result.Linked} files; {result.Failed} failed — see log"
+                        ? $"⚠ Deployed {result.Linked} files; {result.Failed} failed - see log"
                         : $"✓ Deployed {result.Linked} files",
                     isWarning: result.Failed > 0);
             }
@@ -406,10 +406,10 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         LogLines.Add($"Data directory set to {path}. Restart LincleLINK to apply.");
 
         // The active directory is frozen at boot, so a restart is the only way the
-        // change takes effect — say so explicitly, not just via the inline note.
+        // change takes effect - say so explicitly, not just via the inline note.
         await _dialogs.InfoAsync(
             $"The data directory is now set to {path}.\n\n" +
-            "Restart LincleLINK to start using it — until then the app keeps " +
+            "Restart LincleLINK to start using it - until then the app keeps " +
             "working with the current location. Your data is not moved or copied.",
             "Restart required");
     }
@@ -605,7 +605,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
             // The figure is informational; never let it break selection.
             if (string.Equals(SelectedInstance?.InstanceName, entry.InstanceName, StringComparison.OrdinalIgnoreCase))
             {
-                SelectedUniqueSizeText = "—";
+                SelectedUniqueSizeText = "-";
             }
         }
     }

@@ -65,7 +65,7 @@ public sealed class UnusedFilesService
         if (unused.Count == 0)
         {
             await _dialogs.InfoAsync(
-                "Storage is clean — every file belongs to a library entry.",
+                "Storage is clean - every file belongs to a library entry.",
                 "Clean up storage");
             return new UnusedFilesResult(false, 0, 0);
         }

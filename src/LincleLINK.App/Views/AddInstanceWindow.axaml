@@ -24,7 +24,7 @@
             <TextBlock Text="Folder" />
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                 <TextBox Grid.Column="0" Text="{Binding DataPath, Mode=TwoWay}" IsEnabled="{Binding !IsBusy}"
-                         ToolTip.Tip="The folder to add — for games, use the data folder" />
+                         ToolTip.Tip="The folder to add - for games, use the data folder" />
                 <Button Grid.Column="1" Content="Browse..." Command="{Binding BrowseCommand}" />
             </Grid>
             <StackPanel Orientation="Horizontal" Spacing="6">

@@ -15,7 +15,7 @@ public sealed record StatusSummary(long DbSize, long InstancesTotalSize, long Sa
     public string FreeSpaceString => SizeFormatter.Format(FreeSpace);
 
     /// <summary>
-    /// Storage size as a share of the library's un-deduplicated total (0..1) —
+    /// Storage size as a share of the library's un-deduplicated total (0..1) -
     /// drives the sidebar storage bar (plan 15 D1). 0 while the library is empty.
     /// </summary>
     public double StorageShare => InstancesTotalSize > 0

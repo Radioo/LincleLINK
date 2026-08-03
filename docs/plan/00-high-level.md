@@ -1,4 +1,4 @@
-# LincleLINK v3 — High-Level Rewrite Plan
+# LincleLINK v3 - High-Level Rewrite Plan
 
 Status: **Draft for review.** This is the root document. Every numbered section will be expanded into its own detailed sub-plan under `docs/plan/`, reviewed and locked before implementation begins.
 
@@ -15,7 +15,7 @@ Rewrite LincleLINK from a WPF/.NET 6 Windows-only app into a modern, cross-platf
 ## 2. Non-Goals (this pass)
 
 - No macOS/Android/iOS targets initially (kept possible by Avalonia + platform-agnostic Core)
-- No changes to the v2 on-disk data model — existing `db/` and `instance/*.json` data must remain valid
+- No changes to the v2 on-disk data model - existing `db/` and `instance/*.json` data must remain valid
 - No new networking/cloud features; torrent feature remains local-file matching only
 
 ## 3. Confirmed Decisions
@@ -86,7 +86,7 @@ Key rules:
 
 ## 7. Theming
 
-- **Semi.Avalonia** (12.1.x, + `Semi.Avalonia.DataGrid`) as the theme — no FluentTheme, no hand-rolled control templates; V2 layout kept, Semi default styling (sizes/spacing) used (see `09`)
+- **Semi.Avalonia** (12.1.x, + `Semi.Avalonia.DataGrid`) as the theme - no FluentTheme, no hand-rolled control templates; V2 layout kept, Semi default styling (sizes/spacing) used (see `09`)
 - Light/dark via `ThemeVariant`/`RequestedThemeVariant`, switched through an app-side `IThemeManager`
 - Windows native title bar darkened by a small DWM helper (verify if needed at M5; Linux no-op)
 - Persist choice in the per-OS `settings.json` (`IsDarkTheme`, alongside `DataDirectory`; see `03`) for continuity
@@ -111,7 +111,7 @@ Key rules:
 - `IHardLinker` → future strategies: reflink (btrfs), symlink mode, copy fallback
 - `IFileHasher` → MD5 today (hash-name compat), SHA-256 later
 - `ITorrentSource` → MonoTorrent today, other parsers later
-- `IInstanceRepository` / `IFileStore` → alternative backends (SQLite via EF Core — see `13`, cloud) without UI churn
+- `IInstanceRepository` / `IFileStore` → alternative backends (SQLite via EF Core - see `13`, cloud) without UI churn
 - DI container makes new services/views plug in without global static state
 
 ## 11. CI
@@ -142,7 +142,7 @@ Each milestone gets its own detailed sub-plan (scenario-by-scenario) before codi
 
 ## 14. Plan Expansion Index (next files to write)
 
-Order matters — expand in this sequence, then lock each before implementation:
+Order matters - expand in this sequence, then lock each before implementation:
 
 1. `01-project-structure.md` (layout, csproj props, namespaces, DI registration)
 2. `02-domain-models.md` (data model, JSON schema compat, validation)
@@ -156,6 +156,6 @@ Order matters — expand in this sequence, then lock each before implementation:
 10. `10-testing.md` (frameworks, fixtures, test plan per service)
 11. `11-ci.md` (GitHub Actions matrix, publish)
 12. `12-verification.md` (parity test checklist v2 vs v3, manual QA script)
-13. `13-sqlite-storage.md` (EF Core SQLite instance metadata + forced one-time migration — M7)
-14. `14-ux-clarity.md` (vocabulary overhaul, add-flow redesign, pre-flight + safe reclaim, result surfacing, shell refresh — M8)
-15. `15-shell-redesign.md` (sidebar + inspector shell, activity bar, slide-over add, torrent stepper, settings cards — M9)
+13. `13-sqlite-storage.md` (EF Core SQLite instance metadata + forced one-time migration - M7)
+14. `14-ux-clarity.md` (vocabulary overhaul, add-flow redesign, pre-flight + safe reclaim, result surfacing, shell refresh - M8)
+15. `15-shell-redesign.md` (sidebar + inspector shell, activity bar, slide-over add, torrent stepper, settings cards - M9)

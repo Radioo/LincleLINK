@@ -26,7 +26,7 @@ public sealed class UnixHardLinker : IHardLinker
             1 => "Operation not permitted.",
             2 => "Could not find the source file in storage.",
             17 => "A file with that name already exists at the target.",
-            18 => "The folder is on a different filesystem than storage — hard links only work within one filesystem.",
+            18 => "The folder is on a different filesystem than storage - hard links only work within one filesystem.",
             31 => "Too many hard links for this file.",
             _ => $"Could not create the hard link (errno {errno}).",
         };

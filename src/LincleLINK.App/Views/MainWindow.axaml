@@ -142,18 +142,18 @@
                                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="Size when deployed" Opacity="0.6" FontSize="12" />
                                                 <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedInstance.TotalFileSizeString}" FontSize="12" />
                                                 <TextBlock Grid.Row="2" Grid.Column="0" Text="Unique to this entry" Opacity="0.6" FontSize="12"
-                                                           ToolTip.Tip="Bytes in storage referenced by no other entry — what a removal plus storage cleanup would free" />
+                                                           ToolTip.Tip="Bytes in storage referenced by no other entry - what a removal plus storage cleanup would free" />
                                                 <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedUniqueSizeText}" FontSize="12" />
                                             </Grid>
                                             <Button Classes="Primary" HorizontalAlignment="Stretch"
                                                     Content="Deploy to folder..." Command="{Binding LinkFilesCommand}"
-                                                    ToolTip.Tip="Recreate this entry anywhere on the same drive using hard links — no extra disk space" />
+                                                    ToolTip.Tip="Recreate this entry anywhere on the same drive using hard links - no extra disk space" />
                                             <Button HorizontalAlignment="Stretch"
                                                     Content="Export storage files..." Command="{Binding CopyHashedCommand}"
                                                     ToolTip.Tip="Copy this entry's files out of storage under their hashed names" />
                                             <Button Classes="Danger" HorizontalAlignment="Stretch"
                                                     Content="Remove from library" Command="{Binding DeleteInstanceCommand}"
-                                                    ToolTip.Tip="Forget this entry — its files stay in storage and deployed folders are untouched" />
+                                                    ToolTip.Tip="Forget this entry - its files stay in storage and deployed folders are untouched" />
                                         </StackPanel>
                                     </Border>
                                     <TextBlock Text="Select an entry to see its details."
@@ -169,7 +169,7 @@
                                         Spacing="12" MaxWidth="460">
                                 <TextBlock Text="Your library is empty" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
                                 <TextBlock TextWrapping="Wrap" Opacity="0.7" TextAlignment="Center" FontSize="13"
-                                           Text="Add a game's data folder to store it deduplicated — identical files across versions are stored only once. You can then deploy any entry to any folder on the same drive, using no extra disk space." />
+                                           Text="Add a game's data folder to store it deduplicated - identical files across versions are stored only once. You can then deploy any entry to any folder on the same drive, using no extra disk space." />
                                 <Button Content="＋ Add your first folder" Classes="Primary"
                                         Command="{Binding OpenAddInstanceCommand}" HorizontalAlignment="Center" />
                             </StackPanel>
@@ -182,7 +182,7 @@
                             <StackPanel Spacing="2">
                                 <TextBlock Text="Torrent pre-fill" FontSize="19" FontWeight="Bold" />
                                 <TextBlock TextWrapping="Wrap" Opacity="0.7" FontSize="12.5"
-                                           Text="Already have most of a torrent's files in your library? Link them into the download folder first — your torrent client then only fetches what's missing, and verified links won't be overwritten." />
+                                           Text="Already have most of a torrent's files in your library? Link them into the download folder first - your torrent client then only fetches what's missing, and verified links won't be overwritten." />
                             </StackPanel>
 
                             <!-- inputs card -->
@@ -211,7 +211,7 @@
                                     <StackPanel Grid.Row="1" Grid.Column="0" Spacing="4">
                                         <TextBlock Text="Data folder inside the torrent" FontSize="12" Opacity="0.7" />
                                         <TextBox Text="{Binding TorrentCheck.RelativePath, Mode=TwoWay}" PlaceholderText="contents\data"
-                                                 ToolTip.Tip="Where the data folder sits within the torrent's structure — usually contents\data" />
+                                                 ToolTip.Tip="Where the data folder sits within the torrent's structure - usually contents\data" />
                                     </StackPanel>
                                     <StackPanel Grid.Row="1" Grid.Column="1" Spacing="4">
                                         <TextBlock Text="Download folder (point your torrent client here)" FontSize="12" Opacity="0.7" />
@@ -267,7 +267,7 @@
                                     </Panel>
                                     <Button Grid.Row="2" Grid.Column="1" Content="Verify pieces" HorizontalAlignment="Stretch"
                                             Command="{Binding TorrentCheck.CheckPiecesCommand}"
-                                            ToolTip.Tip="Byte-exact piece check — only fully verified files get linked, so nothing is overwritten" />
+                                            ToolTip.Tip="Byte-exact piece check - only fully verified files get linked, so nothing is overwritten" />
                                     <StackPanel Grid.Row="2" Grid.Column="2" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding TorrentCheck.VerifySummary}" FontSize="12" Opacity="0.85"
                                                    IsVisible="{Binding TorrentCheck.VerifySummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />

@@ -6,7 +6,7 @@ namespace LincleLINK.App.Behaviors;
 
 /// <summary>
 /// Pins a virtualizing <see cref="ListBox"/> to its last item when new lines are
-/// added, but only when the view is already at/near the bottom — so the user can
+/// added, but only when the view is already at/near the bottom - so the user can
 /// scroll up and keep reading without being dragged back down. It wires the
 /// ListBox's internal ScrollViewer (the one virtualization reports its extent
 /// through) and calls <see cref="ScrollViewer.ScrollToEnd"/> on extent growth.

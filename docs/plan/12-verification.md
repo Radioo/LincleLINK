@@ -1,4 +1,4 @@
-# 12 — Verification & Acceptance
+# 12 - Verification & Acceptance
 
 **Parent:** [00-high-level.md](00-high-level.md) §9, §12 (M6); consolidates parity/QA requirements
 **Milestone:** M6
@@ -6,7 +6,7 @@
 
 ## 1. Scope
 
-Define how v3 is proven done: the **feature-parity matrix**, **V2-data migration validation**, a **manual QA script** (per AGENTS — user tests, no screenshot harnesses), a **platform checklist**, the consolidated **behavior-change register**, and the **M6 acceptance gate**.
+Define how v3 is proven done: the **feature-parity matrix**, **V2-data migration validation**, a **manual QA script** (per AGENTS - user tests, no screenshot harnesses), a **platform checklist**, the consolidated **behavior-change register**, and the **M6 acceptance gate**.
 
 ## 2. Feature-parity matrix (v2 → v3)
 

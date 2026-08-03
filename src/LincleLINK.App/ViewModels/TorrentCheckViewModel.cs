@@ -100,7 +100,7 @@ public partial class TorrentCheckViewModel : ViewModelBase
     }
 
     // Match/verify results depend on the entry, the torrent, and the relative
-    // path — invalidate them when any of those change. The download folder is
+    // path - invalidate them when any of those change. The download folder is
     // only a link-time input; changing it must NOT reset verification (plan 14 D7).
     partial void OnTorrentInstanceChanged(InstanceListEntry? value) => ResetGates();
     partial void OnTorrentFilePathChanged(string value) => ResetGates();

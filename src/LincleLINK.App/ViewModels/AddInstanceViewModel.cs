@@ -15,7 +15,7 @@ namespace LincleLINK.App.ViewModels;
 
 /// <summary>
 /// The "Add folder to library" dialog (plan 14 §2): name + folder, then two
-/// description radio cards — Reclaim space (recommended) and Keep originals.
+/// description radio cards - Reclaim space (recommended) and Keep originals.
 /// Picking a folder kicks off a background analysis that estimates its size and
 /// pre-flights hard-linkability, so a cross-volume folder disables the Reclaim
 /// card with an inline explanation instead of failing later.
@@ -31,7 +31,7 @@ public partial class AddInstanceViewModel : ViewModelBase
     public ObservableCollection<string> LogLines { get; } = [];
 
     /// <summary>
-    /// True once an add completed and requested close — lets the hosting shell
+    /// True once an add completed and requested close - lets the hosting shell
     /// distinguish success from a user-dismissed panel (plan 15 D4).
     /// </summary>
     public bool CompletedSuccessfully { get; private set; }
@@ -48,7 +48,7 @@ public partial class AddInstanceViewModel : ViewModelBase
     [ObservableProperty]
     private string _dataPath = string.Empty;
 
-    /// <summary>Reclaim space (move) — the recommended default.</summary>
+    /// <summary>Reclaim space (move) - the recommended default.</summary>
     [ObservableProperty]
     private bool _isReclaimChecked = true;
 

@@ -56,7 +56,7 @@ public class StorageMigrationService
 
     /// <summary>
     /// Applies any pending EF migrations so the schema exists before the first
-    /// repository query (plan 13 §8 step 1). Called unconditionally at startup —
+    /// repository query (plan 13 §8 step 1). Called unconditionally at startup -
     /// fresh installs have no JSON to trigger <see cref="MigrateAsync"/> but still
     /// need the schema, otherwise the first SELECT fails on a missing table.
     /// </summary>

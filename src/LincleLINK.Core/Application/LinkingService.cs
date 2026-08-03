@@ -58,7 +58,7 @@ public sealed class LinkingService
         IProgress<double>? percent = null,
         CancellationToken ct = default)
     {
-        var target = await _dialogs.PickFolderAsync($"Deploy {instanceName} — select a target folder");
+        var target = await _dialogs.PickFolderAsync($"Deploy {instanceName} - select a target folder");
         if (target is null)
         {
             return new LinkResult(true, null, 0, 0, 0, []);
@@ -198,7 +198,7 @@ public sealed class LinkingService
         IProgress<string>? status = null,
         CancellationToken ct = default)
     {
-        var dest = await _dialogs.PickFolderAsync("Export storage files — select a destination folder");
+        var dest = await _dialogs.PickFolderAsync("Export storage files - select a destination folder");
         if (dest is null)
         {
             return new CopyHashedResult(true, null, 0, 0);
