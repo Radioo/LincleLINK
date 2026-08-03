@@ -12,6 +12,8 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="Appium.WebDriver" />
+    <!-- Generates .torrent fixtures for the torrent pre-fill wizard tests. -->
+    <PackageReference Include="MonoTorrent" />
   </ItemGroup>
 
   <!-- Black-box tests: the reference is only there so building the tests builds

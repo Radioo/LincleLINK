@@ -3,9 +3,24 @@
 `tests/LincleLINK.UITests/` drives the real `LincleLINK.exe` through
 [WinAppDriver](https://github.com/microsoft/WinAppDriver) (Appium's Windows
 driver) using the Appium .NET client. The tests are black-box: they launch the
-app, click through the first-run flow, navigate the shell, and assert against
-both the UI (via UIA `AutomationId`s) and on-disk effects (settings file,
-storage layout).
+app, click through its screens, and assert against both the UI (via UIA
+`AutomationId`s) and on-disk effects (settings file, storage layout, deployed
+and linked files).
+
+## Coverage map (screen by screen)
+
+| Screen | Suite | Interactions covered |
+| --- | --- | --- |
+| First run | `FirstRunTests` | Accept proposed directory; empty-directory validation; typing a custom directory (with spaces); theme radios; persistence of all choices. |
+| Shell | `MainShellTests` | Seeded boot skips first run; sidebar navigation across all three pages; activity-log drawer toggle + log lines; storage card figures. |
+| Library | `LibraryTests` | Add folder in both modes (Keep originals / Reclaim space) incl. dedup and originals-intact checks; empty-folder error dialog; filter box narrowing/restoring; row selection + inspector (name, unique size, action buttons); remove with No/Yes confirmation; deploy to folder (native picker, files verified on disk); export hashed blobs (native picker); storage cleanup both when clean and with orphans. |
+| Settings | `SettingsTests` | Theme radios persist; thread slider persists; change data directory (native picker + restart notice + pending note); legacy import picker cancel. |
+| Torrent pre-fill | `TorrentTests` | Initial gating + hint texts; full wizard against a generated fixture torrent: entry combo, typed paths, match -> verify -> link, files verified in the download folder. |
+
+Not covered (native pickers only reachable through the "Browse..." buttons are
+exercised via the deploy/export/change-directory/import flows instead; the
+in-flight Cancel buttons need an operation slow enough to catch, which tiny
+fixtures do not provide).
 
 ## How isolation works
 
@@ -66,6 +81,18 @@ UIA tree dumps, and the trx log as the `ui-test-artifacts` artifact.
   dialogs (which get their own window handle) are found transparently.
 - Wrap test bodies in `Run(app, () => ...)` (from `UITestBase`) so failures
   capture a screenshot and UIA tree automatically.
+- `UITestBase.AddEntry` drives the whole add-folder flow; `TestData` creates
+  the standard 4-file source folder (3 unique blobs) and generates v1 .torrent
+  fixtures with MonoTorrent.
+- App-owned dialogs (confirm/info/error) are plain Avalonia windows: click
+  their buttons by name via `ClickMessageButton("Yes"/"No"/"OK")`.
+- Native pickers are driven keyboard-first: `CompleteFolderPicker` navigates
+  via the address bar (Alt+D) and clicks "Select Folder";
+  `CompleteFilePicker` types into the file-name field (Alt+N);
+  `DismissDialogWithEscape` cancels. These are the flakiest helpers - prefer
+  typed path TextBoxes where the UI offers them.
+- Assert operation results through the activity bar (`WaitForOutcome("✓ ...")`)
+  plus on-disk effects, not just element presence.
 - The client is `Appium.WebDriver` 4.4.5 on purpose: the 4.x line is the last
   one that speaks WinAppDriver's legacy JSON Wire Protocol directly; 5.x is
   W3C-only and would require a full Node-based Appium 2 server in between.

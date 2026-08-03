@@ -2,6 +2,7 @@ using System.Text.Json;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Appium;
 using OpenQA.Selenium.Appium.Windows;
+using OpenQA.Selenium.Interactions;
 
 namespace LincleLINK.UITests;
 
@@ -15,9 +16,11 @@ public sealed class AppSession : IDisposable
 {
     private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(30);
 
-    private readonly string _tempRoot;
-
     public WindowsDriver<WindowsElement> Driver { get; }
+
+    /// <summary>Per-session scratch root; also holds the settings file and data dir.
+    /// Everything created here shares one volume, so hard-link flows work.</summary>
+    public string TempRoot { get; }
 
     /// <summary>Settings file the app was pointed at (may not exist yet on first run).</summary>
     public string SettingsFile { get; }
@@ -29,7 +32,7 @@ public sealed class AppSession : IDisposable
     private AppSession(WindowsDriver<WindowsElement> driver, string tempRoot, string settingsFile, string dataDirectory)
     {
         Driver = driver;
-        _tempRoot = tempRoot;
+        TempRoot = tempRoot;
         SettingsFile = settingsFile;
         DataDirectory = dataDirectory;
     }
@@ -38,7 +41,8 @@ public sealed class AppSession : IDisposable
     /// app boots straight into the main shell; when false, the app runs its
     /// first-launch flow.</param>
     /// <param name="theme">Theme to seed ("Light"/"Dark"/"System").</param>
-    public static AppSession Launch(bool seedSettings, string theme = "Light")
+    /// <param name="threads">Hash thread count to seed.</param>
+    public static AppSession Launch(bool seedSettings, string theme = "Light", int threads = 2)
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), "LincleLINK.UITests", Guid.NewGuid().ToString("N"));
         var dataDirectory = Path.Combine(tempRoot, "data");
@@ -52,7 +56,7 @@ public sealed class AppSession : IDisposable
             {
                 Theme = theme,
                 DataDirectory = dataDirectory,
-                HashThreadCount = 2,
+                HashThreadCount = threads,
             }, new JsonSerializerOptions { WriteIndented = true }));
         }
 
@@ -92,6 +96,8 @@ public sealed class AppSession : IDisposable
             "or point LINCLELINK_APP_PATH at the exe to test.");
     }
 
+    // ── element lookup ─────────────────────────────────────────────────────
+
     /// <summary>Finds an element by AutomationId, polling all of the app's
     /// top-level windows (modal dialogs get their own window handle).</summary>
     public WindowsElement WaitForId(string automationId, TimeSpan? timeout = null)
@@ -100,6 +106,29 @@ public sealed class AppSession : IDisposable
     /// <summary>Finds an element by its UIA name (a TextBlock's name is its text).</summary>
     public WindowsElement WaitForText(string name, TimeSpan? timeout = null)
         => WaitForElement(d => d.FindElementsByName(name), $"name '{name}'", timeout);
+
+    /// <summary>Waits until no element with the AutomationId exists in the current window.</summary>
+    public void WaitForGoneById(string automationId, TimeSpan? timeout = null)
+        => WaitUntil(() => CountSafe(() => Driver.FindElementsByAccessibilityId(automationId).Count) == 0,
+            $"AutomationId '{automationId}' gone", timeout);
+
+    /// <summary>Waits until no element with the given UIA name exists in the current window.</summary>
+    public void WaitForGoneByName(string name, TimeSpan? timeout = null)
+        => WaitUntil(() => CountSafe(() => Driver.FindElementsByName(name).Count) == 0,
+            $"name '{name}' gone", timeout);
+
+    private static int CountSafe(Func<int> count)
+    {
+        try
+        {
+            return count();
+        }
+        catch (WebDriverException)
+        {
+            // The window itself is gone; that counts as "element gone".
+            return 0;
+        }
+    }
 
     /// <summary>Polls until <paramref name="condition"/> holds (for out-of-process
     /// effects such as the settings file being written).</summary>
@@ -117,6 +146,28 @@ public sealed class AppSession : IDisposable
         }
 
         throw new TimeoutException($"Condition not met within {timeout ?? DefaultTimeout}: {description}");
+    }
+
+    /// <summary>Waits for the activity bar's idle outcome line to start with the
+    /// given text (e.g. "✓ Deployed"). Checks both the normal and warning slots.</summary>
+    public void WaitForOutcome(string expectedStart, TimeSpan? timeout = null)
+        => WaitUntil(
+            () => OutcomeText("ActivityOutcome").StartsWith(expectedStart, StringComparison.Ordinal)
+                  || OutcomeText("ActivityOutcomeWarning").StartsWith(expectedStart, StringComparison.Ordinal),
+            $"activity outcome starting with '{expectedStart}'",
+            timeout);
+
+    private string OutcomeText(string id)
+    {
+        try
+        {
+            var found = Driver.FindElementsByAccessibilityId(id);
+            return found.Count > 0 ? found.First().Text : string.Empty;
+        }
+        catch (WebDriverException)
+        {
+            return string.Empty;
+        }
     }
 
     private WindowsElement WaitForElement(
@@ -139,8 +190,8 @@ public sealed class AppSession : IDisposable
             }
             catch (WebDriverException e)
             {
-                // The current window may just have closed (e.g. the first-run
-                // dialog); fall through to the handle scan.
+                // The current window may just have closed (e.g. a dialog);
+                // fall through to the handle scan.
                 lastError = e;
             }
 
@@ -173,6 +224,110 @@ public sealed class AppSession : IDisposable
 
         throw new TimeoutException($"UI element not found within {timeout ?? DefaultTimeout}: {description}", lastError);
     }
+
+    // ── input helpers ──────────────────────────────────────────────────────
+
+    /// <summary>Replaces a TextBox's content: focus, select-all, delete, type.</summary>
+    public void SetText(WindowsElement element, string text)
+    {
+        element.Click();
+        element.SendKeys(Keys.Control + "a" + Keys.Control);
+        element.SendKeys(Keys.Delete);
+        if (text.Length > 0)
+        {
+            element.SendKeys(text);
+        }
+    }
+
+    /// <summary>Types into whatever currently has keyboard focus (modal pickers).</summary>
+    public void SendGlobalKeys(string keys) => new Actions(Driver).SendKeys(keys).Perform();
+
+    /// <summary>Opens a ComboBox and selects its first item via the keyboard
+    /// (popup lists are not reliably reachable through the window-handle scan).</summary>
+    public void SelectFirstComboItem(string automationId)
+    {
+        var combo = WaitForId(automationId);
+        combo.Click();
+        Thread.Sleep(400);
+        SendGlobalKeys(Keys.Down);
+        SendGlobalKeys(Keys.Enter);
+    }
+
+    /// <summary>Clicks a button in the app's own message dialogs ("Yes"/"No"/"OK").</summary>
+    public void ClickMessageButton(string buttonName, TimeSpan? timeout = null)
+        => WaitForText(buttonName, timeout).Click();
+
+    // ── native common-dialog helpers (folder/file pickers) ─────────────────
+
+    /// <summary>Switches the driver to the app window whose title contains the text.</summary>
+    public void SwitchToWindowWithTitle(string titleContains, TimeSpan? timeout = null)
+    {
+        var deadline = DateTime.UtcNow + (timeout ?? DefaultTimeout);
+        while (DateTime.UtcNow < deadline)
+        {
+            try
+            {
+                foreach (var handle in Driver.WindowHandles)
+                {
+                    try
+                    {
+                        Driver.SwitchTo().Window(handle);
+                        if (Driver.Title.Contains(titleContains, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return;
+                        }
+                    }
+                    catch (WebDriverException)
+                    {
+                        // Window closed mid-scan; keep looking.
+                    }
+                }
+            }
+            catch (WebDriverException)
+            {
+                // Handle list unavailable for a moment; retry.
+            }
+
+            Thread.Sleep(250);
+        }
+
+        throw new TimeoutException($"No window with title containing '{titleContains}' appeared.");
+    }
+
+    /// <summary>
+    /// Drives the native Windows folder picker: focuses the address bar (Alt+D),
+    /// navigates to <paramref name="folderPath"/>, and confirms with the
+    /// "Select Folder" button (which picks the currently open folder).
+    /// </summary>
+    public void CompleteFolderPicker(string titleContains, string folderPath)
+    {
+        Directory.CreateDirectory(folderPath);
+        SwitchToWindowWithTitle(titleContains);
+        SendGlobalKeys(Keys.Alt + "d" + Keys.Alt);
+        SendGlobalKeys(folderPath + Keys.Enter);
+        Thread.Sleep(1000);
+        WaitForText("Select Folder", TimeSpan.FromSeconds(10)).Click();
+    }
+
+    /// <summary>
+    /// Drives the native Windows file-open picker: focuses the file-name field
+    /// (Alt+N), types the full path and confirms with Enter.
+    /// </summary>
+    public void CompleteFilePicker(string titleContains, string filePath)
+    {
+        SwitchToWindowWithTitle(titleContains);
+        SendGlobalKeys(Keys.Alt + "n" + Keys.Alt);
+        SendGlobalKeys(filePath + Keys.Enter);
+    }
+
+    /// <summary>Dismisses a native picker (or any focused dialog) with Escape.</summary>
+    public void DismissDialogWithEscape(string titleContains)
+    {
+        SwitchToWindowWithTitle(titleContains);
+        SendGlobalKeys(Keys.Escape);
+    }
+
+    // ── diagnostics / teardown ─────────────────────────────────────────────
 
     /// <summary>Best-effort screenshot + UIA tree dump for failure triage; CI
     /// uploads the artifacts directory.</summary>
@@ -208,7 +363,7 @@ public sealed class AppSession : IDisposable
         {
             try
             {
-                Directory.Delete(_tempRoot, recursive: true);
+                Directory.Delete(TempRoot, recursive: true);
                 return;
             }
             catch (IOException)

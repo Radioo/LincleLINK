@@ -2,6 +2,7 @@ using FluentAssertions;
 
 namespace LincleLINK.UITests;
 
+/// <summary>Shell chrome: navigation, storage card, activity bar and log drawer.</summary>
 public sealed class MainShellTests : UITestBase
 {
     [UIFact]
@@ -42,22 +43,35 @@ public sealed class MainShellTests : UITestBase
     }
 
     [UIFact]
-    public void ThemeChange_IsPersistedToSettings()
+    public void ActivityLogDrawer_TogglesAndShowsLogLines()
     {
-        using var app = AppSession.Launch(seedSettings: true, theme: "Light");
+        using var app = AppSession.Launch(seedSettings: true);
         Run(app, () =>
         {
-            app.WaitForId("NavSettings").Click();
+            app.WaitForId("LibraryEmptyState");
 
-            var light = app.WaitForId("ThemeLight");
-            light.Selected.Should().BeTrue("the seeded settings use the Light theme");
+            app.WaitForId("ActivityLogToggle").Click();
+            app.WaitForId("ActivityLogList");
 
-            app.WaitForId("ThemeDark").Click();
-            app.WaitForId("ThemeDark").Selected.Should().BeTrue();
+            // The startup refresh leaves a line in the log.
+            app.WaitForText("Library refreshed.");
+
+            app.WaitForId("ActivityLogToggle").Click();
+            app.WaitForGoneById("ActivityLogList");
+        });
+    }
+
+    [UIFact]
+    public void StorageCard_ShowsFigures()
+    {
+        using var app = AppSession.Launch(seedSettings: true);
+        Run(app, () =>
+        {
+            app.WaitForId("LibraryEmptyState");
 
             app.WaitUntil(
-                () => File.Exists(app.SettingsFile) && File.ReadAllText(app.SettingsFile).Contains("\"Dark\""),
-                "theme change saved to the settings file");
+                () => app.WaitForId("StorageSavings").Text.StartsWith("Saving", StringComparison.Ordinal),
+                "storage card savings line populated");
         });
     }
 }
