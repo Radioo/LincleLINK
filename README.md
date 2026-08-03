@@ -64,7 +64,3 @@ after confirmation. Run it after removing entries to actually free the space.
 - The selected entry's **"Unique to this entry"** figure shows what removing it
   (plus a cleanup) would actually free - everything else is shared with other
   entries.
-
----
-
-Architecture and development documentation lives in [`docs/plan/`](docs/plan/).
