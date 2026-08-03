@@ -38,6 +38,11 @@ chosen location with its original names and folder structure, via hard links,
 using no extra disk space. If files already exist there, you choose to replace
 them, skip them, or cancel.
 
+> [!CAUTION]
+> **Deployed files are hard links, not copies.** Editing one directly also
+changes the file in storage and in every other deployment. To replace a
+deployed file safely: delete it first, then put the new file in its place.
+
 ### Pre-fill a torrent download
 Already have most of a torrent's files in your library? **Torrent pre-fill**
 links them into the download folder so your client only fetches what's missing:
@@ -57,9 +62,6 @@ after confirmation. Run it after removing entries to actually free the space.
 
 - **Removing an entry never deletes files** - it only forgets the index; the
   files stay in storage until a cleanup.
-- **Hard links share their bytes.** If you want to edit or replace a deployed
-  file, delete it first and put the new file in its place - editing it in place
-  would modify the copy in storage (and every other deployment of it).
 - **Everything lives on one drive.** Storage, your added folders (in Reclaim
   mode), and deploy targets must share a drive/partition; the app checks this up
   front and tells you when they don't.
