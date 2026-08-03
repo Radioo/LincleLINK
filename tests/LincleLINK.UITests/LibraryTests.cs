@@ -76,8 +76,8 @@ public sealed class LibraryTests : UITestBase
             app.SetText(app.WaitForId("AddFolderPath"), empty);
             app.WaitForId("AddConfirm").Click();
 
-            // Error dialog from the service; dismiss it.
-            app.WaitForText("The folder contains no files.");
+            // Error dialog from the service (titled after the operation); dismiss it.
+            app.SwitchToWindowWithTitle("Add folder to library");
             app.ClickMessageButton("OK");
 
             // The panel is still open for corrections; close it explicitly.
@@ -178,7 +178,7 @@ public sealed class LibraryTests : UITestBase
             app.WaitForId("InspectorDeploy").Click();
 
             var target = Path.Combine(app.TempRoot, "deploy-target");
-            app.CompleteFolderPicker("select a target folder", target);
+            app.CompleteFolderPicker("Deploy Deployable - select a target folder", target);
 
             app.WaitForOutcome($"✓ Deployed {TestData.SourceFileCount} files", TimeSpan.FromSeconds(60));
 
@@ -206,7 +206,7 @@ public sealed class LibraryTests : UITestBase
             app.WaitForId("InspectorExport").Click();
 
             var dest = Path.Combine(app.TempRoot, "export-dest");
-            app.CompleteFolderPicker("select a destination folder", dest);
+            app.CompleteFolderPicker("Export storage files - select a destination folder", dest);
 
             app.WaitForOutcome($"✓ Exported {TestData.UniqueBlobCount} files", TimeSpan.FromSeconds(60));
 
@@ -225,7 +225,8 @@ public sealed class LibraryTests : UITestBase
 
             app.WaitForId("CleanupStorage").Click();
 
-            app.WaitForText("Storage is clean - every file belongs to a library entry.");
+            // Info dialog (identified by its window title); dismiss it.
+            app.SwitchToWindowWithTitle("Clean up storage");
             app.ClickMessageButton("OK");
             app.WaitForOutcome("✓ Storage is clean");
         });
@@ -249,7 +250,7 @@ public sealed class LibraryTests : UITestBase
             app.WaitForId("CleanupStorage").Click();
 
             // 3 orphaned blobs are reported and deleted after confirmation.
-            app.WaitForText("Yes");
+            app.SwitchToWindowWithTitle("Clean up storage");
             app.ClickMessageButton("Yes");
 
             app.WaitForOutcome($"✓ Deleted {TestData.UniqueBlobCount} files from storage");

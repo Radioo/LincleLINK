@@ -86,11 +86,19 @@ UIA tree dumps, and the trx log as the `ui-test-artifacts` artifact.
   fixtures with MonoTorrent.
 - App-owned dialogs (confirm/info/error) are plain Avalonia windows: click
   their buttons by name via `ClickMessageButton("Yes"/"No"/"OK")`.
-- Native pickers are driven keyboard-first: `CompleteFolderPicker` navigates
-  via the address bar (Alt+D) and clicks "Select Folder";
-  `CompleteFilePicker` types into the file-name field (Alt+N);
-  `DismissDialogWithEscape` cancels. These are the flakiest helpers - prefer
-  typed path TextBoxes where the UI offers them.
+- Native pickers are reached through a second, desktop-rooted WinAppDriver
+  session (the app session's window-handle list does not reliably include
+  common dialogs) and located by their exact window title. They are driven
+  keyboard-first: `CompleteFolderPicker` navigates via the address bar (Alt+D)
+  and clicks "Select Folder"; `CompleteFilePicker` types into the file-name
+  field (Alt+N); `DismissDialogWithEscape` cancels. These are the flakiest
+  helpers - prefer typed path TextBoxes where the UI offers them.
+- App-dialog assertions go through `SwitchToWindowWithTitle` (window titles),
+  not the message TextBlock's text - text lookup inside message dialogs proved
+  unreliable under UIA.
+- `AppSession.Launch` pins the window to 1000x700 at the origin: CI screens can
+  be 1024x768, and offscreen controls fail clicks silently. It also kills stray
+  app instances (a test that dies with a modal picker open leaves a zombie).
 - Assert operation results through the activity bar (`WaitForOutcome("✓ ...")`)
   plus on-disk effects, not just element presence.
 - The client is `Appium.WebDriver` 4.4.5 on purpose: the 4.x line is the last

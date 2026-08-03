@@ -41,14 +41,15 @@ public static class TestData
     private static void WriteFile(string dir, string name, byte fill, int size)
         => File.WriteAllBytes(Path.Combine(dir, name), FileContent(fill, size));
 
+    public sealed record TorrentFixture(string TorrentPath, string RelativePath, int PieceCount);
+
     /// <summary>
     /// Creates a v1 .torrent of <paramref name="sourceFolder"/> and returns the
-    /// torrent path plus the wizard's "relative path" value: the app matches
-    /// torrent paths against entry-relative paths, so if MonoTorrent's file paths
-    /// carry a folder-name prefix that prefix must be typed into the wizard.
+    /// torrent path, its piece count, and the wizard's "relative path" value: the
+    /// app matches torrent paths against entry-relative paths, so if MonoTorrent's
+    /// file paths carry a folder-name prefix that prefix must be typed in.
     /// </summary>
-    public static async Task<(string TorrentPath, string RelativePath)> CreateTorrentAsync(
-        string sourceFolder, string torrentPath)
+    public static async Task<TorrentFixture> CreateTorrentAsync(string sourceFolder, string torrentPath)
     {
         var creator = new TorrentCreator(TorrentType.V1Only);
         var dict = await creator.CreateAsync(new TorrentFileSource(sourceFolder));
@@ -60,7 +61,8 @@ public static class TestData
         var relativePath = firstPath.StartsWith(folderName + "/", StringComparison.Ordinal)
             ? folderName
             : string.Empty;
+        var pieceCount = (int)((torrent.Size + torrent.PieceLength - 1) / torrent.PieceLength);
 
-        return (torrentPath, relativePath);
+        return new TorrentFixture(torrentPath, relativePath, pieceCount);
     }
 }

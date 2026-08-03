@@ -60,7 +60,7 @@ public sealed class SettingsTests : UITestBase
             app.CompleteFolderPicker("Select data directory", newDir);
 
             // The explicit restart notice, then the inline pending note.
-            app.WaitForText("Restart required");
+            app.SwitchToWindowWithTitle("Restart required");
             app.ClickMessageButton("OK");
             app.WaitForId("RestartPendingNote");
 

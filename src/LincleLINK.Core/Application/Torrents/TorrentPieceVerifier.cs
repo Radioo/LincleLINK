@@ -128,17 +128,17 @@ public sealed class TorrentPieceVerifier
             percent?.Report(progress.Report(ref fileIndex));
         }
 
-        // Final partial piece (zero-padded).
+        // Final partial piece: per BitTorrent v1 its hash covers only the actual
+        // remaining bytes, never a zero-padded full piece.
         if (filled > 0)
         {
-            Array.Clear(buffer, filled, _torrent.PieceLength - filled);
-            HashAndCheck(buffer, pieceIndex, badPieces);
+            HashAndCheck(buffer.AsSpan(0, filled), pieceIndex, badPieces);
         }
 
         return new VerificationResult(false, badPieces, fileChecks);
     }
 
-    private void HashAndCheck(byte[] piece, long index, List<long> badPieces)
+    private void HashAndCheck(ReadOnlySpan<byte> piece, long index, List<long> badPieces)
     {
         var hash = SHA1.HashData(piece);
         if (!hash.AsSpan().SequenceEqual(_torrent.PieceHashes[(int)index]))

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Appium;
@@ -16,7 +17,34 @@ public sealed class AppSession : IDisposable
 {
     private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(30);
 
+    private readonly string _serverUrl;
+    private readonly string _appPath;
+    private WindowsDriver<WindowsElement>? _desktop;
+
     public WindowsDriver<WindowsElement> Driver { get; }
+
+    /// <summary>
+    /// A second WinAppDriver session rooted at the desktop. Native common dialogs
+    /// (folder/file pickers) are not reliably enumerable through the app session's
+    /// window handles, but they are ordinary top-level windows from the desktop's
+    /// point of view.
+    /// </summary>
+    private WindowsDriver<WindowsElement> Desktop
+    {
+        get
+        {
+            if (_desktop is null)
+            {
+                var options = new AppiumOptions();
+                options.AddAdditionalCapability("app", "Root");
+                options.AddAdditionalCapability("platformName", "Windows");
+                options.AddAdditionalCapability("deviceName", "WindowsPC");
+                _desktop = new WindowsDriver<WindowsElement>(new Uri(_serverUrl), options, TimeSpan.FromSeconds(60));
+            }
+
+            return _desktop;
+        }
+    }
 
     /// <summary>Per-session scratch root; also holds the settings file and data dir.
     /// Everything created here shares one volume, so hard-link flows work.</summary>
@@ -29,9 +57,17 @@ public sealed class AppSession : IDisposable
     /// dialog proposes it as the default candidate.</summary>
     public string DataDirectory { get; }
 
-    private AppSession(WindowsDriver<WindowsElement> driver, string tempRoot, string settingsFile, string dataDirectory)
+    private AppSession(
+        WindowsDriver<WindowsElement> driver,
+        string serverUrl,
+        string appPath,
+        string tempRoot,
+        string settingsFile,
+        string dataDirectory)
     {
         Driver = driver;
+        _serverUrl = serverUrl;
+        _appPath = appPath;
         TempRoot = tempRoot;
         SettingsFile = settingsFile;
         DataDirectory = dataDirectory;
@@ -60,8 +96,14 @@ public sealed class AppSession : IDisposable
             }, new JsonSerializerOptions { WriteIndented = true }));
         }
 
+        var appPath = ResolveAppPath();
+
+        // A previous failed test can leave an app instance behind (e.g. blocked on
+        // a modal picker); it would hold desktop focus and confuse later sessions.
+        KillStrayApps(appPath);
+
         var options = new AppiumOptions();
-        options.AddAdditionalCapability("app", ResolveAppPath());
+        options.AddAdditionalCapability("app", appPath);
         options.AddAdditionalCapability("appArguments", $"--settings-file=\"{settingsFile}\"");
         options.AddAdditionalCapability("appWorkingDir", dataDirectory);
         options.AddAdditionalCapability("platformName", "Windows");
@@ -72,7 +114,46 @@ public sealed class AppSession : IDisposable
 
         var serverUrl = Environment.GetEnvironmentVariable("WINAPPDRIVER_URL") ?? "http://127.0.0.1:4723";
         var driver = new WindowsDriver<WindowsElement>(new Uri(serverUrl), options, TimeSpan.FromSeconds(90));
-        return new AppSession(driver, tempRoot, settingsFile, dataDirectory);
+
+        // CI screens can be as small as 1024x768; the app's default 1120-wide
+        // window would push right-side controls (inspector, activity bar buttons)
+        // offscreen where clicks silently miss. Pin it to a size that always fits.
+        try
+        {
+            driver.Manage().Window.Position = new System.Drawing.Point(0, 0);
+            driver.Manage().Window.Size = new System.Drawing.Size(1000, 700);
+        }
+        catch (WebDriverException)
+        {
+            // Cosmetic hardening only; never fail the launch over it.
+        }
+
+        return new AppSession(driver, serverUrl, appPath, tempRoot, settingsFile, dataDirectory);
+    }
+
+    /// <summary>Kills leftover app instances started from the test output copy of
+    /// the exe (never a user's real install, which lives elsewhere).</summary>
+    private static void KillStrayApps(string appPath)
+    {
+        foreach (var process in Process.GetProcessesByName("LincleLINK"))
+        {
+            try
+            {
+                if (string.Equals(process.MainModule?.FileName, appPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    process.Kill(entireProcessTree: true);
+                    process.WaitForExit(3000);
+                }
+            }
+            catch
+            {
+                // Access denied or already exited; leave it alone.
+            }
+            finally
+            {
+                process.Dispose();
+            }
+        }
     }
 
     private static string ResolveAppPath()
@@ -294,37 +375,77 @@ public sealed class AppSession : IDisposable
         throw new TimeoutException($"No window with title containing '{titleContains}' appeared.");
     }
 
+    /// <summary>Finds a top-level window by exact title from the desktop session
+    /// (the only reliable way to reach native common dialogs).</summary>
+    private WindowsElement WaitForDesktopWindow(string title, TimeSpan? timeout = null)
+    {
+        WindowsElement? window = null;
+        WaitUntil(() =>
+        {
+            try
+            {
+                var found = Desktop.FindElementsByName(title);
+                window = found.FirstOrDefault(w =>
+                             w.TagName.Contains("Window", StringComparison.OrdinalIgnoreCase))
+                         ?? found.FirstOrDefault();
+                return window is not null;
+            }
+            catch (WebDriverException)
+            {
+                return false;
+            }
+        }, $"desktop window titled '{title}'", timeout);
+
+        return window!;
+    }
+
+    private void WaitForDesktopWindowGone(string title, TimeSpan? timeout = null)
+        => WaitUntil(() =>
+        {
+            try
+            {
+                return Desktop.FindElementsByName(title).Count == 0;
+            }
+            catch (WebDriverException)
+            {
+                return true;
+            }
+        }, $"desktop window titled '{title}' gone", timeout);
+
     /// <summary>
-    /// Drives the native Windows folder picker: focuses the address bar (Alt+D),
-    /// navigates to <paramref name="folderPath"/>, and confirms with the
-    /// "Select Folder" button (which picks the currently open folder).
+    /// Drives the native Windows folder picker (found by its exact title):
+    /// focuses the address bar (Alt+D), navigates to <paramref name="folderPath"/>,
+    /// and confirms with "Select Folder" (which picks the currently open folder).
     /// </summary>
-    public void CompleteFolderPicker(string titleContains, string folderPath)
+    public void CompleteFolderPicker(string title, string folderPath)
     {
         Directory.CreateDirectory(folderPath);
-        SwitchToWindowWithTitle(titleContains);
-        SendGlobalKeys(Keys.Alt + "d" + Keys.Alt);
-        SendGlobalKeys(folderPath + Keys.Enter);
+        var dialog = WaitForDesktopWindow(title);
+        dialog.SendKeys(Keys.Alt + "d" + Keys.Alt);
+        dialog.SendKeys(folderPath + Keys.Enter);
         Thread.Sleep(1000);
-        WaitForText("Select Folder", TimeSpan.FromSeconds(10)).Click();
+        dialog.FindElementByName("Select Folder").Click();
+        WaitForDesktopWindowGone(title);
     }
 
     /// <summary>
-    /// Drives the native Windows file-open picker: focuses the file-name field
-    /// (Alt+N), types the full path and confirms with Enter.
+    /// Drives the native Windows file-open picker (found by its exact title):
+    /// focuses the file-name field (Alt+N), types the full path, confirms with Enter.
     /// </summary>
-    public void CompleteFilePicker(string titleContains, string filePath)
+    public void CompleteFilePicker(string title, string filePath)
     {
-        SwitchToWindowWithTitle(titleContains);
-        SendGlobalKeys(Keys.Alt + "n" + Keys.Alt);
-        SendGlobalKeys(filePath + Keys.Enter);
+        var dialog = WaitForDesktopWindow(title);
+        dialog.SendKeys(Keys.Alt + "n" + Keys.Alt);
+        dialog.SendKeys(filePath + Keys.Enter);
+        WaitForDesktopWindowGone(title);
     }
 
-    /// <summary>Dismisses a native picker (or any focused dialog) with Escape.</summary>
-    public void DismissDialogWithEscape(string titleContains)
+    /// <summary>Dismisses a native picker (found by its exact title) with Escape.</summary>
+    public void DismissDialogWithEscape(string title)
     {
-        SwitchToWindowWithTitle(titleContains);
-        SendGlobalKeys(Keys.Escape);
+        var dialog = WaitForDesktopWindow(title);
+        dialog.SendKeys(Keys.Escape);
+        WaitForDesktopWindowGone(title);
     }
 
     // ── diagnostics / teardown ─────────────────────────────────────────────
@@ -351,12 +472,25 @@ public sealed class AppSession : IDisposable
     {
         try
         {
+            _desktop?.Quit();
+        }
+        catch
+        {
+            // Desktop session teardown is best-effort.
+        }
+
+        try
+        {
             Driver.Quit();
         }
         catch
         {
             // The app may already have exited; nothing to clean up.
         }
+
+        // Quit cannot close an app blocked on a modal native dialog; make sure
+        // nothing survives to steal focus from the next session.
+        KillStrayApps(_appPath);
 
         // The app can still be flushing SQLite on exit; retry briefly.
         for (var attempt = 0; attempt < 5; attempt++)

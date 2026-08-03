@@ -37,7 +37,7 @@ public sealed class TorrentTests : UITestBase
             var source = TestData.CreateSourceFolder(app.TempRoot, "TorrentSource");
             AddEntry(app, "Torrentable", source, keepOriginals: true);
 
-            var (torrentPath, relativePath) = TestData
+            var fixture = TestData
                 .CreateTorrentAsync(source, Path.Combine(app.TempRoot, "fixture.torrent"))
                 .GetAwaiter().GetResult();
             var downloadDir = Path.Combine(app.TempRoot, "download");
@@ -47,10 +47,10 @@ public sealed class TorrentTests : UITestBase
             app.WaitForId("TorrentPageHeader");
 
             app.SelectFirstComboItem("TorrentEntryCombo");
-            app.SetText(app.WaitForId("TorrentFile"), torrentPath);
-            if (relativePath.Length > 0)
+            app.SetText(app.WaitForId("TorrentFile"), fixture.TorrentPath);
+            if (fixture.RelativePath.Length > 0)
             {
-                app.SetText(app.WaitForId("TorrentRelativePath"), relativePath);
+                app.SetText(app.WaitForId("TorrentRelativePath"), fixture.RelativePath);
             }
 
             app.SetText(app.WaitForId("TorrentDownloadPath"), downloadDir);
@@ -64,12 +64,14 @@ public sealed class TorrentTests : UITestBase
                 "all files matched",
                 TimeSpan.FromSeconds(60));
 
-            // Step 2: byte-exact piece verification against storage.
+            // Step 2: byte-exact piece verification against storage. Assert the
+            // exact count: "0 of N pieces verified." must fail here, not at link.
             app.WaitUntil(() => app.WaitForId("TorrentVerify").Enabled, "verify step unlocked");
             app.WaitForId("TorrentVerify").Click();
             app.WaitUntil(
-                () => app.WaitForId("TorrentVerifySummary").Text.Contains("pieces verified."),
-                "pieces verified",
+                () => app.WaitForId("TorrentVerifySummary").Text
+                    == $"{fixture.PieceCount} of {fixture.PieceCount} pieces verified.",
+                "all pieces verified",
                 TimeSpan.FromSeconds(60));
 
             // Step 3: the button states exactly what it will link, then links it.
@@ -86,7 +88,9 @@ public sealed class TorrentTests : UITestBase
             app.WaitForOutcome("✓ Pre-fill finished");
 
             // The download folder now mirrors the torrent's layout with intact bytes.
-            var prefix = relativePath.Length > 0 ? Path.Combine(downloadDir, relativePath) : downloadDir;
+            var prefix = fixture.RelativePath.Length > 0
+                ? Path.Combine(downloadDir, fixture.RelativePath)
+                : downloadDir;
             File.ReadAllBytes(Path.Combine(prefix, "alpha.bin"))
                 .Should().Equal(TestData.FileContent(0xA1, 2048));
             File.ReadAllBytes(Path.Combine(prefix, "sub", "beta.bin"))

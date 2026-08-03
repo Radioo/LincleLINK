@@ -34,6 +34,16 @@ public sealed class TorrentPieceVerifierTests : IDisposable
     }
 
     [Fact]
+    public void Final_partial_piece_is_hashed_unpadded_per_spec()
+    {
+        // BitTorrent v1: the last piece's hash covers only the remaining bytes.
+        // Stream = 1..10 with piece length 4, so the final piece is {9, 10}.
+        var hashes = TorrentTestFactory.ComputePieceHashes(Files, 4);
+
+        hashes[^1].Should().Equal(System.Security.Cryptography.SHA1.HashData(new byte[] { 9, 10 }));
+    }
+
+    [Fact]
     public async Task All_matching_files_yield_no_bad_pieces()
     {
         var torrent = TorrentTestFactory.BuildTorrentData(4, Files);
