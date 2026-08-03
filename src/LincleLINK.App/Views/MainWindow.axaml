@@ -96,7 +96,7 @@
                             <TextBlock Grid.Column="0" Text="Library" FontSize="19" FontWeight="Bold" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1" Text="{Binding Instances.Count, StringFormat={}{0} entries}"
                                        Opacity="0.6" FontSize="12" VerticalAlignment="Center" />
-                            <TextBox Grid.Column="3" MinWidth="170" Watermark="Filter entries..."
+                            <TextBox Grid.Column="3" MinWidth="170" PlaceholderText="Filter entries..."
                                      Text="{Binding FilterText, Mode=TwoWay}" />
                             <Button Grid.Column="4" Classes="Primary" Content="＋ Add folder..."
                                     Command="{Binding OpenAddInstanceCommand}"
