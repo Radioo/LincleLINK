@@ -400,8 +400,10 @@
             <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="10" Margin="12,5">
 
                 <Panel Grid.Column="0" VerticalAlignment="Center">
+                    <!-- Prefix trimming: long per-file paths keep their tail (the file
+                         being worked on) visible; the ellipsis eats the middle. -->
                     <TextBlock Text="{Binding StatusLine}" FontSize="12" Opacity="0.75"
-                               TextTrimming="CharacterEllipsis" IsVisible="{Binding IsBusy}" />
+                               TextTrimming="PrefixCharacterEllipsis" IsVisible="{Binding IsBusy}" />
                     <Panel IsVisible="{Binding !IsBusy}">
                         <TextBlock Text="{Binding LastOutcome}" FontSize="12" Opacity="0.7"
                                    TextTrimming="CharacterEllipsis"

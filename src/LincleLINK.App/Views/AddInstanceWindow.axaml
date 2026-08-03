@@ -86,7 +86,7 @@
                  behaviors:AutoScrollBehavior.AutoScrollToEnd="True" />
 
         <TextBlock Grid.Row="6" Margin="0,8,0,0" Text="{Binding StatusLine}"
-                   Opacity="0.7" FontSize="12" TextTrimming="CharacterEllipsis" />
+                   Opacity="0.7" FontSize="12" TextTrimming="PrefixCharacterEllipsis" />
 
         <ProgressBar Grid.Row="7" Value="{Binding Progress}" Minimum="0" Maximum="100" Margin="0,6,0,0" />
 
