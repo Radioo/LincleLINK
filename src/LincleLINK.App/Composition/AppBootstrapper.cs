@@ -18,7 +18,7 @@ public static class AppBootstrapper
 {
     public static async Task<ServiceProvider> BuildAsync(Func<Window?> ownerProvider)
     {
-        var settingsFile = Path.Combine(
+        var settingsFile = SettingsFileOverride() ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "LincleLINK",
             "settings.json");
@@ -83,6 +83,29 @@ public static class AppBootstrapper
         services.AddSingleton<Func<AddInstanceViewModel>>(sp => () => sp.GetRequiredService<AddInstanceViewModel>());
 
         return services.BuildServiceProvider();
+    }
+
+    /// <summary>
+    /// <c>--settings-file=&lt;path&gt;</c> redirects the settings file away from the
+    /// per-OS config dir. Used by the Appium UI tests to keep runs isolated from
+    /// the real user profile; also enables fully portable setups.
+    /// </summary>
+    private static string? SettingsFileOverride()
+    {
+        const string prefix = "--settings-file=";
+        foreach (var arg in Environment.GetCommandLineArgs().Skip(1))
+        {
+            if (arg.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var value = arg[prefix.Length..].Trim('"');
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return Path.GetFullPath(value);
+                }
+            }
+        }
+
+        return null;
     }
 
     private static async Task<string> ShowFirstRunAsync(FirstRunViewModel vm, IAppDialogHost host)

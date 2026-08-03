@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Appium.WebDriver" />
+  </ItemGroup>
+
+  <!-- Black-box tests: the reference is only there so building the tests builds
+       (and copies) the app exe the Appium session launches. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\LincleLINK.App\LincleLINK.App.csproj" />
+  </ItemGroup>
+
+</Project>

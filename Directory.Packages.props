@@ -40,5 +40,9 @@
     <PackageVersion Include="NSubstitute" Version="6.0.0" />
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />
     <PackageVersion Include="coverlet.msbuild" Version="10.0.1" />
+    <!-- Appium .NET client for the WinAppDriver-based UI tests. 4.x is the last
+         line that speaks WinAppDriver's legacy JSON Wire Protocol directly
+         (5.x is W3C-only and needs a full Appium server in between). -->
+    <PackageVersion Include="Appium.WebDriver" Version="4.4.5" />
   </ItemGroup>
 </Project>

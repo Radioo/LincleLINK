@@ -12,7 +12,8 @@
 
         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="0,6,0,0">
             <TextBlock Grid.Column="0" Text="Data directory" VerticalAlignment="Center" />
-            <TextBox Grid.Column="1" Text="{Binding DataDirectory, Mode=TwoWay}" />
+            <TextBox Grid.Column="1" Text="{Binding DataDirectory, Mode=TwoWay}"
+                     AutomationProperties.AutomationId="FirstRunDataDirectory" />
             <Button Grid.Column="2" Content="Browse..." Command="{Binding BrowseCommand}" />
         </Grid>
 
@@ -23,6 +24,7 @@
             <RadioButton Content="System" GroupName="theme" IsChecked="{Binding IsSystemTheme, Mode=TwoWay}" />
         </StackPanel>
 
-        <Button Content="Use this directory" Command="{Binding ConfirmCommand}" HorizontalAlignment="Right" MinWidth="160" />
+        <Button Content="Use this directory" Command="{Binding ConfirmCommand}" HorizontalAlignment="Right" MinWidth="160"
+                AutomationProperties.AutomationId="FirstRunConfirm" />
     </StackPanel>
 </UserControl>

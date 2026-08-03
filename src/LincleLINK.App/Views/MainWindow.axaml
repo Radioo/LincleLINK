@@ -35,19 +35,19 @@
                                     <Setter Property="Margin" Value="0,1" />
                                 </Style>
                             </ListBox.Styles>
-                            <ListBoxItem>
+                            <ListBoxItem AutomationProperties.AutomationId="NavLibrary">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
                                     <TextBlock Text="▤" Width="16" TextAlignment="Center" />
                                     <TextBlock Text="Library" />
                                 </StackPanel>
                             </ListBoxItem>
-                            <ListBoxItem>
+                            <ListBoxItem AutomationProperties.AutomationId="NavTorrent">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
                                     <TextBlock Text="⇣" Width="16" TextAlignment="Center" />
                                     <TextBlock Text="Torrent pre-fill" />
                                 </StackPanel>
                             </ListBoxItem>
-                            <ListBoxItem>
+                            <ListBoxItem AutomationProperties.AutomationId="NavSettings">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
                                     <TextBlock Text="⚙" Width="16" TextAlignment="Center" />
                                     <TextBlock Text="Settings" />
@@ -167,11 +167,13 @@
                             <StackPanel IsVisible="{Binding !Instances.Count}"
                                         VerticalAlignment="Center" HorizontalAlignment="Center"
                                         Spacing="12" MaxWidth="460">
-                                <TextBlock Text="Your library is empty" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                                <TextBlock Text="Your library is empty" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center"
+                                           AutomationProperties.AutomationId="LibraryEmptyState" />
                                 <TextBlock TextWrapping="Wrap" Opacity="0.7" TextAlignment="Center" FontSize="13"
                                            Text="Add a game's data folder to store it deduplicated - identical files across versions are stored only once. You can then deploy any entry to any folder on the same drive, using no extra disk space." />
                                 <Button Content="＋ Add your first folder" Classes="Primary"
-                                        Command="{Binding OpenAddInstanceCommand}" HorizontalAlignment="Center" />
+                                        Command="{Binding OpenAddInstanceCommand}" HorizontalAlignment="Center"
+                                        AutomationProperties.AutomationId="AddFirstFolder" />
                             </StackPanel>
                         </Panel>
                     </Grid>
@@ -180,7 +182,8 @@
                     <ScrollViewer IsVisible="{Binding IsTorrentPage}">
                         <StackPanel Spacing="12">
                             <StackPanel Spacing="2">
-                                <TextBlock Text="Torrent pre-fill" FontSize="19" FontWeight="Bold" />
+                                <TextBlock Text="Torrent pre-fill" FontSize="19" FontWeight="Bold"
+                                       AutomationProperties.AutomationId="TorrentPageHeader" />
                                 <TextBlock TextWrapping="Wrap" Opacity="0.7" FontSize="12.5"
                                            Text="Already have most of a torrent's files in your library? Link them into the download folder first - your torrent client then only fetches what's missing, and verified links won't be overwritten." />
                             </StackPanel>
@@ -314,7 +317,8 @@
                     <!-- ═════ Settings page (plan 15 D7) ═════ -->
                     <ScrollViewer IsVisible="{Binding IsSettingsPage}">
                         <StackPanel Spacing="12">
-                            <TextBlock Text="Settings" FontSize="19" FontWeight="Bold" />
+                            <TextBlock Text="Settings" FontSize="19" FontWeight="Bold"
+                                       AutomationProperties.AutomationId="SettingsPageHeader" />
                             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="12">
 
                                 <Border Grid.Row="0" Grid.Column="0" Background="{DynamicResource LLCard}"
@@ -323,9 +327,12 @@
                                         <TextBlock Text="Appearance" FontWeight="SemiBold" FontSize="13.5" />
                                         <TextBlock Text="Theme follows your system by default" Opacity="0.6" FontSize="11.5" />
                                         <StackPanel Orientation="Horizontal" Spacing="14">
-                                            <RadioButton Content="Light" GroupName="theme" IsChecked="{Binding IsLightTheme, Mode=TwoWay}" />
-                                            <RadioButton Content="Dark" GroupName="theme" IsChecked="{Binding IsDarkTheme, Mode=TwoWay}" />
-                                            <RadioButton Content="System" GroupName="theme" IsChecked="{Binding IsSystemTheme, Mode=TwoWay}" />
+                                            <RadioButton Content="Light" GroupName="theme" IsChecked="{Binding IsLightTheme, Mode=TwoWay}"
+                                                         AutomationProperties.AutomationId="ThemeLight" />
+                                            <RadioButton Content="Dark" GroupName="theme" IsChecked="{Binding IsDarkTheme, Mode=TwoWay}"
+                                                         AutomationProperties.AutomationId="ThemeDark" />
+                                            <RadioButton Content="System" GroupName="theme" IsChecked="{Binding IsSystemTheme, Mode=TwoWay}"
+                                                         AutomationProperties.AutomationId="ThemeSystem" />
                                         </StackPanel>
                                     </StackPanel>
                                 </Border>
@@ -350,7 +357,8 @@
                                         <TextBlock Text="Data location" FontWeight="SemiBold" FontSize="13.5" />
                                         <TextBlock Text="Where storage (db) and the library database live" Opacity="0.6" FontSize="11.5" />
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                            <TextBox Grid.Column="0" Text="{Binding DataDirectory}" IsReadOnly="True" />
+                                            <TextBox Grid.Column="0" Text="{Binding DataDirectory}" IsReadOnly="True"
+                                                     AutomationProperties.AutomationId="SettingsDataDirectory" />
                                             <Button Grid.Column="1" Content="Change..." Command="{Binding ChangeDataDirectoryCommand}" />
                                         </Grid>
                                         <TextBlock Text="Takes effect after restarting LincleLINK"
