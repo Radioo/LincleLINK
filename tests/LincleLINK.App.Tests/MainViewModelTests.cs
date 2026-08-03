@@ -32,9 +32,11 @@ public sealed class MainViewModelTests
     private readonly ISettingsStore _settingsStore = Substitute.For<ISettingsStore>();
     private readonly ITaskbarProgress _taskbarProgress = Substitute.For<ITaskbarProgress>();
 
+    private readonly IHardLinkPreflight _preflight = Substitute.For<IHardLinkPreflight>();
+
     private MainViewModel CreateViewModel() => new(
-        new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _repository, _driveInfo, _dialogs),
-        new LinkingService(_fs, _store, Substitute.For<IHardLinker>(), _repository, _dialogs),
+        new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _driveInfo, _dialogs),
+        new LinkingService(_fs, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _dialogs),
         new UnusedFilesService(_store, _repository, _dialogs),
         new LegacyImporter(_repository),
         new TorrentService(Substitute.For<ITorrentSource>(), _repository, _store, Substitute.For<IHardLinker>(), _fs),
@@ -45,7 +47,10 @@ public sealed class MainViewModelTests
         _themeManager,
         _settingsStore,
         _taskbarProgress,
-        () => new AddInstanceViewModel(new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _repository, _driveInfo, _dialogs), _dialogs, _taskbarProgress));
+        _preflight,
+        () => new AddInstanceViewModel(
+            new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _driveInfo, _dialogs),
+            _dialogs, _taskbarProgress, _fs, _preflight));
 
     private void StubStatus(long dbSize = 0, long free = 1)
     {
@@ -75,7 +80,7 @@ public sealed class MainViewModelTests
         vm.DbSize.Should().Be("10 B");
         vm.Savings.Should().Be("0 B"); // (10 + 0) - 10
         vm.FreeSpace.Should().Be("500 B");
-        vm.LogLines.Should().Contain(LogMessages.InstanceListUpdated);
+        vm.LogLines.Should().Contain(LogMessages.LibraryRefreshed);
     }
 
     [Fact]
@@ -136,7 +141,7 @@ public sealed class MainViewModelTests
 
         vm.IsBusy.Should().BeFalse();
         vm.OpenAddInstanceCommand.CanExecute(null).Should().BeTrue();
-        vm.LogLines.Should().Contain(m => m.Contains("Could not refresh instances"));
+        vm.LogLines.Should().Contain(m => m.Contains("Could not refresh the library"));
     }
 
     [Fact]
@@ -352,16 +357,16 @@ public sealed class MainViewModelTests
 
         vm.TorrentCheck.TorrentFilePath = "x.torrent";
         vm.TorrentCheck.CheckFilesCommand.CanExecute(null).Should().BeTrue();
-        vm.TorrentCheck.PiecesChecked.Should().BeFalse();
+        vm.TorrentCheck.FilesMatched.Should().BeFalse();
 
-        vm.TorrentCheck.PiecesChecked = true;
+        vm.TorrentCheck.FilesMatched = true;
         vm.TorrentCheck.TorrentDownloadPath = "C:\\dl";
-        vm.TorrentCheck.LinkReady = true;
+        vm.TorrentCheck.PiecesVerified = true;
 
         vm.TorrentCheck.RelativePath = @"contents\data";
 
-        vm.TorrentCheck.PiecesChecked.Should().BeFalse();
-        vm.TorrentCheck.LinkReady.Should().BeFalse();
+        vm.TorrentCheck.FilesMatched.Should().BeFalse();
+        vm.TorrentCheck.PiecesVerified.Should().BeFalse();
     }
 
     [Fact]

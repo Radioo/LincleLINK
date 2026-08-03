@@ -28,7 +28,8 @@ public sealed class UnusedFilesService
     public async Task<UnusedFilesResult> CheckAndDeleteAsync(
         IProgress<string>? log = null,
         CancellationToken ct = default,
-        int threadCount = 0)
+        int threadCount = 0,
+        IProgress<string>? status = null)
     {
         // Clamped worker count, mirroring the settings store: the "Others"-tab
         // value bounds both add-instance hashing and this deletion scan. The
@@ -51,11 +52,15 @@ public sealed class UnusedFilesService
 
         if (unused.Count == 0)
         {
-            await _dialogs.InfoAsync("No unused files found.", "No unused files");
+            await _dialogs.InfoAsync(
+                "Storage is clean — every file belongs to a library entry.",
+                "Clean up storage");
             return new UnusedFilesResult(false, 0, 0);
         }
 
-        var confirmed = await _dialogs.ConfirmAsync($"{unused.Count} unused files found. Delete?", "Unused files found");
+        var confirmed = await _dialogs.ConfirmAsync(
+            $"{unused.Count} files in storage don't belong to any library entry. Delete them?",
+            "Clean up storage");
         if (!confirmed)
         {
             return new UnusedFilesResult(true, unused.Count, 0);
@@ -72,11 +77,13 @@ public sealed class UnusedFilesService
         {
             await _store.DeleteAsync(name, token);
             // Use the increment's return value: reading the shared field afterwards
-            // lets parallel workers log duplicate or out-of-order counts.
+            // lets parallel workers report duplicate or out-of-order counts. The
+            // running counter is transient status; only the summary goes to the log.
             var count = Interlocked.Increment(ref deleted);
-            log?.Report($"{count} unused files deleted.");
+            status?.Report($"Deleted {count} of {unused.Count} unneeded files...");
         });
 
+        log?.Report($"Deleted {deleted} files from storage.");
         return new UnusedFilesResult(false, unused.Count, deleted);
     }
 }

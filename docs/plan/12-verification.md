@@ -99,6 +99,14 @@ Prereq: a copy of a real v2 install (`db/` + `instance/*.json` + CWD `settings.j
 | Migrated JSON deleted after verified write; corrupt manifests quarantined to `instance-corrupt/` | `13` D3 | no re-prompt loop, no data loss |
 | Case-insensitive instance-name uniqueness via normalized `NameKey` | `13` D6 | `OrdinalIgnoreCase` parity incl. non-ASCII |
 | `instance/` no longer created eagerly at startup; created lazily by the legacy JSON migration path | `13` | empty dir was vestigial once manifests moved to SQLite |
+| UI vocabulary overhaul: Library/entry/Storage/Deploy (domain types and on-disk names unchanged) | `14` D1 | users misread "instance" and "copy/move" |
+| Move (Reclaim space) uses link-then-replace ordering: temp hard link swapped over the original; failed links leave originals untouched (was delete-then-link) | `14` D3 | closed a cross-volume data-loss window |
+| Same-volume pre-flight (probe link) gates Reclaim mode, deploy, and torrent link with one clear error | `14` D2 | was N per-file failures; constraint lived only in README |
+| `Win32HardLinker` error 17 remapped to cross-drive (`ERROR_NOT_SAME_DEVICE`); 80/183 = already exists | `14` §2 | error-code mapping bug |
+| Duplicate files on deploy: three-way Replace / Skip existing / Cancel (was Yes=delete-all / No=abort) | `14` §3 | per-user request granularity |
+| Per-file progress lines demoted to a transient status line; log behind a Details expander; operations end with result summaries incl. previously discarded error details/counts | `14` D4–D5 | log flooding, silent results |
+| Long-running operations are cancellable from the UI (real `CancellationTokenSource`) | `14` D5 | CT plumbing existed but was never wired |
+| Torrent tab is a visible 3-step wizard; download-path edits no longer reset piece verification; entry changes now do | `14` D7 | invisible gate machine, stale-verification bug |
 
 ## 7. M6 acceptance gate
 

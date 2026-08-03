@@ -7,6 +7,9 @@
             <Button x:Name="OkButton" Content="OK" MinWidth="80" Click="OnOk" IsVisible="False" />
             <Button x:Name="YesButton" Content="Yes" MinWidth="80" Click="OnYes" />
             <Button x:Name="NoButton" Content="No" MinWidth="80" Click="OnNo" />
+            <Button x:Name="ReplaceButton" Content="Replace" MinWidth="80" Click="OnReplace" IsVisible="False" />
+            <Button x:Name="SkipButton" Content="Skip existing" MinWidth="80" Click="OnSkip" IsVisible="False" />
+            <Button x:Name="CancelButton" Content="Cancel" MinWidth="80" Click="OnCancel" IsVisible="False" />
         </StackPanel>
     </StackPanel>
 </UserControl>

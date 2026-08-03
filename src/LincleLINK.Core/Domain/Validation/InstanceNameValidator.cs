@@ -25,26 +25,26 @@ public static class InstanceNameValidator
     {
         if (string.IsNullOrWhiteSpace(name))
         {
-            return "Instance name cannot be empty.";
+            return "The entry name cannot be empty.";
         }
 
         foreach (var c in name)
         {
             if (InvalidCharacters.Contains(c))
             {
-                return $"Instance name contains the invalid character '{c}'.";
+                return $"The entry name contains the invalid character '{c}'.";
             }
         }
 
         if (name.EndsWith('.') || name.EndsWith(' '))
         {
-            return "Instance name cannot end with a dot or space.";
+            return "The entry name cannot end with a dot or space.";
         }
 
         var stem = name.Split('.')[0];
         if (ReservedDeviceNames.Contains(stem, StringComparer.OrdinalIgnoreCase))
         {
-            return $"Instance name cannot be a reserved device name ('{stem}').";
+            return $"The entry name cannot be a reserved device name ('{stem}').";
         }
 
         return null;

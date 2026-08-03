@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using LincleLINK.App.Abstractions;
 using LincleLINK.App.ViewModels.Base;
 using LincleLINK.Core.Abstractions.Dialogs;
+using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Application.Torrents;
 using LincleLINK.Core.Domain;
@@ -11,8 +12,10 @@ using LincleLINK.Core.Domain;
 namespace LincleLINK.App.ViewModels;
 
 /// <summary>
-/// The "Link to torrent" tab's state machine: torrent/relative/download paths,
-/// piece-check gates, matched-file list, and the check/pieces/link commands.
+/// The torrent pre-fill tab as a visible three-step wizard (plan 14 D7):
+/// match files → verify pieces → link verified files. Gate properties describe
+/// their own state (<see cref="FilesMatched"/>, <see cref="PiecesVerified"/>);
+/// per-step summaries and lock hints render inline next to each step.
 /// Split out of <see cref="MainViewModel"/> so the shell VM orchestrates features
 /// instead of implementing them all.
 /// </summary>
@@ -20,6 +23,7 @@ public partial class TorrentCheckViewModel : ViewModelBase
 {
     private readonly TorrentService _torrentService;
     private readonly IDialogService _dialogs;
+    private readonly IHardLinkPreflight _preflight;
     private readonly IOperationHost _host;
 
     private IReadOnlyList<TorrentFileCheck> _checkedFiles = [];
@@ -28,8 +32,8 @@ public partial class TorrentCheckViewModel : ViewModelBase
     public ObservableCollection<string> MatchedFiles { get; } = [];
 
     /// <summary>
-    /// The instance linked from, picked in the torrent tab's own selector. Deliberately
-    /// independent of <c>MainViewModel.SelectedInstance</c> (which serves the Instances
+    /// The library entry linked from, picked in this tab's own selector. Deliberately
+    /// independent of <c>MainViewModel.SelectedInstance</c> (which serves the Library
     /// tab): the two selections have different purposes and must not cross-write each
     /// other through shared two-way bindings.
     /// </summary>
@@ -49,27 +53,52 @@ public partial class TorrentCheckViewModel : ViewModelBase
     [NotifyCanExecuteChangedFor(nameof(CheckFilesCommand), nameof(LinkToTorrentCommand))]
     private string _torrentDownloadPath = string.Empty;
 
+    /// <summary>Step 1 succeeded with at least one match; unlocks Verify pieces.</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CheckPiecesCommand), nameof(LinkToTorrentCommand))]
-    private bool _piecesChecked;
+    private bool _filesMatched;
 
+    /// <summary>Step 2 succeeded; unlocks linking (with a chosen download folder).</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(LinkToTorrentCommand))]
-    private bool _linkReady;
+    private bool _piecesVerified;
+
+    /// <summary>Step results ("2,113 of 2,480 files matched"); empty until the step ran.</summary>
+    [ObservableProperty]
+    private string _matchSummary = string.Empty;
+
+    [ObservableProperty]
+    private string _verifySummary = string.Empty;
+
+    [ObservableProperty]
+    private string _linkSummary = string.Empty;
+
+    /// <summary>Why the step is locked ("Match files first."); empty when unlocked.</summary>
+    [ObservableProperty]
+    private string _verifyHint = "Match files first.";
+
+    [ObservableProperty]
+    private string _linkHint = "Verify pieces first.";
 
     public TorrentCheckViewModel(
         TorrentService torrentService,
         IDialogService dialogs,
+        IHardLinkPreflight preflight,
         IOperationHost host)
     {
         _torrentService = torrentService;
         _dialogs = dialogs;
+        _preflight = preflight;
         _host = host;
     }
 
+    // Match/verify results depend on the entry, the torrent, and the relative
+    // path — invalidate them when any of those change. The download folder is
+    // only a link-time input; changing it must NOT reset verification (plan 14 D7).
+    partial void OnTorrentInstanceChanged(InstanceListEntry? value) => ResetGates();
     partial void OnTorrentFilePathChanged(string value) => ResetGates();
     partial void OnRelativePathChanged(string value) => ResetGates();
-    partial void OnTorrentDownloadPathChanged(string value) => ResetGates();
+    partial void OnTorrentDownloadPathChanged(string value) => UpdateHints();
 
     [RelayCommand(CanExecute = nameof(CanBrowse))]
     private async Task BrowseTorrentFileAsync()
@@ -85,7 +114,7 @@ public partial class TorrentCheckViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanBrowse))]
     private async Task BrowseTorrentDlPathAsync()
     {
-        var path = await _dialogs.PickFolderAsync("Select torrent download and link target location");
+        var path = await _dialogs.PickFolderAsync("Select the torrent download folder");
         if (path is not null)
         {
             TorrentDownloadPath = path;
@@ -95,10 +124,11 @@ public partial class TorrentCheckViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanCheckFiles))]
     private async Task CheckFilesAsync()
     {
-        await _host.RunOperationAsync(async (log, percent) =>
+        await _host.RunOperationAsync(async op =>
         {
             var result = await _torrentService.CheckFilesAsync(
-                new TorrentCheckRequest(TorrentInstance!.InstanceName, TorrentFilePath, RelativePath), log, percent);
+                new TorrentCheckRequest(TorrentInstance!.InstanceName, TorrentFilePath, RelativePath),
+                op.Log, op.Percent, op.CancellationToken);
 
             if (!result.Success)
             {
@@ -107,7 +137,8 @@ public partial class TorrentCheckViewModel : ViewModelBase
                     _host.LogLines.Add(result.Error);
                 }
 
-                PiecesChecked = false;
+                FilesMatched = false;
+                UpdateHints();
                 return;
             }
 
@@ -117,21 +148,25 @@ public partial class TorrentCheckViewModel : ViewModelBase
                 MatchedFiles.Add(path);
             }
 
-            PiecesChecked = result.Matched > 0;
+            MatchSummary = $"{result.Matched} of {result.Total} files matched.";
+            FilesMatched = result.Matched > 0;
             if (result.Matched == 0)
             {
                 _host.LogLines.Add(LogMessages.RelativePathHint);
             }
+
+            UpdateHints();
         });
     }
 
     [RelayCommand(CanExecute = nameof(CanCheckPieces))]
     private async Task CheckPiecesAsync()
     {
-        await _host.RunOperationAsync(async (log, percent) =>
+        await _host.RunOperationAsync(async op =>
         {
             var result = await _torrentService.CheckPiecesAsync(
-                new TorrentCheckRequest(TorrentInstance!.InstanceName, TorrentFilePath, RelativePath), log, percent);
+                new TorrentCheckRequest(TorrentInstance!.InstanceName, TorrentFilePath, RelativePath),
+                op.Log, op.Percent, op.CancellationToken);
 
             if (!result.Success)
             {
@@ -140,36 +175,52 @@ public partial class TorrentCheckViewModel : ViewModelBase
                     _host.LogLines.Add(result.Error);
                 }
 
-                LinkReady = false;
+                PiecesVerified = false;
                 _checkedFiles = [];
                 _badPieces = [];
+                UpdateHints();
                 return;
             }
 
             _checkedFiles = result.Files;
             _badPieces = result.BadPieces;
-            LinkReady = !string.IsNullOrWhiteSpace(TorrentDownloadPath);
+            VerifySummary = $"{result.MatchedPieces} of {result.TotalPieces} pieces verified.";
+            PiecesVerified = true;
+            UpdateHints();
         });
     }
 
     [RelayCommand(CanExecute = nameof(CanLinkToTorrent))]
     private async Task LinkToTorrentAsync()
     {
-        await _host.RunOperationAsync(async (log, percent) =>
+        // One clear cross-volume failure up front instead of one per file (plan 14 D2).
+        var preflightError = await Task.Run(() => _preflight.CheckLinkTo(TorrentDownloadPath));
+        if (!string.IsNullOrEmpty(preflightError))
+        {
+            await _dialogs.ErrorAsync(
+                $"Can't link into this folder: {preflightError}",
+                "Pre-fill a torrent download");
+            return;
+        }
+
+        await _host.RunOperationAsync(async op =>
         {
             var result = await _torrentService.LinkToTorrentAsync(
-                new LinkToTorrentRequest(TorrentDownloadPath, _checkedFiles, _badPieces), log, percent);
+                new LinkToTorrentRequest(TorrentDownloadPath, _checkedFiles, _badPieces),
+                op.Log, op.Percent, op.CancellationToken);
 
             if (result.Error is not null)
             {
                 _host.LogLines.Add(result.Error);
+                return;
             }
+
+            LinkSummary = $"Linked {result.Linked} files, skipped {result.Skipped}.";
         });
 
-        PiecesChecked = false;
-        LinkReady = false;
-        _checkedFiles = [];
-        _badPieces = [];
+        // Linked files now exist at the target, so previous match/verify results
+        // are stale; the summary of what was linked stays visible.
+        ResetGates(keepLinkSummary: true);
     }
 
     private bool CanBrowse() => !_host.IsBusy;
@@ -179,13 +230,36 @@ public partial class TorrentCheckViewModel : ViewModelBase
            && TorrentInstance is not null
            && !string.IsNullOrWhiteSpace(TorrentFilePath);
 
-    private bool CanCheckPieces() => !_host.IsBusy && PiecesChecked;
+    private bool CanCheckPieces() => !_host.IsBusy && FilesMatched;
 
-    private bool CanLinkToTorrent() => !_host.IsBusy && LinkReady;
+    private bool CanLinkToTorrent()
+        => !_host.IsBusy
+           && PiecesVerified
+           && !string.IsNullOrWhiteSpace(TorrentDownloadPath);
 
-    private void ResetGates()
+    private void ResetGates(bool keepLinkSummary = false)
     {
-        PiecesChecked = false;
-        LinkReady = false;
+        FilesMatched = false;
+        PiecesVerified = false;
+        MatchSummary = string.Empty;
+        VerifySummary = string.Empty;
+        if (!keepLinkSummary)
+        {
+            LinkSummary = string.Empty;
+        }
+
+        _checkedFiles = [];
+        _badPieces = [];
+        UpdateHints();
+    }
+
+    private void UpdateHints()
+    {
+        VerifyHint = FilesMatched ? string.Empty : "Match files first.";
+        LinkHint = !PiecesVerified
+            ? "Verify pieces first."
+            : string.IsNullOrWhiteSpace(TorrentDownloadPath)
+                ? "Choose a download folder above."
+                : string.Empty;
     }
 }

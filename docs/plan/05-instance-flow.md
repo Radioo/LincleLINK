@@ -87,7 +87,7 @@ return AddInstanceResult(...)
 
 ## 5. Behavior changes vs V2 (documented, deliberate)
 
-1. **Move-mode dedup quirk preserved (D3):** if a `db/` file with the same hash already exists, V2's `if (!File.Exists(...))` guard means `File.Move` is skipped and the source file is **left in place**, counted as `AlreadyExisted`. v3 preserves this exactly.
+1. **Move-mode semantics (D3, superseded):** V2 left a dedup-hit source file in place (`File.Move` skipped by the `if (!File.Exists(...))` guard). The shipped v3 behavior differs deliberately: in move mode **every** original — new hash or dedup hit — is replaced with a hard link to its `db/` copy, so the source tree ends fully deduplicated. See `12-verification.md` §6 for the change register entry and `14-ux-clarity.md` D3 for the link-then-replace ordering.
 2. **No files in data path:** V2 would create an empty instance (0 files) and save it. v3 rejects with a user-facing error (D4) — an instance with zero files is useless and confuses the "unused files" scan.
 3. **Progress reporting** decoupled from UI collection (D1).
 4. Low-disk volume fix (above).
@@ -123,7 +123,7 @@ Mocked ports (`IFileSystem`, `IFileHasher`, `IDriveInfoProvider`, `IFileStore`, 
 
 - **D1** Progress via `IProgress<string>` for logs (VM derives numeric progress).
 - **D2** Drop the V2 per-char data-path validation; rely on path existence. Low-disk free space measured on the **data path volume** (fix).
-- **D3** Preserve V2 move-mode dedup quirk: existing `db/` file → source left in place, counted as `AlreadyExisted`.
+- **D3** *(superseded in implementation — see §5.1 and `14-ux-clarity.md`)* Move mode replaces every original with a hard link to its `db/` copy; the file is counted `AlreadyExisted` when its hash was already stored.
 - **D4** Reject instances with zero files (error) instead of saving an empty instance.
 - **D5** Parallel hashing bounded by `MaxDegreeOfParallelism` from the Other-tab thread slider; all file I/O (enumeration, sizing, phases) off the UI thread.
 - **D6** Add-instance log lines batched to the UI at Background priority and rendered in a virtualizing (keep-all-lines) `ListBox`.

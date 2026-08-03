@@ -7,90 +7,175 @@
         x:DataType="vm:MainViewModel"
         Icon="/Assets/LL_logo.ico"
         Title="LincleLINK &quot;It never ends&quot;"
-        Width="860" Height="520">
+        Width="880" Height="560">
 
-    <Grid Margin="5" RowDefinitions="4*,5,1*,Auto">
+    <Grid Margin="5" RowDefinitions="*,Auto">
 
         <TabControl Grid.Row="0">
 
-            <TabItem Header="Instances">
-                <Grid RowDefinitions="Auto,*">
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,6,0,8">
-                        <Button Content="Add instance" Command="{Binding OpenAddInstanceCommand}" />
-                        <Button Content="Link files" Command="{Binding LinkFilesCommand}" />
-                        <Button Content="Copy hashed files" Command="{Binding CopyHashedCommand}" />
-                        <Button Content="Check for unused files" Command="{Binding CheckUnusedCommand}" />
-                        <Button Content="Delete instance" Command="{Binding DeleteInstanceCommand}" />
+            <TabItem Header="Library">
+                <Grid RowDefinitions="Auto,Auto,*">
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="16" Margin="0,6,0,2">
+                        <TextBlock Text="{Binding DbSize, StringFormat=Storage: {0}}" Opacity="0.75" />
+                        <TextBlock Text="{Binding Savings, StringFormat=You are saving: {0}}" Opacity="0.75" />
+                        <TextBlock Text="{Binding FreeSpace, StringFormat=Free drive space: {0}}" Opacity="0.75" />
                     </StackPanel>
 
-                    <DataGrid Grid.Row="1"
-                              ItemsSource="{Binding Instances}"
-                              AutoGenerateColumns="False"
-                              IsReadOnly="True"
-                              SelectionMode="Single"
-                              GridLinesVisibility="None"
-                              SelectedItem="{Binding SelectedInstance, Mode=TwoWay}">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Name" Binding="{Binding InstanceName}" Width="3*" />
-                            <DataGridTextColumn Header="File count" Binding="{Binding FileCount}" Width="1*" />
-                            <DataGridTextColumn Header="Instance size" Binding="{Binding TotalFileSizeString}" Width="1*" />
-                        </DataGrid.Columns>
-                    </DataGrid>
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,6,0,8">
+                        <Button Content="Add folder to library..." Command="{Binding OpenAddInstanceCommand}"
+                                ToolTip.Tip="Register a folder as a library entry and absorb its files into storage" />
+                        <Button Content="Deploy to folder..." Command="{Binding LinkFilesCommand}"
+                                ToolTip.Tip="Recreate the selected entry anywhere on the same drive using hard links — no extra disk space (select an entry first)" />
+                        <Button Content="Export storage files..." Command="{Binding CopyHashedCommand}"
+                                ToolTip.Tip="Copy the selected entry's files out of storage under their hashed names (select an entry first)" />
+                        <Button Content="Clean up storage..." Command="{Binding CheckUnusedCommand}"
+                                ToolTip.Tip="Find and delete storage files that no longer belong to any library entry" />
+                        <Button Content="Remove from library" Command="{Binding DeleteInstanceCommand}"
+                                ToolTip.Tip="Forget the selected entry — its files stay in storage and deployed folders are untouched (select an entry first)" />
+                    </StackPanel>
+
+                    <Panel Grid.Row="2">
+                        <DataGrid ItemsSource="{Binding Instances}"
+                                  IsVisible="{Binding !!Instances.Count}"
+                                  AutoGenerateColumns="False"
+                                  IsReadOnly="True"
+                                  SelectionMode="Single"
+                                  GridLinesVisibility="None"
+                                  SelectedItem="{Binding SelectedInstance, Mode=TwoWay}">
+                            <DataGrid.ContextMenu>
+                                <ContextMenu x:DataType="vm:MainViewModel">
+                                    <MenuItem Header="Deploy to folder..." Command="{Binding LinkFilesCommand}" />
+                                    <MenuItem Header="Export storage files..." Command="{Binding CopyHashedCommand}" />
+                                    <Separator />
+                                    <MenuItem Header="Remove from library" Command="{Binding DeleteInstanceCommand}" />
+                                </ContextMenu>
+                            </DataGrid.ContextMenu>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Name" Binding="{Binding InstanceName}" Width="3*" />
+                                <DataGridTextColumn Header="Files" Binding="{Binding FileCount}" Width="1*" />
+                                <DataGridTextColumn Header="Size" Binding="{Binding TotalFileSizeString}" Width="1*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <StackPanel IsVisible="{Binding !Instances.Count}"
+                                    VerticalAlignment="Center" HorizontalAlignment="Center"
+                                    Spacing="10" MaxWidth="480">
+                            <TextBlock Text="Your library is empty" FontSize="16" FontWeight="SemiBold"
+                                       HorizontalAlignment="Center" />
+                            <TextBlock TextWrapping="Wrap" Opacity="0.75" TextAlignment="Center"
+                                       Text="Add a game's data folder to store it deduplicated — identical files across versions are stored only once. You can then deploy any entry to any folder on the same drive, using no extra disk space." />
+                            <Button Content="Add folder to library..." Classes="Primary"
+                                    Command="{Binding OpenAddInstanceCommand}"
+                                    HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Panel>
                 </Grid>
             </TabItem>
 
-            <TabItem Header="Link to torrent">
-                <Grid Margin="0,4" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="6">
+            <TabItem Header="Torrent pre-fill">
+                <Grid Margin="0,4" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="6">
 
-                    <TextBlock Grid.Row="0" Text="Instance to link from" />
-                    <ComboBox Grid.Row="1"
-                              ItemsSource="{Binding Instances}"
-                              SelectedItem="{Binding TorrentCheck.TorrentInstance, Mode=TwoWay}"
-                              HorizontalAlignment="Stretch">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate x:DataType="domain:InstanceListEntry">
-                                <TextBlock Text="{Binding InstanceName}" />
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
+                    <TextBlock Grid.Row="0" TextWrapping="Wrap" Opacity="0.75"
+                               Text="Already have most of a torrent's files in your library? Link them into the download folder first — your torrent client then only fetches what's missing, and verified links won't be overwritten." />
 
-                    <TextBlock Grid.Row="2" Text="Torrent file path" />
-                    <Grid Grid.Row="3" ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                        <TextBox Grid.Column="0" Text="{Binding TorrentCheck.TorrentFilePath, Mode=TwoWay}" />
-                        <Button Grid.Column="1" Content="Browse..." Command="{Binding TorrentCheck.BrowseTorrentFileCommand}" />
-                    </Grid>
+                    <StackPanel Grid.Row="1" Spacing="4">
+                        <TextBlock Text="Library entry to pre-fill from" />
+                        <ComboBox ItemsSource="{Binding Instances}"
+                                  SelectedItem="{Binding TorrentCheck.TorrentInstance, Mode=TwoWay}"
+                                  HorizontalAlignment="Stretch">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="domain:InstanceListEntry">
+                                    <TextBlock Text="{Binding InstanceName}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
 
-                    <TextBlock Grid.Row="4" Text="Torrent relative data path" />
-                    <TextBox Grid.Row="5" Text="{Binding TorrentCheck.RelativePath, Mode=TwoWay}" PlaceholderText="contents\data" />
+                    <StackPanel Grid.Row="2" Spacing="4">
+                        <TextBlock Text="Torrent file" />
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <TextBox Grid.Column="0" Text="{Binding TorrentCheck.TorrentFilePath, Mode=TwoWay}" />
+                            <Button Grid.Column="1" Content="Browse..." Command="{Binding TorrentCheck.BrowseTorrentFileCommand}" />
+                        </Grid>
+                    </StackPanel>
 
-                    <TextBlock Grid.Row="6" Text="Torrent download &amp; link target location" />
-                    <Grid Grid.Row="7" ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                        <TextBox Grid.Column="0" Text="{Binding TorrentCheck.TorrentDownloadPath, Mode=TwoWay}" />
-                        <Button Grid.Column="1" Content="Browse..." Command="{Binding TorrentCheck.BrowseTorrentDlPathCommand}" />
-                    </Grid>
+                    <StackPanel Grid.Row="3" Spacing="4">
+                        <TextBlock Text="Data folder inside the torrent" />
+                        <TextBox Text="{Binding TorrentCheck.RelativePath, Mode=TwoWay}" PlaceholderText="contents\data"
+                                 ToolTip.Tip="Where the data folder sits within the torrent's structure — usually contents\data" />
+                    </StackPanel>
 
-                    <Grid Grid.Row="8" ColumnDefinitions="*,*,*" ColumnSpacing="8">
-                        <Button Grid.Column="0" Content="Check files" Command="{Binding TorrentCheck.CheckFilesCommand}" />
-                        <Button Grid.Column="1" Content="Check pieces" Command="{Binding TorrentCheck.CheckPiecesCommand}" />
-                        <Button Grid.Column="2" Content="Start linking" Command="{Binding TorrentCheck.LinkToTorrentCommand}" />
-                    </Grid>
+                    <StackPanel Grid.Row="4" Spacing="4">
+                        <TextBlock Text="Download folder (point your torrent client here)" />
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <TextBox Grid.Column="0" Text="{Binding TorrentCheck.TorrentDownloadPath, Mode=TwoWay}" />
+                            <Button Grid.Column="1" Content="Browse..." Command="{Binding TorrentCheck.BrowseTorrentDlPathCommand}" />
+                        </Grid>
+                    </StackPanel>
 
-                    <TextBlock Grid.Row="9" Text="Matched instance files" />
-                    <ListBox Grid.Row="10"
+                    <Border Grid.Row="5" BorderBrush="{DynamicResource SemiColorBorder}" BorderThickness="1"
+                            CornerRadius="6" Padding="10" Margin="0,4,0,0">
+                        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="8"
+                              ColumnDefinitions="Auto,170,*" ColumnSpacing="10">
+
+                            <Border Grid.Row="0" Grid.Column="0" Width="22" Height="22" CornerRadius="11"
+                                    Background="{DynamicResource SemiColorPrimaryLight}" VerticalAlignment="Center">
+                                <TextBlock Text="1" FontSize="12" FontWeight="SemiBold"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <Button Grid.Row="0" Grid.Column="1" Content="Match files" HorizontalAlignment="Stretch"
+                                    Command="{Binding TorrentCheck.CheckFilesCommand}"
+                                    ToolTip.Tip="Quick name and size comparison between the torrent and the selected entry" />
+                            <StackPanel Grid.Row="0" Grid.Column="2" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding TorrentCheck.MatchSummary}" Opacity="0.85"
+                                           IsVisible="{Binding TorrentCheck.MatchSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+
+                            <Border Grid.Row="1" Grid.Column="0" Width="22" Height="22" CornerRadius="11"
+                                    Background="{DynamicResource SemiColorPrimaryLight}" VerticalAlignment="Center">
+                                <TextBlock Text="2" FontSize="12" FontWeight="SemiBold"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <Button Grid.Row="1" Grid.Column="1" Content="Verify pieces" HorizontalAlignment="Stretch"
+                                    Command="{Binding TorrentCheck.CheckPiecesCommand}"
+                                    ToolTip.Tip="Byte-exact piece check — only fully verified files get linked, so nothing is overwritten" />
+                            <StackPanel Grid.Row="1" Grid.Column="2" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding TorrentCheck.VerifySummary}" Opacity="0.85"
+                                           IsVisible="{Binding TorrentCheck.VerifySummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                <TextBlock Text="{Binding TorrentCheck.VerifyHint}" Opacity="0.55"
+                                           IsVisible="{Binding TorrentCheck.VerifyHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+
+                            <Border Grid.Row="2" Grid.Column="0" Width="22" Height="22" CornerRadius="11"
+                                    Background="{DynamicResource SemiColorPrimaryLight}" VerticalAlignment="Center">
+                                <TextBlock Text="3" FontSize="12" FontWeight="SemiBold"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <Button Grid.Row="2" Grid.Column="1" Content="Link verified files" HorizontalAlignment="Stretch"
+                                    Command="{Binding TorrentCheck.LinkToTorrentCommand}"
+                                    ToolTip.Tip="Hard-link every verified file into the download folder" />
+                            <StackPanel Grid.Row="2" Grid.Column="2" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding TorrentCheck.LinkSummary}" Opacity="0.85"
+                                           IsVisible="{Binding TorrentCheck.LinkSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                <TextBlock Text="{Binding TorrentCheck.LinkHint}" Opacity="0.55"
+                                           IsVisible="{Binding TorrentCheck.LinkHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <TextBlock Grid.Row="6" Text="Matched files" Margin="0,4,0,0" />
+                    <ListBox Grid.Row="7"
                              ItemsSource="{Binding TorrentCheck.MatchedFiles}"
                              behaviors:AutoScrollBehavior.AutoScrollToEnd="True" />
 
                 </Grid>
             </TabItem>
 
-            <TabItem Header="Other">
-                <StackPanel Spacing="8" Margin="8" Width="360" HorizontalAlignment="Left">
-                    <TextBlock Text="{Binding DbSize, StringFormat=db folder size: {0}}" />
-                    <TextBlock Text="{Binding Savings, StringFormat=You are saving: {0}}" />
-                    <TextBlock Text="{Binding FreeSpace, StringFormat=Free drive space: {0}}" />
-                    <Button Content="Import DBInfo.xml" Command="{Binding ImportLegacyCommand}" />
+            <TabItem Header="Settings">
+                <StackPanel Spacing="8" Margin="8" Width="380" HorizontalAlignment="Left">
 
-                    <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,8,0,0">
+                    <StackPanel Orientation="Horizontal" Spacing="16">
                         <TextBlock Text="Theme" VerticalAlignment="Center" />
                         <RadioButton Content="Light" GroupName="theme" IsChecked="{Binding IsLightTheme, Mode=TwoWay}" />
                         <RadioButton Content="Dark" GroupName="theme" IsChecked="{Binding IsDarkTheme, Mode=TwoWay}" />
@@ -98,7 +183,9 @@
                     </StackPanel>
 
                     <StackPanel Margin="0,8,0,0">
-                        <TextBlock Text="Add instance hash threads" />
+                        <TextBlock Text="Worker threads" />
+                        <TextBlock Text="Used when hashing new folders and when cleaning up storage"
+                                   Opacity="0.6" FontSize="12" />
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                             <Slider Grid.Column="0"
                                     Minimum="1"
@@ -110,6 +197,8 @@
 
                     <StackPanel Margin="0,8,0,0" Spacing="4">
                         <TextBlock Text="Data directory" />
+                        <TextBlock Text="Where storage (db) and the library database live"
+                                   Opacity="0.6" FontSize="12" />
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                             <TextBox Grid.Column="0" Text="{Binding DataDirectory}" IsReadOnly="True" />
                             <Button Grid.Column="1" Content="Change..." Command="{Binding ChangeDataDirectoryCommand}" />
@@ -117,18 +206,31 @@
                         <TextBlock Text="Takes effect after restarting LincleLINK"
                                    IsVisible="{Binding DataDirectoryChangePending}" />
                     </StackPanel>
+
+                    <StackPanel Margin="0,8,0,0" Spacing="4">
+                        <TextBlock Text="Import from LincleLINK v1" />
+                        <Button Content="Import DBInfo.xml..." Command="{Binding ImportLegacyCommand}"
+                                ToolTip.Tip="Import the library list from a v1 DBInfo.xml file" />
+                    </StackPanel>
                 </StackPanel>
             </TabItem>
 
         </TabControl>
 
-        <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" VerticalAlignment="Center" />
-
-        <ListBox Grid.Row="2" Margin="0,4"
-                 ItemsSource="{Binding LogLines}"
-                 behaviors:AutoScrollBehavior.AutoScrollToEnd="True" />
-
-        <ProgressBar Grid.Row="3" Value="{Binding Progress}" Minimum="0" Maximum="100" />
+        <StackPanel Grid.Row="1" Spacing="4" Margin="0,6,0,0">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBlock Grid.Column="0" Text="{Binding StatusLine}" Opacity="0.7" FontSize="12"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <Button Grid.Column="1" Content="Cancel" Command="{Binding CancelOperationCommand}"
+                        IsVisible="{Binding IsBusy}" />
+            </Grid>
+            <ProgressBar Value="{Binding Progress}" Minimum="0" Maximum="100" />
+            <Expander Header="Details">
+                <ListBox Height="160"
+                         ItemsSource="{Binding LogLines}"
+                         behaviors:AutoScrollBehavior.AutoScrollToEnd="True" />
+            </Expander>
+        </StackPanel>
 
     </Grid>
 

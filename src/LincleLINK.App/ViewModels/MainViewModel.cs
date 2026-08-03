@@ -6,6 +6,7 @@ using LincleLINK.App.Services;
 using LincleLINK.App.ViewModels.Base;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Instances;
+using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Abstractions.Settings;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
@@ -30,7 +31,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     public ObservableCollection<InstanceListEntry> Instances { get; } = [];
     public ObservableCollection<string> LogLines { get; } = [];
 
-    /// <summary>The "Link to torrent" tab (paths, piece gates, commands).</summary>
+    /// <summary>The torrent pre-fill tab (paths, wizard gates, commands).</summary>
     public TorrentCheckViewModel TorrentCheck { get; }
 
     [ObservableProperty]
@@ -41,7 +42,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         nameof(CopyHashedCommand))]
     private InstanceListEntry? _selectedInstance;
 
-    /// <summary>Worker count used while adding a new instance (1..<see cref="MaxThreadCount"/>).</summary>
+    /// <summary>Worker count for hashing and storage cleanup (1..<see cref="MaxThreadCount"/>).</summary>
     [ObservableProperty]
     private int _threadCount = Environment.ProcessorCount;
 
@@ -55,11 +56,16 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         nameof(CopyHashedCommand),
         nameof(CheckUnusedCommand),
         nameof(ImportLegacyCommand),
-        nameof(ChangeDataDirectoryCommand))]
+        nameof(ChangeDataDirectoryCommand),
+        nameof(CancelOperationCommand))]
     private bool _isBusy;
-    
+
     [ObservableProperty]
     private double _progress;
+
+    /// <summary>Transient one-line status shown above the progress bar (plan 14 D5).</summary>
+    [ObservableProperty]
+    private string _statusLine = string.Empty;
 
     [ObservableProperty]
     private string _dbSize = string.Empty;
@@ -71,7 +77,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     private string _freeSpace = string.Empty;
 
     /// <summary>
-    /// Data directory shown on the Other tab. The active directory is frozen at
+    /// Data directory shown on the Settings tab. The active directory is frozen at
     /// boot (IAppPaths singleton, SQLite connection string), so a change here is
     /// persisted only and picked up on the next launch.
     /// </summary>
@@ -80,6 +86,8 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
 
     [ObservableProperty]
     private bool _dataDirectoryChangePending;
+
+    private CancellationTokenSource? _operationCts;
 
     public MainViewModel(
         InstanceService instanceService,
@@ -94,6 +102,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         IThemeManager themeManager,
         ISettingsStore settingsStore,
         ITaskbarProgress taskbarProgress,
+        IHardLinkPreflight hardLinkPreflight,
         Func<AddInstanceViewModel> addInstanceFactory)
     {
         _instanceService = instanceService;
@@ -108,7 +117,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         _settingsStore = settingsStore;
         _taskbarProgress = taskbarProgress;
         _addInstanceFactory = addInstanceFactory;
-        TorrentCheck = new TorrentCheckViewModel(torrentService, dialogs, this);
+        TorrentCheck = new TorrentCheckViewModel(torrentService, dialogs, hardLinkPreflight, this);
     }
 
     private bool _initialized;
@@ -147,7 +156,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         {
             // A transient storage failure right after the dialog must not surface to
             // the command and strand its button state; degrade and log instead.
-            LogLines.Add($"Could not refresh instances: {ex.Message}");
+            LogLines.Add($"Could not refresh the library: {ex.Message}");
         }
     }
 
@@ -159,7 +168,12 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         var result = await _instanceService.DeleteInstanceAsync(instanceName);
         if (result.Deleted)
         {
-            LogLines.Add($"Instance {instanceName} deleted");
+            LogLines.Add($"Removed {instanceName} from the library (its files stay in storage).");
+        }
+        else if (result.Cancelled)
+        {
+            LogLines.Add("Removal cancelled.");
+            return;
         }
 
         SelectedInstance = null;
@@ -174,12 +188,13 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     {
         var instanceName = SelectedInstance!.InstanceName;
 
-        await RunOperationAsync(async (log, percent) =>
+        await RunOperationAsync(async op =>
         {
-            var result = await _linkingService.LinkInstanceAsync(instanceName, log, percent);
+            var result = await _linkingService.LinkInstanceAsync(
+                instanceName, op.Log, op.Percent, op.CancellationToken);
             if (result.Cancelled)
             {
-                LogLines.Add("Link operation aborted.");
+                LogLines.Add("Deploy cancelled.");
             }
             else if (result.Error is not null)
             {
@@ -193,12 +208,13 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     {
         var instanceName = SelectedInstance!.InstanceName;
 
-        await RunOperationAsync(async (log, percent) =>
+        await RunOperationAsync(async op =>
         {
-            var result = await _linkingService.CopyHashedFilesAsync(instanceName, log, percent);
+            var result = await _linkingService.CopyHashedFilesAsync(
+                instanceName, op.Log, op.Percent, op.Status, op.CancellationToken);
             if (result.Cancelled)
             {
-                LogLines.Add("Copy operation aborted.");
+                LogLines.Add("Export cancelled.");
             }
             else if (result.Error is not null)
             {
@@ -210,12 +226,13 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     [RelayCommand(CanExecute = nameof(CanCheckUnused))]
     private async Task CheckUnusedAsync()
     {
-        await RunOperationAsync(async (log, _) =>
+        await RunOperationAsync(async op =>
         {
-            var result = await _unusedFilesService.CheckAndDeleteAsync(log, threadCount: ThreadCount);
+            var result = await _unusedFilesService.CheckAndDeleteAsync(
+                op.Log, op.CancellationToken, threadCount: ThreadCount, status: op.Status);
             if (result.Cancelled)
             {
-                LogLines.Add("Unused files deletion aborted.");
+                LogLines.Add("Storage cleanup cancelled.");
             }
         });
 
@@ -229,24 +246,24 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
             "Select legacy DBInfo.xml", new FileType("Legacy DBInfo", ["*.xml"]));
         if (path is null)
         {
-            LogLines.Add("Import operation aborted.");
+            LogLines.Add("Import cancelled.");
             return;
         }
 
-        await RunOperationAsync(async (log, _) =>
+        await RunOperationAsync(async op =>
         {
             var result = await _legacyImporter.ImportAsync(path);
             foreach (var name in result.Imported)
             {
-                log.Report($"Instance {name} imported.");
+                op.Log.Report($"Imported {name} into the library.");
             }
 
             foreach (var name in result.SkippedExisting)
             {
-                log.Report($"Instance {name} already exists. Not importing.");
+                op.Log.Report($"{name} is already in the library. Not importing.");
             }
 
-            log.Report("Importing finished");
+            op.Log.Report("Import finished.");
         });
 
         await RefreshAllAsync();
@@ -267,20 +284,35 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         LogLines.Add($"Data directory set to {path}. Restart LincleLINK to apply.");
     }
 
-    public async Task RunOperationAsync(
-        Func<IProgress<string>, IProgress<double>, Task> operation)
+    /// <summary>Requests cancellation of the running operation (plan 14 D5).</summary>
+    [RelayCommand(CanExecute = nameof(CanCancelOperation))]
+    private void CancelOperation()
+    {
+        _operationCts?.Cancel();
+        StatusLine = "Cancelling...";
+    }
+
+    public async Task RunOperationAsync(Func<OperationContext, Task> operation)
     {
         IsBusy = true;
         _taskbarProgress.BeginOperation();
+        using var cts = new CancellationTokenSource();
+        _operationCts = cts;
+        CancelOperationCommand.NotifyCanExecuteChanged();
         try
         {
             var log = ProgressBridge.Create<string>(LogLines.Add, batchSize: 100);
+            var status = ProgressBridge.Create<string>(line => StatusLine = line, batchSize: 200);
             var percent = ProgressBridge.Create<double>(p =>
             {
                 Progress = p;
                 _taskbarProgress.Report(p);
             });
-            await operation(log, percent);
+            await operation(new OperationContext(log, status, percent, cts.Token));
+        }
+        catch (OperationCanceledException)
+        {
+            LogLines.Add("Operation cancelled.");
         }
         catch (Exception ex)
         {
@@ -288,7 +320,9 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         }
         finally
         {
+            _operationCts = null;
             Progress = 0;
+            StatusLine = string.Empty;
             IsBusy = false;
             _taskbarProgress.EndOperation();
         }
@@ -302,6 +336,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     private bool CanCheckUnused() => CanOperate();
     private bool CanImportLegacy() => CanOperate();
     private bool CanChangeDataDirectory() => CanOperate();
+    private bool CanCancelOperation() => IsBusy && _operationCts is not null;
 
     private bool CanOperate() => !IsBusy;
 
@@ -359,7 +394,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
             threads ?? current.HashThreadCount));
     }
 
-    /// <summary>Refreshes the instance list and status panel together after an operation.</summary>
+    /// <summary>Refreshes the library list and status header together after an operation.</summary>
     public async Task RefreshAllAsync()
     {
         await RefreshInstancesAsync();
@@ -383,7 +418,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
                 string.Equals(i.InstanceName, selectedName, StringComparison.OrdinalIgnoreCase));
         }
 
-        LogLines.Add(LogMessages.InstanceListUpdated);
+        LogLines.Add(LogMessages.LibraryRefreshed);
     }
 
     public async Task RefreshStatusAsync()

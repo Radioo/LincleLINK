@@ -18,7 +18,7 @@ public static class InstanceLookup
     {
         var instance = await repository.GetAsync(instanceName, ct);
         return instance is null
-            ? (null, $"Instance '{instanceName}' not found.")
+            ? (null, $"Library entry '{instanceName}' not found.")
             : (instance, null);
     }
 }

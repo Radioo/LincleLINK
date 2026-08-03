@@ -1,8 +1,9 @@
 # LincleLINK
 
-> User guide for the LincleLINK workflow. The user-facing features described here
-> are unchanged between the v2 and v3 (rewrite) lines; architecture, data layout and
-> the rewrite plan live in [`docs/plan/`](docs/plan/).
+> User guide for the LincleLINK workflow. Architecture, data layout and
+> the rewrite plan live in [`docs/plan/`](docs/plan/). Since v3 M8 the UI uses the
+> library/storage vocabulary described below; the on-disk layout is unchanged and
+> fully compatible with v2 data.
 
 # Installation
 
@@ -14,12 +15,34 @@ Grab the build for your platform from the [releases page](https://github.com/Rad
 
 # How does it work?
 
-## File storage
-The tool's main purpose is to store all your data in its own `db` folder. The files are renamed to their MD5 hash which ensures only unique files are added to the `db` folder.
+LincleLINK is a deduplicated store for game data. You add folders to your
+**library**; identical files across versions are stored only once in **storage**;
+and any library entry can be **deployed** to any folder on the same drive via hard
+links, using no extra disk space.
 
-## Instances
-Instances are simply a record of: file names, their hashes and their location whithin the original data structure. When adding an instance, you have an option of choosing to copy or move files to the `db`. Moving is advised to reduce space and disk stress. ***It is highly recommended to only add the `data` folder of a game as an instance.***  
-Since v3 (M7), instance records are stored in a SQLite database (`linclelinc.db`) instead of `instance/*.json`. Existing JSON data is migrated automatically with a one-time prompt at launch; the old JSON files are deleted once the migration completes successfully. Here's an example of one file record:  
+## Storage
+All data lives in the app's own `db` folder ("storage" in the UI). Files are
+renamed to their MD5 hash, which ensures only unique files are ever stored.
+
+## The library
+A library entry is just an index: file names, their hashes, and their location
+within the original folder structure — not a separate copy of the data. Removing
+an entry never deletes files from storage.
+***It is highly recommended to only add the `data` folder of a game as an entry.***
+
+When adding a folder, you choose what happens to the original files:
+
+- **Reclaim space (recommended)** — duplicates are absorbed into storage and the
+  folder's files become hard links to it. The folder keeps working exactly as
+  before and the duplicate space is freed. Requires the folder and storage on the
+  same drive (the app checks this up front).
+- **Keep originals untouched** — files are copied into storage; the folder is not
+  modified. New files use extra disk space.
+
+Since v3 (M7), entry records are stored in a SQLite database (`linclelink.db`)
+instead of `instance/*.json`. Existing JSON data is migrated automatically with a
+one-time prompt at launch; the old JSON files are deleted once the migration
+completes successfully. Here's an example of one file record:
 ```
     {
       "FileName": "25063_pre.2dx",
@@ -29,21 +52,38 @@ Since v3 (M7), instance records are stored in a SQLite database (`linclelinc.db`
     },
 ```
 
-## Linking
-When you've added at least one instance, you can link it to your desired destination. The tool will make hard links and keep the original file names and directory structure of the original files. ***Hard links only work on the same partition. If you wish to edit/replace a hard-linked file, delete it first! Directly modifying hard-linked files will alter the originals in the `db`!***
+## Deploying
+Once you have at least one entry, **Deploy to folder…** recreates it at a
+destination of your choice using hard links, keeping the original file names and
+directory structure. ***Hard links only work on the same drive/partition — the app
+verifies this before deploying. If you wish to edit/replace a deployed file,
+delete it first! Directly modifying hard-linked files will alter the originals in
+storage!***
 
-## Link to torrent
-This feature was designed to allow you to prepare files for downloading a new style/version of a game. It uses your selected instance as a "base" and checks files against the pieces found in the `.torrent` file (https://en.wikipedia.org/wiki/Torrent_file). When the check is finished, you can link matched files to your desired destination and point your torrent client to check and download missing files. Using this feature ensures only files present in pieces with exact 100% match will be linked, this means your client should not overwrite your original files.  
+## Torrent pre-fill
+Already have most of a torrent's files in your library? This feature links them
+into the download folder first, so your torrent client only fetches what's
+missing. It runs as three steps:
 
-`Instance to link from` - The instance you want to use as a "base", use the one that will have the most common files with the torrent.  
-`Torrent file path` - The torrent file you wish to download.  
-`Torrent relative data path` - Location of the `data` folder within the torrent file structure. Usually it will be `contents\data\`. Using `Check files` will perform a quick file name and size comarsion and will let you know if you got the right path.  
-`Torrent download and link target location` - Your desired download location. The tool will recreate the folder structure found in the `.torrent` file. This is the location where you want to point your torrent client to download.  
+1. **Match files** — quick name and size comparison between the torrent and the
+   selected library entry.
+2. **Verify pieces** — byte-exact check against the pieces in the `.torrent`
+   file. Only files whose pieces all match 100% are eligible, which is why your
+   client will not overwrite the linked files.
+3. **Link verified files** — hard-links every verified file into the download
+   folder, recreating the torrent's folder structure. Point your torrent client
+   here and let it download the rest.
 
-![Link to torrent usage](https://stn.s-ul.eu/mIFRwafZ.png)
+Inputs: the **library entry to pre-fill from** (pick the one sharing the most
+files with the torrent), the **torrent file**, the **data folder inside the
+torrent** (usually `contents\data`), and the **download folder**.
+
+![Torrent pre-fill usage](https://stn.s-ul.eu/mIFRwafZ.png)
 
 # How does it save space?
 
-When adding subsequent instances, only unique files will be added to the `db`. For example say you have IIDX28 added as an instance, then you add your IIDX27 data as well. Only files unique to IIDX27 will be copied/moved, in turn `db` size will increase by about 4GB instead of 60GB.
+When adding more entries, only unique files are added to storage. Say you have
+IIDX28 in your library and then add your IIDX27 data as well: only files unique
+to IIDX27 are stored, so storage grows by about 4GB instead of 60GB.
 
 ![screenshot](https://stn.s-ul.eu/O84VELWa.png)

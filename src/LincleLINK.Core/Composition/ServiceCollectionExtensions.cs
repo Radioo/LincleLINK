@@ -70,6 +70,8 @@ public static class ServiceCollectionExtensions
             throw new PlatformNotSupportedException("LincleLINK supports Windows, Linux and macOS only.");
         });
 
+        services.AddSingleton<IHardLinkPreflight, HardLinkPreflight>();
+
         services.AddSingleton<IFileStore, FileStore>();
 
         // SQLite instance metadata (plan 13): a singleton context factory keeps the

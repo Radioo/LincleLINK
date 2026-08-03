@@ -13,6 +13,12 @@ public interface IFileSystem
     long GetFileLength(string path);
     bool DeleteFile(string path);
 
+    /// <summary>
+    /// Moves/renames a file. With <paramref name="overwrite"/> the destination is
+    /// replaced (atomically when source and destination share a volume). Blocks.
+    /// </summary>
+    void MoveFile(string sourcePath, string destinationPath, bool overwrite);
+
     bool DirectoryExists(string path);
     void CreateDirectory(string path);
 
