@@ -9,7 +9,11 @@
         Title="LincleLINK &quot;It never ends&quot;"
         Width="1120" Height="700" MinWidth="840" MinHeight="540">
 
-    <Grid RowDefinitions="*,Auto,Auto">
+    <!-- Hidden until a DataContext exists: the first-run flow shows this window
+         (as a dialog owner) before the view model can be constructed, and unbound
+         page-visibility bindings would render every page stacked. -->
+    <Grid RowDefinitions="*,Auto,Auto"
+          IsVisible="{Binding $self.DataContext, Converter={x:Static ObjectConverters.IsNotNull}}">
 
         <!-- ═════════ shell: sidebar | page area (plan 15 D1) ═════════ -->
         <Panel Grid.Row="0">
