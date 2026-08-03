@@ -155,7 +155,7 @@ public sealed class TorrentService
         int linked = 0;
         int skipped = 0;
 
-        log?.Report("Linking...");
+        log?.Report("Linking verified files...");
 
         var progress = ProgressStep.Over(request.Files.Count);
         int index = 0;
@@ -204,7 +204,7 @@ public sealed class TorrentService
             percent?.Report(progress.Report(ref index));
         }
 
-        log?.Report("Linking finished");
+        log?.Report($"Pre-fill finished: linked {linked} files, skipped {skipped}.");
         return new LinkToTorrentResult(true, null, linked, skipped);
     }
 

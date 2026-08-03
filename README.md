@@ -1,49 +1,68 @@
 # LincleLINK
 
-> User guide for the LincleLINK workflow. The user-facing features described here
-> are unchanged between the v2 and v3 (rewrite) lines; architecture, data layout and
-> the rewrite plan live in [`docs/plan/`](docs/plan/).
+LincleLINK stores game data **deduplicated**: you add folders to your library,
+identical files across versions are stored only once, and any entry can be
+recreated ("deployed") anywhere on the same drive using hard links - at no extra
+disk cost. Adding several versions of the same game costs you roughly the size
+of one, plus what's unique to each.
 
-# Installation
+<img width="1120" height="700" alt="image" src="https://github.com/user-attachments/assets/832ce7fa-680b-45df-9607-a1707a04427c" />
+
+## Installation
 
 Grab the build for your platform from the [releases page](https://github.com/Radioo/LincleLINK/releases):
 
-- **Windows** — `LincleLINK-win-x64.exe`, portable, just run it.
-- **Linux / Steam Deck** — `LincleLINK-linux-x64.flatpak` is recommended: install it with `flatpak install <file>` (on the Deck, open it in Desktop Mode and Discover handles it). The Flatpak registers the app with your desktop, so extras like taskbar progress work out of the box. The `.tar.gz` is a portable alternative; install its bundled `.desktop` file and icon manually if you want desktop integration.
-- **macOS** — `LincleLINK-osx-{x64,arm64}.app.zip`, unzip and drop the `.app` into Applications.
+- **Windows** - `LincleLINK-win-x64.exe`, portable, just run it.
+- **Linux** - `LincleLINK-linux-x64.flatpak` (recommended): install with `flatpak install <file>`. A portable `.tar.gz` is also available.
+- **macOS** - `LincleLINK-osx-{x64,arm64}.app.zip`, unzip and drop the `.app` into Applications.
 
-# How does it work?
+On first launch, choose where LincleLINK keeps its storage. Pick a drive with
+room for your data - deploying only works onto that same drive.
 
-## File storage
-The tool's main purpose is to store all your data in its own `db` folder. The files are renamed to their MD5 hash which ensures only unique files are added to the `db` folder.
+## Usage
 
-## Instances
-Instances are simply a record of: file names, their hashes and their location whithin the original data structure. When adding an instance, you have an option of choosing to copy or move files to the `db`. Moving is advised to reduce space and disk stress. ***It is highly recommended to only add the `data` folder of a game as an instance.***  
-Since v3 (M7), instance records are stored in a SQLite database (`linclelinc.db`) instead of `instance/*.json`. Existing JSON data is migrated automatically with a one-time prompt at launch; the old JSON files are deleted once the migration completes successfully. Here's an example of one file record:  
-```
-    {
-      "FileName": "25063_pre.2dx",
-      "RelativePath": "sound\\25063",
-      "FileSize": 463806,
-      "HashedFileName": "7AFE6AC1B80128D44BA5357D4349B21A.2dx"
-    },
-```
+### Add a folder to the library
+**Library → Add folder…** Pick a name and the folder (for games, use the `data`
+folder), then choose what happens to the originals:
 
-## Linking
-When you've added at least one instance, you can link it to your desired destination. The tool will make hard links and keep the original file names and directory structure of the original files. ***Hard links only work on the same partition. If you wish to edit/replace a hard-linked file, delete it first! Directly modifying hard-linked files will alter the originals in the `db`!***
+- **Reclaim space** (recommended) - duplicates are absorbed into storage and the
+  folder's files become hard links to it. The folder keeps working exactly as
+  before, and the duplicate space is freed. Requires the folder and storage on
+  the same drive (checked automatically).
+- **Keep originals untouched** - files are copied into storage; the folder is
+  not modified.
 
-## Link to torrent
-This feature was designed to allow you to prepare files for downloading a new style/version of a game. It uses your selected instance as a "base" and checks files against the pieces found in the `.torrent` file (https://en.wikipedia.org/wiki/Torrent_file). When the check is finished, you can link matched files to your desired destination and point your torrent client to check and download missing files. Using this feature ensures only files present in pieces with exact 100% match will be linked, this means your client should not overwrite your original files.  
+### Deploy an entry
+Select an entry and click **Deploy to folder…** - the entry is recreated at the
+chosen location with its original names and folder structure, via hard links,
+using no extra disk space. If files already exist there, you choose to replace
+them, skip them, or cancel.
 
-`Instance to link from` - The instance you want to use as a "base", use the one that will have the most common files with the torrent.  
-`Torrent file path` - The torrent file you wish to download.  
-`Torrent relative data path` - Location of the `data` folder within the torrent file structure. Usually it will be `contents\data\`. Using `Check files` will perform a quick file name and size comarsion and will let you know if you got the right path.  
-`Torrent download and link target location` - Your desired download location. The tool will recreate the folder structure found in the `.torrent` file. This is the location where you want to point your torrent client to download.  
+### Pre-fill a torrent download
+Already have most of a torrent's files in your library? **Torrent pre-fill**
+links them into the download folder so your client only fetches what's missing:
 
-![Link to torrent usage](https://stn.s-ul.eu/mIFRwafZ.png)
+1. **Match files** - quick name/size comparison against the chosen entry.
+2. **Verify pieces** - byte-exact check; only fully verified files are eligible,
+   so your client won't overwrite them.
+3. **Link verified files** - then point your torrent client at the download
+   folder.
 
-# How does it save space?
+### Clean up storage
+**Clean up storage…** (in the sidebar's storage card) finds files that no longer
+belong to any library entry, shows how much space they take, and deletes them
+after confirmation. Run it after removing entries to actually free the space.
 
-When adding subsequent instances, only unique files will be added to the `db`. For example say you have IIDX28 added as an instance, then you add your IIDX27 data as well. Only files unique to IIDX27 will be copied/moved, in turn `db` size will increase by about 4GB instead of 60GB.
+## Good to know
 
-![screenshot](https://stn.s-ul.eu/O84VELWa.png)
+- **Removing an entry never deletes files** - it only forgets the index; the
+  files stay in storage until a cleanup.
+- **Hard links share their bytes.** If you want to edit or replace a deployed
+  file, delete it first and put the new file in its place - editing it in place
+  would modify the copy in storage (and every other deployment of it).
+- **Everything lives on one drive.** Storage, your added folders (in Reclaim
+  mode), and deploy targets must share a drive/partition; the app checks this up
+  front and tells you when they don't.
+- The selected entry's **"Unique to this entry"** figure shows what removing it
+  (plus a cleanup) would actually free - everything else is shared with other
+  entries.

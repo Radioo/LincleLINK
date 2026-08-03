@@ -72,10 +72,12 @@ public static class TorrentTestFactory
             }
         }
 
+        // Per BitTorrent v1 the final piece's hash covers only the remaining
+        // bytes; zero-padding it here previously masked the same bug in
+        // TorrentPieceVerifier (real torrents always failed their last piece).
         if (filled > 0)
         {
-            Array.Clear(buffer, filled, pieceLength - filled);
-            hashes.Add(SHA1.HashData(buffer));
+            hashes.Add(SHA1.HashData(buffer.AsSpan(0, filled)));
         }
 
         return hashes;

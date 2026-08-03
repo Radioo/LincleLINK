@@ -1,4 +1,4 @@
-# 10 — Testing Strategy
+# 10 - Testing Strategy
 
 **Parent:** [00-high-level.md](00-high-level.md) §8; consolidates the test plans in `02`–`09`
 **Milestone:** throughout (M1–M6), hardened at M6
@@ -17,7 +17,7 @@ Umbrella conventions + framework setup for all v3 tests. Detailed per-area cases
 
 ```
 tests/LincleLINK.Core.Tests/   # domain, infra, application (filesystem-backed + mocked)
-tests/LincleLINK.App.Tests/    # VM logic only — no rendering (AGENTS: no render-capture)
+tests/LincleLINK.App.Tests/    # VM logic only - no rendering (AGENTS: no render-capture)
 ```
 
 - Verification commands: `dotnet build LincleLINK.sln` then `dotnet test LincleLINK.sln`.
@@ -36,13 +36,13 @@ tests/LincleLINK.App.Tests/    # VM logic only — no rendering (AGENTS: no rend
 
 ## 4. Test layers
 
-**Layer 1 — pure unit (no IO, fast):** `02` — `SizeFormatter`, `InstanceNameValidator`, `Instance` JSON round-trip vs v2 fixture; `04` — `PathNormalizer`, errno→message mapper; `07` — `TorrentPieceVerifier` (given in-memory bytes) incl. V2-golden equivalence.
+**Layer 1 - pure unit (no IO, fast):** `02` - `SizeFormatter`, `InstanceNameValidator`, `Instance` JSON round-trip vs v2 fixture; `04` - `PathNormalizer`, errno→message mapper; `07` - `TorrentPieceVerifier` (given in-memory bytes) incl. V2-golden equivalence.
 
-**Layer 2 — filesystem-backed (real IO, small scale):** `03` — `JsonInstanceRepository`, `FileStore`, `JsonSettingsStore`, `AppPaths`, `FirstLaunchService`, `LegacyImporter`; `04` — `FileSystem`, `Md5FileHasher`, `DriveInfoProvider`; `06` — link/copy/unused integration on real `db/`.
+**Layer 2 - filesystem-backed (real IO, small scale):** `03` - `JsonInstanceRepository`, `FileStore`, `JsonSettingsStore`, `AppPaths`, `FirstLaunchService`, `LegacyImporter`; `04` - `FileSystem`, `Md5FileHasher`, `DriveInfoProvider`; `06` - link/copy/unused integration on real `db/`.
 
-**Layer 3 — mocked ports (NSubstitute):** `05` — `InstanceService`; `06` — `LinkingService`, `UnusedFilesService`, delete flow; `07` — `TorrentService`; `08` — `StatusService`. Mock set: `IFileSystem`, `IFileHasher`, `IFileStore`, `IInstanceRepository`, `IDriveInfoProvider`, `IHardLinker`, `IDialogService`, `ITorrentSource`, `ISettingsStore`.
+**Layer 3 - mocked ports (NSubstitute):** `05` - `InstanceService`; `06` - `LinkingService`, `UnusedFilesService`, delete flow; `07` - `TorrentService`; `08` - `StatusService`. Mock set: `IFileSystem`, `IFileHasher`, `IFileStore`, `IInstanceRepository`, `IDriveInfoProvider`, `IHardLinker`, `IDialogService`, `ITorrentSource`, `ISettingsStore`.
 
-**Layer 4 — VM logic (`App.Tests`):** `08`/`09` — `MainViewModel` gating matrix, input-edit gate resets, theme toggle persistence, add-instance dialog flow; `AddInstanceViewModel` mode mapping + error handling. Uses mocked services; CommunityToolkit.Mvvm runs headless — **no Avalonia runtime needed, no rendering**.
+**Layer 4 - VM logic (`App.Tests`):** `08`/`09` - `MainViewModel` gating matrix, input-edit gate resets, theme toggle persistence, add-instance dialog flow; `AddInstanceViewModel` mode mapping + error handling. Uses mocked services; CommunityToolkit.Mvvm runs headless - **no Avalonia runtime needed, no rendering**.
 
 ## 5. Golden / compatibility tests (highest priority)
 

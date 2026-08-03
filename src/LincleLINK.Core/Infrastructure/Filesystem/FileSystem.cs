@@ -19,6 +19,9 @@ public sealed class FileSystem : IFileSystem
         return true;
     }
 
+    public void MoveFile(string sourcePath, string destinationPath, bool overwrite)
+        => File.Move(sourcePath, destinationPath, overwrite);
+
     public bool DirectoryExists(string path) => Directory.Exists(path);
 
     public void CreateDirectory(string path) => Directory.CreateDirectory(path);

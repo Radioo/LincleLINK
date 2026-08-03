@@ -28,11 +28,15 @@ public sealed class InstanceServiceTests
     private readonly IFileHasher _hasher = Substitute.For<IFileHasher>();
     private readonly IFileStore _store = Substitute.For<IFileStore>();
     private readonly IHardLinker _hardLinker = Substitute.For<IHardLinker>();
+    private readonly IHardLinkPreflight _preflight = Substitute.For<IHardLinkPreflight>();
     private readonly IInstanceRepository _repository = Substitute.For<IInstanceRepository>();
     private readonly IDriveInfoProvider _driveInfo = Substitute.For<IDriveInfoProvider>();
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
 
-    private InstanceService CreateService() => new(_fs, _hasher, _store, _hardLinker, _repository, _driveInfo, _dialogs);
+    // The preflight substitute returns null (= linkable) by default, matching the
+    // common same-volume case; cross-volume tests override it explicitly.
+    private InstanceService CreateService()
+        => new(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs);
 
     private void StubDataPath(string dataPath, params string[] files)
     {
@@ -70,7 +74,7 @@ public sealed class InstanceServiceTests
         var result = await CreateService().CreateInstanceAsync(new("ok", Missing, CopyMoveMode.Copy));
 
         result.Success.Should().BeFalse();
-        result.Error.Should().Contain("Data path");
+        result.Error.Should().Contain("folder does not exist");
     }
 
     [Fact]
@@ -134,8 +138,15 @@ public sealed class InstanceServiceTests
         result.BytesAdded.Should().Be(100);
 
         await _store.Received(1).CopyToStoreAsync(FileA, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin", Arg.Any<CancellationToken>());
-        _fs.Received(1).DeleteFile(FileA);
-        _hardLinker.Received(1).TryCreateLink(StoreA, FileA, out _);
+        // Link-then-replace order (plan 14 D3): the link lands at a temp name and
+        // is swapped over the original; the original is never deleted up front.
+        _hardLinker.Received(1).TryCreateLink(
+            StoreA,
+            Arg.Is<string>(p => p != null && p.StartsWith(FileA, StringComparison.Ordinal) && p.EndsWith(".lincletmp", StringComparison.Ordinal)),
+            out _);
+        _fs.Received(1).MoveFile(
+            Arg.Is<string>(p => p != null && p.EndsWith(".lincletmp", StringComparison.Ordinal)), FileA, true);
+        _fs.DidNotReceive().DeleteFile(FileA);
     }
 
     [Fact]
@@ -156,9 +167,53 @@ public sealed class InstanceServiceTests
         result.AlreadyExisted.Should().Be(1);
         result.FilesAdded.Should().Be(0);
 
-        // The duplicate original becomes a hard link to the existing db file.
-        _fs.Received(1).DeleteFile(FileA);
-        _hardLinker.Received(1).TryCreateLink(StoreA, FileA, out _);
+        // The duplicate original becomes a hard link to the existing db file
+        // (temp link swapped over the original).
+        _hardLinker.Received(1).TryCreateLink(
+            StoreA,
+            Arg.Is<string>(p => p != null && p.StartsWith(FileA, StringComparison.Ordinal) && p.EndsWith(".lincletmp", StringComparison.Ordinal)),
+            out _);
+        _fs.Received(1).MoveFile(
+            Arg.Is<string>(p => p != null && p.EndsWith(".lincletmp", StringComparison.Ordinal)), FileA, true);
+    }
+
+    [Fact]
+    public async Task Move_mode_failed_link_leaves_original_untouched()
+    {
+        StubDataPath(Data, FileA);
+        _store.Exists("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin").Returns(false);
+        _store.GetPath("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin").Returns(StoreA);
+        _hardLinker.TryCreateLink(Arg.Any<string>(), Arg.Any<string>(), out _).Returns(x =>
+        {
+            x[2] = "Access denied.";
+            return false;
+        });
+
+        var logs = new List<string>();
+        var log = new SynchronousProgress<string>(logs.Add);
+
+        var result = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Move), log);
+
+        result.Success.Should().BeTrue();
+        // No data loss: the original file is never deleted or overwritten when the
+        // link could not be created.
+        _fs.DidNotReceive().DeleteFile(FileA);
+        _fs.DidNotReceiveWithAnyArgs().MoveFile(default!, default!, default);
+        logs.Should().Contain(m => m.Contains("left unchanged", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Move_mode_cross_volume_preflight_fails_fast()
+    {
+        StubDataPath(Data, FileA);
+        _preflight.CheckLinkTo(Data).Returns("The folder is on a different drive than storage.");
+
+        var result = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Move));
+
+        result.Success.Should().BeFalse();
+        result.Error.Should().Contain("Can't reclaim space");
+        await _repository.DidNotReceive().SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>());
+        _hardLinker.DidNotReceiveWithAnyArgs().TryCreateLink(default!, default!, out _);
     }
 
     [Fact]
@@ -237,17 +292,19 @@ public sealed class InstanceServiceTests
     {
         StubDataPath(Data, FileA);
         var logs = new List<string>();
-        var logLock = new object();
+        var statuses = new List<string>();
+        var progressLock = new object();
         double lastPercent = 0;
-        var log = new SynchronousProgress<string>(s => { lock (logLock) logs.Add(s); });
+        var log = new SynchronousProgress<string>(s => { lock (progressLock) logs.Add(s); });
+        var status = new SynchronousProgress<string>(s => { lock (progressLock) statuses.Add(s); });
         var percent = new SynchronousProgress<double>(p => lastPercent = p);
 
-        await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Copy), log, percent);
+        await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Copy), log, percent, status);
 
-        logs.Should().Contain(m => m.StartsWith("Hashing ", StringComparison.Ordinal));   // header
-        logs.Should().Contain(m => m.StartsWith("Hashed ", StringComparison.Ordinal));    // per-file completion
-        logs.Should().Contain(m => m.StartsWith("Added ", StringComparison.Ordinal));     // store decision
-        logs.Should().Contain(m => m.StartsWith("Instance added.", StringComparison.Ordinal));
+        logs.Should().Contain(m => m.StartsWith("Hashing ", StringComparison.Ordinal));      // header
+        statuses.Should().Contain(m => m.StartsWith("Hashed ", StringComparison.Ordinal));   // per-file completion
+        statuses.Should().Contain(m => m.StartsWith("Added ", StringComparison.Ordinal));    // store decision
+        logs.Should().Contain(m => m.StartsWith(LogMessages.EntryAdded, StringComparison.Ordinal));
         lastPercent.Should().Be(100);
     }
 

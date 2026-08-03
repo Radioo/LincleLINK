@@ -4,7 +4,7 @@ using LincleLINK.Core.Abstractions.Hashing;
 namespace LincleLINK.Core.Infrastructure.Hashing;
 
 /// <summary>
-/// MD5 hashing returning uppercase hex (no dashes) — byte-identical to v2's
+/// MD5 hashing returning uppercase hex (no dashes) - byte-identical to v2's
 /// <c>GetMD5Checksum</c>, so existing <c>db/</c> hashed names match.
 /// </summary>
 public sealed class Md5FileHasher : IFileHasher

@@ -1,10 +1,10 @@
-# 03 — Storage & Repository
+# 03 - Storage & Repository
 
 **Parent:** [00-high-level.md](00-high-level.md) §5, §6, §8
 **Milestone:** M1
 **Status:** Approved
 
-**Revision history:** rev 2 approved — settings split from data dir; `DataDirectory` stored in settings; first-launch V2 migration.
+**Revision history:** rev 2 approved - settings split from data dir; `DataDirectory` stored in settings; first-launch V2 migration.
 
 ## 1. Scope
 
@@ -18,11 +18,11 @@ Persistence layer in `LincleLINK.Core`: ports (`IAppPaths`, `IAppPathsFactory`, 
 | App settings (incl. data dir) | `Abstractions/Settings/ISettingsStore.cs` | `Infrastructure/Settings/JsonSettingsStore.cs` |
 | Instance CRUD (JSON) | `Abstractions/Instances/IInstanceRepository.cs` | `Infrastructure/Instances/JsonInstanceRepository.cs` |
 | Dedup store (`db/`) | `Abstractions/Storage/IFileStore.cs` | `Infrastructure/Storage/FileStore.cs` |
-| v2-compatible JSON options | — | `Infrastructure/Serialization/InstanceJson.cs` |
-| First-launch + V2 adoption | — | `Application/FirstLaunchService.cs` |
-| Legacy v1 XML import | — | `Application/LegacyImporter.cs` |
+| v2-compatible JSON options | - | `Infrastructure/Serialization/InstanceJson.cs` |
+| First-launch + V2 adoption | - | `Application/FirstLaunchService.cs` |
+| Legacy v1 XML import | - | `Application/LegacyImporter.cs` |
 
-## 3. Settings — split from data dir
+## 3. Settings - split from data dir
 
 ```csharp
 public sealed record AppSettings(bool IsDarkTheme, string? DataDirectory, int HashThreadCount);
@@ -104,7 +104,7 @@ public interface IInstanceRepository
 
 - File layout: `Path.Combine(instanceDir, name + ".json")`; rejects names with separators (defense in depth; names already pass `InstanceNameValidator`).
 - Load: `InstanceJson.Options`, normalize null collections → empty; missing file → `null`; malformed JSON → `InstanceStorageException` (typed, includes file path).
-- Save: recompute `TotalFileSizeString` (02 D3), then **atomic temp-file + `File.Move(overwrite)`** (D3) — safer than v2's direct write.
+- Save: recompute `TotalFileSizeString` (02 D3), then **atomic temp-file + `File.Move(overwrite)`** (D3) - safer than v2's direct write.
 - `Exists`/uniqueness: `OrdinalIgnoreCase` on all platforms (Windows/Linux interchangeable). `GetAllAsync` sorted by name.
 
 ## 7. `IFileStore` (dedup store)
@@ -129,7 +129,7 @@ public interface IFileStore
 
 ## 8. `InstanceJson` (serialization helper)
 
-`Infrastructure/Serialization/InstanceJson.cs`: shared `JsonSerializerOptions` (`WriteIndented`, default PascalCase — v2 contract) + `Normalize(Instance?)` guaranteeing non-null collections. Tested via fixture round-trips.
+`Infrastructure/Serialization/InstanceJson.cs`: shared `JsonSerializerOptions` (`WriteIndented`, default PascalCase - v2 contract) + `Normalize(Instance?)` guaranteeing non-null collections. Tested via fixture round-trips.
 
 ## 9. `LegacyImporter` (v1 `DBInfo.xml`)
 

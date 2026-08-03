@@ -1,4 +1,4 @@
-# 04 — Filesystem & Platform Ports
+# 04 - Filesystem & Platform Ports
 
 **Parent:** [00-high-level.md](00-high-level.md) §5, §6, §8
 **Milestone:** M3 (ports), consumed by M2/M4
@@ -16,9 +16,9 @@ Define the platform-touching ports and adapters in `LincleLINK.Core`: the IO fac
 | Hard links | `Abstractions/Linking/IHardLinker.cs` | `Infrastructure/Linking/Win32HardLinker.cs` · `UnixHardLinker.cs` |
 | Hashing | `Abstractions/Hashing/IFileHasher.cs` | `Infrastructure/Hashing/Md5FileHasher.cs` |
 | Free space / totals | `Abstractions/Disk/IDriveInfoProvider.cs` | `Infrastructure/Disk/DriveInfoProvider.cs` (Windows) · `UnixStatFsDriveInfoProvider.cs` (Linux) |
-| Path normalization | (pure, Domain) `Domain/PathNormalizer.cs` | — |
+| Path normalization | (pure, Domain) `Domain/PathNormalizer.cs` | - |
 
-## 3. `IFileSystem` — thin IO facade (D1)
+## 3. `IFileSystem` - thin IO facade (D1)
 
 ```csharp
 public interface IFileSystem
@@ -37,11 +37,11 @@ public interface IFileSystem
 ```
 
 - Used by **application services** (`InstanceService` enumeration + relative-path IO, `LinkingService` target dirs/dup checks, `CopyFiles`) so those services can be unit-tested with `NSubstitute` as well as real-IO `TempDir` tests.
-- **Repositories/store (`03`) intentionally use real `System.IO`** against `TempDir` — no facade there (avoids double abstraction).
+- **Repositories/store (`03`) intentionally use real `System.IO`** against `TempDir` - no facade there (avoids double abstraction).
 - `EnumerateFiles` returns full paths; relative-path computation is done by services via `PathNormalizer`.
 - Implementation delegates to `System.IO` (file-scoped async via `File.CopyAsync`/`File.MoveAsync`, net10).
 
-## 4. `IHardLinker` — cross-platform hard links (D2)
+## 4. `IHardLinker` - cross-platform hard links (D2)
 
 ```csharp
 public interface IHardLinker
@@ -55,7 +55,7 @@ public interface IHardLinker
 - **Linux** (`UnixHardLinker`, `[SupportedOSPlatform("linux")]`): `link(oldpath, newpath)` from `libc`; return code 0 = success; nonzero `errno` mapped to message. Key mappings: `EXDEV` → "source and target are on different filesystems" (matches the V2 hard-link same-partition limitation), `EMLINK` → "maximum hard-link count reached", `ENOENT`/`EPERM` → generic "could not create link".
 - **Selection** is centralized in `AddLincleLINKCore` via `OperatingSystem.IsWindows()`; tests can register either impl explicitly.
 
-## 5. `IFileHasher` — MD5 (D5)
+## 5. `IFileHasher` - MD5 (D5)
 
 ```csharp
 public interface IFileHasher
@@ -64,12 +64,12 @@ public interface IFileHasher
 }
 ```
 
-- `Md5FileHasher` returns the **uppercase hex MD5 with no dashes** — byte-identical to V2 (`BitConverter.ToString(hash).Replace("-", "")`), so hashed names in existing `db/` match.
+- `Md5FileHasher` returns the **uppercase hex MD5 with no dashes** - byte-identical to V2 (`BitConverter.ToString(hash).Replace("-", "")`), so hashed names in existing `db/` match.
 - Implementation: `MD5.HashDataAsync(File.OpenRead(path), ct)` (streaming, net10), uppercase hex via `Convert.ToHexString`.
 - The store name is built by services as `hash + Path.GetExtension(fileName)` (V2 parity). Extension keeps original case; files with no extension → hash only (matches `FileStore` guard regex from `03`).
 - Cancellation supported for the long add-instance hashing loop.
 
-## 6. `IDriveInfoProvider` — free space (D3)
+## 6. `IDriveInfoProvider` - free space (D3)
 
 ```csharp
 public interface IDriveInfoProvider
@@ -82,10 +82,10 @@ public interface IDriveInfoProvider
 Used for the V2 low-disk-space warning (add instance) and the "Free drive space" status line.
 
 - **Windows** (`DriveInfoProvider`): find `DriveInfo` whose `Name` is a prefix of `Path.GetPathRoot(path)` (V2 prefix logic), fall back to `Path.GetPathRoot`.
-- **Linux** (`UnixStatFsDriveInfoProvider`): `statvfs(path)` P/Invoke (`f_bfree * f_frsize`, `f_blocks * f_frsize`) — more reliable than `DriveInfo` on unusual mounts.
+- **Linux** (`UnixStatFsDriveInfoProvider`): `statvfs(path)` P/Invoke (`f_bfree * f_frsize`, `f_blocks * f_frsize`) - more reliable than `DriveInfo` on unusual mounts.
 - Selection via `OperatingSystem.IsWindows()` in composition (mirrors hard-linker selection).
 
-## 7. `PathNormalizer` — stored vs platform paths (D4)
+## 7. `PathNormalizer` - stored vs platform paths (D4)
 
 V2 persisted `RelativePath`/`DirectoryList` with backslashes and read torrent relative paths (`contents\data`) that way. On Linux those same JSON files still contain `\`. Pure static helpers:
 
@@ -130,7 +130,7 @@ services.AddSingleton<IHardLinker>(OperatingSystem.IsWindows()
 
 **`Hashing/Md5FileHasherTests`**: known bytes → known uppercase-hex MD5; matches V2 `GetMD5Checksum` output for a fixture file; large-file streaming; cancellation throws `OperationCanceledException`.
 
-**`Disk/DriveInfoProviderTests`**: current dir free space `> 0`, total `> 0`; Windows impl on root; Linux statvfs impl returns sane values. (Real calls — no mocks needed.)
+**`Disk/DriveInfoProviderTests`**: current dir free space `> 0`, total `> 0`; Windows impl on root; Linux statvfs impl returns sane values. (Real calls - no mocks needed.)
 
 **`PathNormalizerTests`** (pure):
 - `\`/`/` → host separator; mixed separators; `StripLeadingSeparators` on `\sound`, `/sound`;

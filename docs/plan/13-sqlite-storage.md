@@ -1,4 +1,4 @@
-# 13 — SQLite Instance Storage (EF Core Code-First)
+# 13 - SQLite Instance Storage (EF Core Code-First)
 
 **Parent:** [00-high-level.md](00-high-level.md) §10 (extensibility: `IInstanceRepository` → SQLite)
 **Milestone:** M7 (after M6 hardening)
@@ -10,8 +10,8 @@ Replace the JSON instance manifests (`instance/*.json`) with a SQLite database a
 
 ## 2. Scope & non-goals
 
-- **In scope:** instance *metadata* moves to SQLite (`Instances` / `InstanceFiles` / `InstanceDirectories` tables). The `db/` dedup file store stays flat files on disk — manifests only (owner decision), preserving hard-linking and the dedup model.
-- **Out of scope:** `db/` contents in BLOBs; a `StorageMode` setting; a "decline / remind me" path — migration is forced once (owner decision); moving `settings.json`.
+- **In scope:** instance *metadata* moves to SQLite (`Instances` / `InstanceFiles` / `InstanceDirectories` tables). The `db/` dedup file store stays flat files on disk - manifests only (owner decision), preserving hard-linking and the dedup model.
+- **Out of scope:** `db/` contents in BLOBs; a `StorageMode` setting; a "decline / remind me" path - migration is forced once (owner decision); moving `settings.json`.
 
 ## 3. Why the current shape makes this low-churn
 
@@ -43,17 +43,17 @@ InstanceDirectories Id INTEGER PK AUTOINCREMENT · InstanceName TEXT FK→CASCAD
 
 ## 6. Core components
 
-- `Infrastructure/Persistence/LincleLinkDbContext.cs` — `DbSet<InstanceEntity>` + children; `OnModelCreating` (keys, indexes, cascades); connection-level WAL + busy timeout.
-- `Infrastructure/Persistence/InstanceEntity.cs`, `InstanceFileEntity.cs`, `InstanceDirectoryEntity.cs` — persistence shapes (distinct from the Domain records).
-- `Infrastructure/Persistence/LincleLinkDbContextFactory.cs` — `IDesignTimeDbContextFactory<LincleLinkDbContext>` so `dotnet ef` runs against Core without launching Avalonia.
-- `Infrastructure/Instances/SqliteInstanceRepository.cs` — `IInstanceRepository` impl. Registered as **singleton**, backed by `AddDbContextFactory<LincleLinkDbContext>` (a short-lived context per operation — correct EF pattern that keeps the existing singleton consumers working).
-- `Application/StorageMigrationService.cs` — UI-free migration engine (see §8).
+- `Infrastructure/Persistence/LincleLinkDbContext.cs` - `DbSet<InstanceEntity>` + children; `OnModelCreating` (keys, indexes, cascades); connection-level WAL + busy timeout.
+- `Infrastructure/Persistence/InstanceEntity.cs`, `InstanceFileEntity.cs`, `InstanceDirectoryEntity.cs` - persistence shapes (distinct from the Domain records).
+- `Infrastructure/Persistence/LincleLinkDbContextFactory.cs` - `IDesignTimeDbContextFactory<LincleLinkDbContext>` so `dotnet ef` runs against Core without launching Avalonia.
+- `Infrastructure/Instances/SqliteInstanceRepository.cs` - `IInstanceRepository` impl. Registered as **singleton**, backed by `AddDbContextFactory<LincleLinkDbContext>` (a short-lived context per operation - correct EF pattern that keeps the existing singleton consumers working).
+- `Application/StorageMigrationService.cs` - UI-free migration engine (see §8).
 - DI (`Composition/ServiceCollectionExtensions.cs`): register `AddDbContextFactory`, `IInstanceRepository → SqliteInstanceRepository`, and `StorageMigrationService`. `JsonInstanceRepository` stays constructible (used only by the migration service and contract tests) but is no longer registered.
 
 ## 7. App changes
 
-- `ViewModels/StorageMigrationViewModel.cs` + `Views/StorageMigrationWindow.axaml(.cs)` — informational, **non-cancellable** progress + log window ("Upgrading instance database…") reusing `IAppDialogHost` / ViewLocator machinery. `Completed` event signals the host window to close (mirrors `FirstRunViewModel`).
-- Startup wiring (`App.axaml.cs` + `AppBootstrapper`): after the main container is built and `IAppPaths.EnsureCreated()` runs, call `StorageMigrationService.EnsureSchemaAsync()` **unconditionally** (applies the SQLite schema — fresh installs have no JSON to trigger the migration but must not hit a missing table on the first query). Then, if `NeedsMigration()` → show the owner window, host the migration window modally, run `MigrateAsync` with progress/log; then set the main window content. On failure: log, keep un-migrated JSON, still open the app (never brick).
+- `ViewModels/StorageMigrationViewModel.cs` + `Views/StorageMigrationWindow.axaml(.cs)` - informational, **non-cancellable** progress + log window ("Upgrading instance database…") reusing `IAppDialogHost` / ViewLocator machinery. `Completed` event signals the host window to close (mirrors `FirstRunViewModel`).
+- Startup wiring (`App.axaml.cs` + `AppBootstrapper`): after the main container is built and `IAppPaths.EnsureCreated()` runs, call `StorageMigrationService.EnsureSchemaAsync()` **unconditionally** (applies the SQLite schema - fresh installs have no JSON to trigger the migration but must not hit a missing table on the first query). Then, if `NeedsMigration()` → show the owner window, host the migration window modally, run `MigrateAsync` with progress/log; then set the main window content. On failure: log, keep un-migrated JSON, still open the app (never brick).
 
 ## 8. Migration semantics (`StorageMigrationService`)
 
@@ -61,7 +61,7 @@ InstanceDirectories Id INTEGER PK AUTOINCREMENT · InstanceName TEXT FK→CASCAD
 - `EnsureSchemaAsync()` → `Database.MigrateAsync()` on the SQLite context; applied unconditionally at startup (fresh installs included), and also the first step of `MigrateAsync`.
 - `MigrateAsync(IProgress<string> log, IProgress<double> percent, CancellationToken ct)`:
   1. `EnsureSchemaAsync()` (applies any pending migrations).
-  2. For each `instance/*.json` (sorted by name): parse with the existing `InstanceJson` semantics; **skip if `NameKey` already present** (idempotent — survives a crash mid-run); insert instance + ordered children in one transaction; verify via `SqliteInstanceRepository.ExistsAsync`; then **delete that JSON**.
+  2. For each `instance/*.json` (sorted by name): parse with the existing `InstanceJson` semantics; **skip if `NameKey` already present** (idempotent - survives a crash mid-run); insert instance + ordered children in one transaction; verify via `SqliteInstanceRepository.ExistsAsync`; then **delete that JSON**.
   3. Per-file failure (unreadable/corrupt JSON, or an instance name rejected by validation) → move the file into `instance-corrupt/` with the error logged; continue. This prevents an infinite re-prompt loop next launch and never blocks the app.
   4. `percent` mirrors add-instance-style progress (migrate count / total).
 
@@ -76,9 +76,9 @@ InstanceDirectories Id INTEGER PK AUTOINCREMENT · InstanceName TEXT FK→CASCAD
 
 ## 10. Testing
 
-- `tests/LincleLINK.Core.Tests/Instances/InstanceRepositoryContractTests.cs` — abstract suite run against **both** `Json` and `Sqlite` impls (SQLite via in-memory `:memory:` keep-alive connection) guaranteeing parity: round-trip, case-insensitive exists/get/delete, sorted names, `RecomputeTotals` on save, missing→null, name validation.
-- `tests/LincleLINK.Core.Tests/Application/StorageMigrationServiceTests.cs` — JSON fixtures → SQLite rows; JSON deleted; corrupt file quarantined; idempotent re-run; empty-input no-op.
-- `tests/LincleLINK.App.Tests/StorageMigrationViewModelTests.cs` — progress/log surface; non-cancellable; `Completed` raised at end.
+- `tests/LincleLINK.Core.Tests/Instances/InstanceRepositoryContractTests.cs` - abstract suite run against **both** `Json` and `Sqlite` impls (SQLite via in-memory `:memory:` keep-alive connection) guaranteeing parity: round-trip, case-insensitive exists/get/delete, sorted names, `RecomputeTotals` on save, missing→null, name validation.
+- `tests/LincleLINK.Core.Tests/Application/StorageMigrationServiceTests.cs` - JSON fixtures → SQLite rows; JSON deleted; corrupt file quarantined; idempotent re-run; empty-input no-op.
+- `tests/LincleLINK.App.Tests/StorageMigrationViewModelTests.cs` - progress/log surface; non-cancellable; `Completed` raised at end.
 - Full `dotnet build` + `dotnet test` on the three-OS CI matrix (SQLite native binaries ship cross-platform with the package).
 
 ## 11. Docs / housekeeping
@@ -90,7 +90,7 @@ InstanceDirectories Id INTEGER PK AUTOINCREMENT · InstanceName TEXT FK→CASCAD
 
 ## 12. Tooling note
 
-Migrations are generated with `dotnet ef` (global/local tool, version-matched to the EF packages) and committed; runtime schema application is `Database.MigrateAsync()` — no `dotnet ef` needed at build/runtime.
+Migrations are generated with `dotnet ef` (global/local tool, version-matched to the EF packages) and committed; runtime schema application is `Database.MigrateAsync()` - no `dotnet ef` needed at build/runtime.
 
 ## 13. Decisions (locked)
 

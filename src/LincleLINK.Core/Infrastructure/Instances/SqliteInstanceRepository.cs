@@ -102,6 +102,45 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
         return await context.Instances.AnyAsync(x => x.NameKey == key, ct);
     }
 
+    public async Task<long> GetUniqueSizeAsync(string name, CancellationToken ct = default)
+    {
+        ValidateName(name);
+        var key = LincleLinkPersistence.NameKeyOf(name);
+
+        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        var canonical = await context.Instances
+            .AsNoTracking()
+            .Where(x => x.NameKey == key)
+            .Select(x => x.InstanceName)
+            .FirstOrDefaultAsync(ct);
+        if (canonical is null)
+        {
+            return 0;
+        }
+
+        // Single whole-table GROUP BY (same cost class as the unused-files scan):
+        // a hash is "unique to the entry" when every referencing row belongs to it.
+        // MIN(FileSize) collapses same-hash duplicates within the entry to one.
+        var connection = context.Database.GetDbConnection();
+        await connection.OpenAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT COALESCE(SUM(sz), 0) FROM (
+                SELECT MIN("FileSize") AS sz
+                FROM "InstanceFiles"
+                GROUP BY "HashedFileName"
+                HAVING COUNT(DISTINCT "InstanceName") = 1 AND MAX("InstanceName") = $name
+            )
+            """;
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "$name";
+        parameter.Value = canonical;
+        command.Parameters.Add(parameter);
+
+        var result = await command.ExecuteScalarAsync(ct);
+        return Convert.ToInt64(result, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     public async Task SaveAsync(Instance instance, CancellationToken ct = default)
     {
         ValidateName(instance.InstanceName);

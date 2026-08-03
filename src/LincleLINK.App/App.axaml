@@ -9,6 +9,39 @@
         <local:ViewLocator />
     </Application.DataTemplates>
 
+    <Application.Resources>
+        <ResourceDictionary>
+            <!-- Shell palette (plan 15 D1): app-owned theme-variant brushes so the
+                 layout never depends on Semi's internal color keys. -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Default">
+                    <SolidColorBrush x:Key="LLSidebar" Color="#F4F2EC" />
+                    <SolidColorBrush x:Key="LLCard" Color="#FAF9F5" />
+                    <SolidColorBrush x:Key="LLSurface" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="LLHairline" Color="#E4E2DA" />
+                    <SolidColorBrush x:Key="LLAccentSoft" Color="#FDF3DD" />
+                    <SolidColorBrush x:Key="LLAccentText" Color="#B57B00" />
+                    <SolidColorBrush x:Key="LLWarning" Color="#A66A00" />
+                    <SolidColorBrush x:Key="LLDanger" Color="#C04A3A" />
+                    <SolidColorBrush x:Key="LLSuccess" Color="#2E8B57" />
+                    <SolidColorBrush x:Key="LLVeil" Color="#59000000" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="LLSidebar" Color="#22242B" />
+                    <SolidColorBrush x:Key="LLCard" Color="#242730" />
+                    <SolidColorBrush x:Key="LLSurface" Color="#1E2026" />
+                    <SolidColorBrush x:Key="LLHairline" Color="#383B44" />
+                    <SolidColorBrush x:Key="LLAccentSoft" Color="#3A2F12" />
+                    <SolidColorBrush x:Key="LLAccentText" Color="#FFCF5C" />
+                    <SolidColorBrush x:Key="LLWarning" Color="#FFCF5C" />
+                    <SolidColorBrush x:Key="LLDanger" Color="#FF8A75" />
+                    <SolidColorBrush x:Key="LLSuccess" Color="#5FC78A" />
+                    <SolidColorBrush x:Key="LLVeil" Color="#8C000000" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+
     <Application.Styles>
         <semi:SemiTheme />
         <semi:DataGridSemiTheme />

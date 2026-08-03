@@ -7,7 +7,7 @@ namespace LincleLINK.Core.Application;
 /// </summary>
 public static class LogMessages
 {
-    public const string InstanceAdded = "Instance added.";
-    public const string InstanceListUpdated = "Instance list updated.";
+    public const string EntryAdded = "Added to library.";
+    public const string LibraryRefreshed = "Library refreshed.";
     public const string RelativePathHint = @"Check if your relative path is correct. (example: contents\data)";
 }

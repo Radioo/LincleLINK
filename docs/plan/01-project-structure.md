@@ -1,4 +1,4 @@
-# 01 — Project Structure
+# 01 - Project Structure
 
 **Parent:** [00-high-level.md](00-high-level.md) §4 (Solution Layout), §5 (Architecture), §10 (Extensibility)
 **Milestone:** M0
@@ -60,7 +60,7 @@ Decision **D1**: enable `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>` fo
 | NSubstitute | latest stable |
 | coverlet.collector | latest stable |
 
-## 5. `src/LincleLINK.Core` — platform-agnostic core
+## 5. `src/LincleLINK.Core` - platform-agnostic core
 
 Layered folder structure, no Avalonia/WPF/Windows references.
 
@@ -68,7 +68,7 @@ Layered folder structure, no Avalonia/WPF/Windows references.
 LincleLINK.Core/
 ├─ LincleLINK.Core.csproj
 ├─ Composition/
-│  └─ ServiceCollectionExtensions.cs   # AddLincleLINKCore() — registers Core services & infra
+│  └─ ServiceCollectionExtensions.cs   # AddLincleLINKCore() - registers Core services & infra
 ├─ Abstractions/                       # PORTS (interfaces only)
 │  ├─ Dialogs/IDialogService.cs        # UI-independent confirm/error/message port
 │  ├─ Filesystem/IFileSystem.cs        # thin file/dir facade (testable IO)
@@ -114,7 +114,7 @@ Rules:
 - Namespaces: `LincleLINK.Core`, `LincleLINK.Core.Domain`, `LincleLINK.Core.Abstractions.*`, `LincleLINK.Core.Application`, `LincleLINK.Core.Infrastructure.*`. **File-scoped** namespaces for all new code (replaces the v2 block-scoped style).
 - `LincleLINK.Core.csproj`: no `OutputType`, no `UseWPF`/`UseWindowsForms`, no `TargetFramework` attribute (inherited), `[SupportedOSPlatform]` guards only where needed (hard linkers, statvfs).
 
-## 6. `src/LincleLINK.App` — Avalonia UI
+## 6. `src/LincleLINK.App` - Avalonia UI
 
 ```
 LincleLINK.App/
@@ -158,7 +158,7 @@ Key decisions:
 - `Program.cs` keeps the static `BuildAvaloniaApp()` helper (test/headless-friendly).
 - `App.axaml.cs` `OnFrameworkInitializationCompleted`: resolve `MainViewModel` from the bootstrapped provider, set as `MainWindow.DataContext`. No service resolution scattered in views.
 - Dialog windows use Avalonia `Window`; file/folder pickers use `StorageProvider` (cross-platform). No WinForms.
-- ViewModels use `[ObservableProperty]` / `[RelayCommand]` / `[AsyncRelayCommand]` source generators. Async commands get proper `IProgress<double>` + `CancellationToken` handling — the v2 `async void` + `IsFree` pattern is replaced by an operation-gating design (details in `08-viewmodels-ui.md`).
+- ViewModels use `[ObservableProperty]` / `[RelayCommand]` / `[AsyncRelayCommand]` source generators. Async commands get proper `IProgress<double>` + `CancellationToken` handling - the v2 `async void` + `IsFree` pattern is replaced by an operation-gating design (details in `08-viewmodels-ui.md`).
 - Namespaces: `LincleLINK.App`, `LincleLINK.App.Abstractions`, `LincleLINK.App.ViewModels` (+ `.ViewModels.Base`), `LincleLINK.App.Views`, `LincleLINK.App.Services`, `LincleLINK.App.Composition`. File-scoped.
 
 ## 7. Composition / DI split
@@ -209,11 +209,11 @@ tests/LincleLINK.App.Tests            # logic-only VM tests, no rendering (see 0
 3. Add `Directory.Build.props`, `Directory.Packages.props`.
 4. Move `LL_logo.ico` → `src/LincleLINK.App/Assets/`.
 5. Skeleton app (empty MainWindow + MainViewModel) must **build and launch on Windows and Linux** before any feature work.
-6. `.gitignore` already covers `bin/obj`; add `*.user`/`.vs` as needed — no structural changes required.
+6. `.gitignore` already covers `bin/obj`; add `*.user`/`.vs` as needed - no structural changes required.
 
 ## 10. What this plan does NOT decide (deferred)
 
-- Exact package version numbers — locked during M0 restore.
+- Exact package version numbers - locked during M0 restore.
 - `IAppPaths` semantics (data root from `settings.DataDirectory` + first-launch V2 adoption) → `03-storage-repository.md` (resolved).
 - Command gating / operation-state design → `08-viewmodels-ui.md`.
 - Theme resource details → `09-theming.md`.

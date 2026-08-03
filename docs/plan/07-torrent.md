@@ -1,4 +1,4 @@
-# 07 — Torrent Flow (MonoTorrent)
+# 07 - Torrent Flow (MonoTorrent)
 
 **Parent:** [00-high-level.md](00-high-level.md) §5, §8, §9 (feature parity)
 **Milestone:** M4
@@ -35,7 +35,7 @@ public sealed record TorrentFileData(
 
 **`MonoTorrentSource`** maps MonoTorrent's parsed model (files with `Path`/`Length`, `PieceLength`, per-piece hashes) into `TorrentData`. Exact load API (`TorrentInfo` vs `Torrent`, piece-hash accessors) is confirmed at M4 implementation from the pinned package.
 
-## 4. `TorrentPieceVerifier` — replaces `TorrentPiecer` (D2)
+## 4. `TorrentPieceVerifier` - replaces `TorrentPiecer` (D2)
 
 Ports V2 semantics (byte-for-byte: files in torrent order; matched file → its `db/` bytes; unmatched → **zero bytes**) but **streams with bounded memory** instead of V2's `File.ReadAllBytes` per file and `new byte[file.FileSize]` per missing file (an OOM risk on multi-GB torrents).
 
@@ -62,7 +62,7 @@ public sealed record TorrentFileCheck(
 - **`IFileSystem` amendment (04):** add `Stream OpenRead(string path)` for streaming hashing.
 - Missing files produce all-zero pieces → their pieces land in `BadPieces`, so nothing is ever linked for an unmatched file (V2's guarantee, preserved).
 
-## 5. `TorrentService` — stateless use cases (D3)
+## 5. `TorrentService` - stateless use cases (D3)
 
 Replaces V2's stateful VM fields (`BadPieces`, `FilePieceMap`, `DidCheckFiles`, `DidCheckPieces`) with explicit request/result flow. All user inputs travel in requests; the VM binds to them but holds no operation state.
 
@@ -133,9 +133,9 @@ public sealed record LinkToTorrentResult(bool Success, string? Error, int Linked
 
 ## 7. Behavior changes vs V2 (documented)
 
-1. **Streaming, bounded memory** piece verification (D2) — same results, no multi-GB allocations.
-2. **Stateless service** (D3) — no cross-call VM state; results passed explicitly. `DidCheckFiles`/`DidCheckPieces` become VM bindings derived from the last result.
-3. **Canonicalized path matching** (D4) — instance stored with `\` now matches torrent `\`/`/` paths on both OS (V2 compared raw strings; on Linux a `\`-stored instance vs `/` torrent path could mismatch).
+1. **Streaming, bounded memory** piece verification (D2) - same results, no multi-GB allocations.
+2. **Stateless service** (D3) - no cross-call VM state; results passed explicitly. `DidCheckFiles`/`DidCheckPieces` become VM bindings derived from the last result.
+3. **Canonicalized path matching** (D4) - instance stored with `\` now matches torrent `\`/`/` paths on both OS (V2 compared raw strings; on Linux a `\`-stored instance vs `/` torrent path could mismatch).
 4. **Per-file link failures** logged, not aborting (consistent with `04`/`06`).
 5. V1-only torrents supported initially (**D1**); V2/hybrid (BEP 52) torrents rejected with a clear message.
 

@@ -56,6 +56,7 @@ public sealed class InstanceServiceIntegrationTests : IDisposable
             new Md5FileHasher(),
             new FileStore(paths),
             linker,
+            new HardLinkPreflight(paths, linker),
             new JsonInstanceRepository(paths),
             Substitute.For<IDriveInfoProvider>(),
             Substitute.For<IDialogService>());
@@ -102,6 +103,7 @@ public sealed class InstanceServiceIntegrationTests : IDisposable
             new Md5FileHasher(),
             new FileStore(paths),
             linker,
+            new HardLinkPreflight(paths, linker),
             new JsonInstanceRepository(paths),
             driveInfo,
             Substitute.For<IDialogService>());

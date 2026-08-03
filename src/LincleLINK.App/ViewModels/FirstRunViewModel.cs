@@ -23,8 +23,8 @@ public partial class FirstRunViewModel : ViewModelBase
     public override string Title => "First launch";
 
     // Wide, short dialog so the prompt reads horizontally rather than vertically.
-    public override Size DialogSize => new(720, 300);
-    public override Size DialogMinSize => new(640, 260);
+    public override Size DialogSize => new(720, 340);
+    public override Size DialogMinSize => new(640, 300);
 
     [ObservableProperty]
     private string _dataDirectory;
@@ -43,9 +43,11 @@ public partial class FirstRunViewModel : ViewModelBase
         _themeManager = themeManager;
         _dataDirectory = defaultDirectory;
         SetTheme(defaultTheme);
+        // The body text above the field already explains what to pick; the status
+        // line only carries situational information (v2 detection, validation).
         _status = hasLegacyV2Data
             ? "Existing v2 data detected in the current directory."
-            : "Choose the folder that contains (or will contain) your db/ and instance/ data.";
+            : string.Empty;
     }
 
     protected override void OnThemeChanged(AppTheme theme) => _themeManager.Apply(theme);

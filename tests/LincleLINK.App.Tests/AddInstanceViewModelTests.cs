@@ -31,8 +31,12 @@ public sealed class AddInstanceViewModelTests
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
     private readonly ITaskbarProgress _taskbarProgress = Substitute.For<ITaskbarProgress>();
 
+    private readonly IHardLinkPreflight _preflight = Substitute.For<IHardLinkPreflight>();
+
     private AddInstanceViewModel Create() =>
-        new(new InstanceService(_fs, _hasher, _store, _hardLinker, _repository, _driveInfo, _dialogs), _dialogs, _taskbarProgress);
+        new(
+            new InstanceService(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs),
+            _dialogs, _taskbarProgress, _fs, _preflight);
 
     private void StubDataPath()
     {
@@ -58,7 +62,7 @@ public sealed class AddInstanceViewModelTests
         await vm.CreateInstanceCommand.ExecuteAsync(null);
 
         closeRequested.Should().BeTrue();
-        vm.LogLines.Should().Contain(m => m.StartsWith(LogMessages.InstanceAdded, StringComparison.Ordinal));
+        vm.LogLines.Should().Contain(m => m.StartsWith(LogMessages.EntryAdded, StringComparison.Ordinal));
         await _repository.Received(1).SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>());
     }
 
@@ -94,20 +98,25 @@ public sealed class AddInstanceViewModelTests
         var vm = Create();
         vm.InstanceName = "inst";
         vm.DataPath = Data;
-        vm.IsCopyChecked = false;
-        vm.IsMoveChecked = true;
+        vm.IsKeepChecked = false;
+        vm.IsReclaimChecked = true;
 
         await vm.CreateInstanceCommand.ExecuteAsync(null);
 
         await _store.Received(1).CopyToStoreAsync(FileA, Arg.Any<string>(), Arg.Any<CancellationToken>());
-        _fs.Received(1).DeleteFile(FileA);
-        _hardLinker.Received(1).TryCreateLink(StoreA, FileA, out _);
+        // Safe reclaim ordering: temp link first, then swapped over the original.
+        _hardLinker.Received(1).TryCreateLink(
+            StoreA,
+            Arg.Is<string>(p => p != null && p.StartsWith(FileA, StringComparison.Ordinal) && p.EndsWith(".lincletmp", StringComparison.Ordinal)),
+            out _);
+        _fs.Received(1).MoveFile(
+            Arg.Is<string>(p => p != null && p.EndsWith(".lincletmp", StringComparison.Ordinal)), FileA, true);
     }
 
     [Fact]
     public void Browse_command_picks_folder_and_sets_data_path()
     {
-        _dialogs.PickFolderAsync("Select data path").Returns("C:\\chosen");
+        _dialogs.PickFolderAsync("Select the folder to add").Returns("C:\\chosen");
         var vm = Create();
 
         vm.BrowseCommand.ExecuteAsync(null);
@@ -122,9 +131,34 @@ public sealed class AddInstanceViewModelTests
 
         vm.InstanceName.Should().BeEmpty();
         vm.DataPath.Should().BeEmpty();
-        vm.IsCopyChecked.Should().BeTrue();
-        vm.IsMoveChecked.Should().BeFalse();
+        // Reclaim space is the recommended default (plan 14 §2).
+        vm.IsReclaimChecked.Should().BeTrue();
+        vm.IsKeepChecked.Should().BeFalse();
+        vm.ReclaimAvailable.Should().BeTrue();
         vm.LogLines.Should().BeEmpty();
         vm.Progress.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Cross_volume_folder_disables_reclaim_and_falls_back_to_keep()
+    {
+        _fs.DirectoryExists(Data).Returns(true);
+        _fs.EnumerateFiles(Data, true).Returns([FileA]);
+        _fs.GetFileLength(FileA).Returns(100);
+        _preflight.CheckLinkTo(Data).Returns("The folder is on a different drive than storage.");
+
+        var vm = Create();
+        vm.DataPath = Data;
+
+        // The analysis runs in the background; poll briefly for its completion.
+        for (var i = 0; i < 100 && vm.ReclaimAvailable; i++)
+        {
+            await Task.Delay(10);
+        }
+
+        vm.ReclaimAvailable.Should().BeFalse();
+        vm.CrossVolumeReason.Should().Contain("different drive");
+        vm.IsKeepChecked.Should().BeTrue();
+        vm.IsReclaimChecked.Should().BeFalse();
     }
 }

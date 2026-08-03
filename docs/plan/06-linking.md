@@ -1,4 +1,4 @@
-# 06 — Linking & Maintenance Operations
+# 06 - Linking & Maintenance Operations
 
 **Parent:** [00-high-level.md](00-high-level.md) §5, §8, §9 (feature parity)
 **Milestone:** M3
@@ -10,8 +10,8 @@ Define the operations that materialize `db/` data back to disk and keep it tidy,
 
 - **Link instance** to a target directory via hard links (`CreateHardLinks`)
 - **Copy hashed files** (flat, by hashed name) to a destination (`CopyFiles`)
-- **Delete instance** (manifest only — files stay) (`DeleteInstance`)
-- **Unused files scan** — find/delete `db/` files referenced by no instance (`CheckForUnusedFiles`)
+- **Delete instance** (manifest only - files stay) (`DeleteInstance`)
+- **Unused files scan** - find/delete `db/` files referenced by no instance (`CheckForUnusedFiles`)
 
 `LinkToTorrent` is TorrentService (`07`).
 
@@ -95,7 +95,7 @@ no  → DeleteInstanceResult(Cancelled: true)
 
 - Manifest only; `db/` files untouched. The "Check for unused files" flow then reconciles orphans.
 
-## 6. `UnusedFilesService` — scan & delete orphans
+## 6. `UnusedFilesService` - scan & delete orphans
 
 ```
 1. all = store.GetAllHashedFileNamesAsync()
@@ -112,13 +112,13 @@ no  → DeleteInstanceResult(Cancelled: true)
 ## 7. Behavior changes vs V2 (documented)
 
 1. **Per-file hard-link failures no longer abort the whole operation** (D2). V2 threw inside one big try/catch, killing the link loop on the first failure and leaving the error as a single log line. v3 logs each failure, continues, and reports `Failed`/`Errors` at the end. (Consistent with `04` D2.)
-2. **All paths derived from stored data are validated** (`IsSafeRelativePath`) before use (D3) — V2 wrote whatever was in the JSON.
+2. **All paths derived from stored data are validated** (`IsSafeRelativePath`) before use (D3) - V2 wrote whatever was in the JSON.
 3. Delete-instance and unused-files keep V2 semantics exactly.
 
 ## 8. Edge cases
 
 - **Cross-device target** (EXDEV): `IHardLinker` returns a clear per-file error → logged, op continues (V2 aborted). The UI result surfaces the count.
-- **Target dir nested inside `db/`**: no special handling (V2 had none); possible but unusual — note in docs, not prevented.
+- **Target dir nested inside `db/`**: no special handling (V2 had none); possible but unusual - note in docs, not prevented.
 - **Missing instance file** between selection and load: `GetAsync` → null → error result (no crash).
 - **Move-mode orphans** from a cancelled add (`05`) are naturally found by the unused-files scan.
 

@@ -28,6 +28,13 @@ public sealed class FileStore : IFileStore
         return Path.Combine(_paths.DbDirectory, hashedFileName);
     }
 
+    public long GetSize(string hashedFileName)
+    {
+        ValidateHashName(hashedFileName);
+        var info = new FileInfo(GetPath(hashedFileName));
+        return info.Exists ? info.Length : 0;
+    }
+
     public async Task CopyToStoreAsync(string sourcePath, string hashedFileName, CancellationToken ct = default)
     {
         ValidateHashName(hashedFileName);

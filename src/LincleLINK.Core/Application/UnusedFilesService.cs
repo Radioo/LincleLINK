@@ -1,10 +1,11 @@
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Storage;
+using LincleLINK.Core.Domain;
 
 namespace LincleLINK.Core.Application;
 
-public sealed record UnusedFilesResult(bool Cancelled, int Found, int Deleted);
+public sealed record UnusedFilesResult(bool Cancelled, int Found, int Deleted, long FoundBytes = 0);
 
 /// <summary>
 /// Finds and deletes <c>db/</c> files referenced by no instance (plan 06 §6).
@@ -28,7 +29,8 @@ public sealed class UnusedFilesService
     public async Task<UnusedFilesResult> CheckAndDeleteAsync(
         IProgress<string>? log = null,
         CancellationToken ct = default,
-        int threadCount = 0)
+        int threadCount = 0,
+        IProgress<string>? status = null)
     {
         // Clamped worker count, mirroring the settings store: the "Others"-tab
         // value bounds both add-instance hashing and this deletion scan. The
@@ -40,25 +42,41 @@ public sealed class UnusedFilesService
         // Compute the unused set off the caller's (UI) thread: the db/ directory
         // scan plus building a HashSet of every referenced hash over ~1M rows must
         // never block the interface. Dialogs below run back on the caller context.
-        var unused = await Task.Run(async () =>
+        var (unused, unusedBytes) = await Task.Run(async () =>
         {
             var all = await _store.GetAllHashedFileNamesAsync(ct);
             var referenced = (await _repository.GetAllHashedFileNamesAsync(ct))
                 .ToHashSet(StringComparer.Ordinal);
 
-            return all.Where(name => !referenced.Contains(name)).ToList();
+            var orphans = all.Where(name => !referenced.Contains(name)).ToList();
+
+            // Per-file stat calls; stays inside this Task.Run so a large orphan
+            // set never blocks the caller's (UI) thread.
+            long bytes = 0;
+            foreach (var name in orphans)
+            {
+                ct.ThrowIfCancellationRequested();
+                bytes += _store.GetSize(name);
+            }
+
+            return (orphans, bytes);
         }, ct);
 
         if (unused.Count == 0)
         {
-            await _dialogs.InfoAsync("No unused files found.", "No unused files");
+            await _dialogs.InfoAsync(
+                "Storage is clean - every file belongs to a library entry.",
+                "Clean up storage");
             return new UnusedFilesResult(false, 0, 0);
         }
 
-        var confirmed = await _dialogs.ConfirmAsync($"{unused.Count} unused files found. Delete?", "Unused files found");
+        var confirmed = await _dialogs.ConfirmAsync(
+            $"{unused.Count} files in storage ({SizeFormatter.Format(unusedBytes)}) " +
+            "don't belong to any library entry. Delete them?",
+            "Clean up storage");
         if (!confirmed)
         {
-            return new UnusedFilesResult(true, unused.Count, 0);
+            return new UnusedFilesResult(true, unused.Count, 0, unusedBytes);
         }
 
         var deleted = 0;
@@ -72,11 +90,13 @@ public sealed class UnusedFilesService
         {
             await _store.DeleteAsync(name, token);
             // Use the increment's return value: reading the shared field afterwards
-            // lets parallel workers log duplicate or out-of-order counts.
+            // lets parallel workers report duplicate or out-of-order counts. The
+            // running counter is transient status; only the summary goes to the log.
             var count = Interlocked.Increment(ref deleted);
-            log?.Report($"{count} unused files deleted.");
+            status?.Report($"Deleted {count} of {unused.Count} unneeded files...");
         });
 
-        return new UnusedFilesResult(false, unused.Count, deleted);
+        log?.Report($"Deleted {deleted} files from storage ({SizeFormatter.Format(unusedBytes)} freed).");
+        return new UnusedFilesResult(false, unused.Count, deleted, unusedBytes);
     }
 }

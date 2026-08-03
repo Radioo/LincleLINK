@@ -36,6 +36,14 @@ public sealed class DialogService : IDialogService, IAppDialogHost
     public Task ErrorAsync(string message, string title = "")
         => ShowMessageAsync(message, title, MessageDialogButtons.Ok);
 
+    public async Task<ConflictChoice> AskConflictAsync(string message, string title = "")
+        => await ShowMessageAsync(message, title, MessageDialogButtons.ReplaceSkipCancel) switch
+        {
+            MessageDialogResult.Replace => ConflictChoice.Replace,
+            MessageDialogResult.Skip => ConflictChoice.Skip,
+            _ => ConflictChoice.Cancel,
+        };
+
     public async Task<string?> PickFolderAsync(string title, string? startDirectory = null)
     {
         var storage = GetStorageProvider();
@@ -141,9 +149,14 @@ public sealed class DialogService : IDialogService, IAppDialogHost
         };
 
         // Closing via the title-bar X must not hang the caller: treat it as the
-        // safe dismissal result for the button set (Ok, or No for YesNo).
-        window.Closed += (_, _) => tcs.TrySetResult(
-            buttons == MessageDialogButtons.Ok ? MessageDialogResult.Ok : MessageDialogResult.No);
+        // safe dismissal result for the button set (Ok, No for YesNo, Cancel for
+        // the conflict prompt).
+        window.Closed += (_, _) => tcs.TrySetResult(buttons switch
+        {
+            MessageDialogButtons.Ok => MessageDialogResult.Ok,
+            MessageDialogButtons.ReplaceSkipCancel => MessageDialogResult.Cancel,
+            _ => MessageDialogResult.No,
+        });
 
         var owner = _ownerProvider();
         if (owner is not null)

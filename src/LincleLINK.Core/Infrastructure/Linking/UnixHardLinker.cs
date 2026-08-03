@@ -24,9 +24,9 @@ public sealed class UnixHardLinker : IHardLinker
         error = errno switch
         {
             1 => "Operation not permitted.",
-            2 => "Could not find the source file in the db.",
+            2 => "Could not find the source file in storage.",
             17 => "A file with that name already exists at the target.",
-            18 => "Cross-device link: source and target are on different filesystems.",
+            18 => "The folder is on a different filesystem than storage - hard links only work within one filesystem.",
             31 => "Too many hard links for this file.",
             _ => $"Could not create the hard link (errno {errno}).",
         };

@@ -21,12 +21,17 @@ public sealed class TorrentCheckViewModelTests
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
     private readonly IOperationHost _host = Substitute.For<IOperationHost>();
 
+    private readonly IHardLinkPreflight _preflight = Substitute.For<IHardLinkPreflight>();
+
     public TorrentCheckViewModelTests()
     {
         _host.LogLines.Returns(new ObservableCollection<string>());
-        _host.RunOperationAsync(Arg.Any<Func<IProgress<string>, IProgress<double>, Task>>())
-            .Returns(ci => ci.Arg<Func<IProgress<string>, IProgress<double>, Task>>()!(
-                new InlineProgress<string>(), new InlineProgress<double>()));
+        _host.RunOperationAsync(Arg.Any<Func<OperationContext, Task>>())
+            .Returns(ci => ci.Arg<Func<OperationContext, Task>>()!(new OperationContext(
+                new InlineProgress<string>(),
+                new InlineProgress<string>(),
+                new InlineProgress<double>(),
+                CancellationToken.None)));
     }
 
     private TorrentCheckViewModel CreateViewModel(
@@ -39,7 +44,7 @@ public sealed class TorrentCheckViewModelTests
             Substitute.For<IFileStore>(),
             Substitute.For<IHardLinker>(),
             Substitute.For<IFileSystem>());
-        return new TorrentCheckViewModel(service, _dialogs, _host);
+        return new TorrentCheckViewModel(service, _dialogs, _preflight, _host);
     }
 
     private static void SelectInstance(TorrentCheckViewModel vm) =>
@@ -84,8 +89,10 @@ public sealed class TorrentCheckViewModelTests
 
         await vm.CheckFilesCommand.ExecuteAsync(null);
 
-        vm.PiecesChecked.Should().BeTrue();
+        vm.FilesMatched.Should().BeTrue();
         vm.MatchedFiles.Should().BeEquivalentTo(["data.bin"]);
+        vm.MatchSummary.Should().Contain("1 of 1");
+        vm.VerifyHint.Should().BeEmpty();
         vm.CheckPiecesCommand.CanExecute(null).Should().BeTrue();
     }
 
@@ -101,7 +108,7 @@ public sealed class TorrentCheckViewModelTests
 
         await vm.CheckFilesCommand.ExecuteAsync(null);
 
-        vm.PiecesChecked.Should().BeFalse();
+        vm.FilesMatched.Should().BeFalse();
         vm.MatchedFiles.Should().BeEmpty();
         _host.LogLines.Should().Contain(l => l.Contains(LogMessages.RelativePathHint));
     }
@@ -121,7 +128,7 @@ public sealed class TorrentCheckViewModelTests
 
         await vm.CheckFilesCommand.ExecuteAsync(null);
 
-        vm.PiecesChecked.Should().BeFalse();
+        vm.FilesMatched.Should().BeFalse();
         _host.LogLines.Should().Contain(l => l.Contains("v2"));
         vm.CheckPiecesCommand.CanExecute(null).Should().BeFalse();
     }
@@ -138,29 +145,79 @@ public sealed class TorrentCheckViewModelTests
         SelectInstance(vm);
         vm.TorrentFilePath = "x.torrent";
         vm.TorrentDownloadPath = "C:\\dl";
-        vm.PiecesChecked = true;
+        vm.FilesMatched = true;
 
         await vm.CheckPiecesCommand.ExecuteAsync(null);
 
-        vm.LinkReady.Should().BeFalse();
+        vm.PiecesVerified.Should().BeFalse();
         vm.LinkToTorrentCommand.CanExecute(null).Should().BeFalse();
     }
 
     [Fact]
-    public async Task LinkToTorrent_after_run_resets_all_gates()
+    public async Task LinkToTorrent_after_run_resets_gates_but_keeps_summary()
     {
         var vm = CreateViewModel();
         vm.TorrentFilePath = "x.torrent";
         vm.TorrentDownloadPath = "C:\\dl";
-        vm.PiecesChecked = true;
-        vm.LinkReady = true;
+        vm.FilesMatched = true;
+        vm.PiecesVerified = true;
 
         await vm.LinkToTorrentCommand.ExecuteAsync(null);
 
-        vm.PiecesChecked.Should().BeFalse();
-        vm.LinkReady.Should().BeFalse();
+        vm.FilesMatched.Should().BeFalse();
+        vm.PiecesVerified.Should().BeFalse();
+        vm.LinkSummary.Should().Contain("Linked");
         vm.CheckPiecesCommand.CanExecute(null).Should().BeFalse();
         vm.LinkToTorrentCommand.CanExecute(null).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task LinkToTorrent_cross_volume_preflight_blocks_with_error_dialog()
+    {
+        var vm = CreateViewModel();
+        vm.TorrentFilePath = "x.torrent";
+        vm.TorrentDownloadPath = "D:\\dl";
+        vm.FilesMatched = true;
+        vm.PiecesVerified = true;
+        _preflight.CheckLinkTo("D:\\dl").Returns("The folder is on a different drive than storage.");
+
+        await vm.LinkToTorrentCommand.ExecuteAsync(null);
+
+        await _dialogs.Received(1).ErrorAsync(
+            Arg.Is<string>(m => m != null && m.Contains("different drive")), Arg.Any<string>());
+        await _host.DidNotReceiveWithAnyArgs().RunOperationAsync(default!);
+        // Gates stay intact so the user can retry with a different folder.
+        vm.PiecesVerified.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Changing_download_path_does_not_invalidate_verification()
+    {
+        var vm = CreateViewModel();
+        vm.FilesMatched = true;
+        vm.PiecesVerified = true;
+
+        vm.TorrentDownloadPath = "C:\\somewhere-else";
+
+        vm.FilesMatched.Should().BeTrue();
+        vm.PiecesVerified.Should().BeTrue();
+        vm.LinkToTorrentCommand.CanExecute(null).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Changing_torrent_file_resets_gates_and_summaries()
+    {
+        var vm = CreateViewModel();
+        vm.FilesMatched = true;
+        vm.PiecesVerified = true;
+        vm.MatchSummary = "1 of 1 files matched.";
+
+        vm.TorrentFilePath = "other.torrent";
+
+        vm.FilesMatched.Should().BeFalse();
+        vm.PiecesVerified.Should().BeFalse();
+        vm.MatchSummary.Should().BeEmpty();
+        vm.VerifyHint.Should().Be("Match files first.");
     }
 
     private sealed class InlineProgress<T>(Action<T>? handler = null) : IProgress<T>

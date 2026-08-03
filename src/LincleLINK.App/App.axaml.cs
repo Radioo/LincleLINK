@@ -42,6 +42,19 @@ public partial class App : Application
                 var migration = _services.GetRequiredService<StorageMigrationService>();
                 await migration.EnsureSchemaAsync();
 
+                // Set the DataContext BEFORE any dialog can show the main window:
+                // with a null DataContext every page-visibility binding is unresolved
+                // and all shell pages render stacked on top of each other (the
+                // migration-dialog glitch). The VM constructor is cheap and runs no
+                // queries; the data refresh still happens in InitializeAsync later.
+                var viewModel = _services.GetRequiredService<MainViewModel>();
+                viewModel.SetTheme(settings.Theme);
+                viewModel.ThreadCount = settings.HashThreadCount;
+                // Resolved to an absolute path by FirstLaunchService before this
+                // point; the fallback only covers a hand-edited settings file.
+                viewModel.DataDirectory = settings.DataDirectory ?? string.Empty;
+                desktop.MainWindow.DataContext = viewModel;
+
                 // Forced one-time JSON → SQLite migration before the main window loads
                 // (plan 13 §7): users with legacy instance/*.json manifests get a
                 // non-dismissable progress window; new installs skip straight through.
@@ -59,16 +72,8 @@ public partial class App : Application
                     await run;
                 }
 
-                var viewModel = _services.GetRequiredService<MainViewModel>();
-                desktop.MainWindow.DataContext = viewModel;
-                viewModel.SetTheme(settings.Theme);
-                viewModel.ThreadCount = settings.HashThreadCount;
-                // Resolved to an absolute path by FirstLaunchService before this
-                // point; the fallback only covers a hand-edited settings file.
-                viewModel.DataDirectory = settings.DataDirectory ?? string.Empty;
-
-                // The first-run dialog shows the main window before the DataContext is
-                // set, so Opened cannot drive the initial refresh in that case; fire it
+                // The first-run/migration dialogs show the main window before Opened
+                // can drive the initial refresh with a DataContext in place; fire it
                 // directly here when the window is already visible.
                 if (desktop.MainWindow.IsVisible)
                 {

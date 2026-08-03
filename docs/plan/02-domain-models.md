@@ -1,4 +1,4 @@
-# 02 — Domain Models
+# 02 - Domain Models
 
 **Parent:** [00-high-level.md](00-high-level.md) §5 (Architecture), §6 (Cross-platform), §8 (Testing)
 **Milestone:** M1
@@ -58,7 +58,7 @@ public sealed record InstanceFile(
 ```
 
 - `record` → value equality (used by torrent file matching and tests).
-- `FileSize` invariant: `>= 0`. Invalid sizes are a data/validation concern of `InstanceService`, not the type (kept as plain data; no throwing guards — see §6).
+- `FileSize` invariant: `>= 0`. Invalid sizes are a data/validation concern of `InstanceService`, not the type (kept as plain data; no throwing guards - see §6).
 
 ### 3.2 `Instance` (`sealed class`)
 
@@ -117,15 +117,15 @@ public static class SizeFormatter
 - Units B / KB / MB / GB / TB, two decimal places, identical style to v2.
 - Difference vs v2 only at exact `1024^n` boundaries; cosmetic and strictly more correct.
 
-### 3.5 `InstanceNameValidator` (static) — cross-platform safe
+### 3.5 `InstanceNameValidator` (static) - cross-platform safe
 
 v2 used `Path.GetInvalidFileNameChars()` (platform-dependent) plus a case-insensitive uniqueness check against existing instance files. v3 must validate a **platform-stable superset** so a `db`/`instance` folder can move between Windows and Linux:
 
 1. Empty / whitespace-only → invalid.
 2. Contains any char invalid on **Windows** (`Path.GetInvalidFileNameChars()` on Windows) **or** `/` or `\` (both separators, so names don't collide with paths).
-3. Contains `:` `<` `>` `"` `|` `?` `*` (Windows reserved) — covered by the Windows set.
-4. Trailing dot or space, or equals a Windows reserved device name (`CON`, `PRN`, `AUX`, `NUL`, `COM1..9`, `LPT1..9`, case-insensitive) — avoids Windows-illegal folder names for portability.
-5. Uniqueness (case-insensitive on all platforms) is enforced by the repository/service layer, not the validator — it needs IO.
+3. Contains `:` `<` `>` `"` `|` `?` `*` (Windows reserved) - covered by the Windows set.
+4. Trailing dot or space, or equals a Windows reserved device name (`CON`, `PRN`, `AUX`, `NUL`, `COM1..9`, `LPT1..9`, case-insensitive) - avoids Windows-illegal folder names for portability.
+5. Uniqueness (case-insensitive on all platforms) is enforced by the repository/service layer, not the validator - it needs IO.
 
 ```csharp
 public static class InstanceNameValidator
@@ -151,7 +151,7 @@ Used by `InstanceService` (add-instance flow) and surfaced by `AddInstanceViewMo
 - JSON serialization (`JsonInstanceSerializer` / options) → Infrastructure, `03-storage-repository.md`.
 - Path normalization → `04-filesystem-ports.md`.
 - Hashing (`IFileHasher`) → `04`.
-- Legacy v1 XML types (`DBInfo`, `DataInstance`, `InstanceFileInfo`) stay internal to `LegacyImporter` (Application) — they are import-only DTOs, not domain.
+- Legacy v1 XML types (`DBInfo`, `DataInstance`, `InstanceFileInfo`) stay internal to `LegacyImporter` (Application) - they are import-only DTOs, not domain.
 
 ## 6. Validation philosophy
 

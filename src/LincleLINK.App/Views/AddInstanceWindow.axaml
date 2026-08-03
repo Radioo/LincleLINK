@@ -4,33 +4,91 @@
              xmlns:behaviors="using:LincleLINK.App.Behaviors"
              x:Class="LincleLINK.App.Views.AddInstanceWindow"
              x:DataType="vm:AddInstanceViewModel">
-    <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
+    <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto,Auto">
 
-        <StackPanel Grid.Row="0" Spacing="6">
-            <TextBlock Text="Instance name" />
-            <TextBox Text="{Binding InstanceName, Mode=TwoWay}" IsEnabled="{Binding !IsBusy}" />
+        <!-- panel header (plan 15 D4): the view is hosted in the shell's
+             slide-over, so it carries its own title and close affordance -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+            <TextBlock Text="Add folder to library" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Content="✕" Padding="8,3" Background="Transparent" BorderThickness="0"
+                    Command="{Binding CloseCommand}" ToolTip.Tip="Close" />
+        </Grid>
+
+        <StackPanel Grid.Row="1" Spacing="6">
+            <TextBlock Text="Name" />
+            <TextBox Text="{Binding InstanceName, Mode=TwoWay}" IsEnabled="{Binding !IsBusy}"
+                     ToolTip.Tip="How this entry appears in your library, e.g. the game and version" />
         </StackPanel>
 
-        <StackPanel Grid.Row="1" Spacing="6" Margin="0,12,0,0">
-            <TextBlock Text="Data path" />
+        <StackPanel Grid.Row="2" Spacing="6" Margin="0,12,0,0">
+            <TextBlock Text="Folder" />
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                <TextBox Grid.Column="0" Text="{Binding DataPath, Mode=TwoWay}" IsEnabled="{Binding !IsBusy}" />
+                <TextBox Grid.Column="0" Text="{Binding DataPath, Mode=TwoWay}" IsEnabled="{Binding !IsBusy}"
+                         ToolTip.Tip="The folder to add - for games, use the data folder" />
                 <Button Grid.Column="1" Content="Browse..." Command="{Binding BrowseCommand}" />
             </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="Calculating folder size..." Opacity="0.6" FontSize="12"
+                           IsVisible="{Binding IsCalculatingSize}" />
+                <TextBlock Text="{Binding EstimatedSizeText, StringFormat=Folder size: {0}}"
+                           Opacity="0.6" FontSize="12"
+                           IsVisible="{Binding EstimatedSizeText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
         </StackPanel>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="24" Margin="0,12,0,0">
-            <RadioButton Content="Copy files" GroupName="mode" IsChecked="{Binding IsCopyChecked, Mode=TwoWay}" />
-            <RadioButton Content="Move files" GroupName="mode" IsChecked="{Binding IsMoveChecked, Mode=TwoWay}" />
+        <StackPanel Grid.Row="3" Spacing="8" Margin="0,12,0,0" IsEnabled="{Binding !IsBusy}">
+            <TextBlock Text="What should happen to the original files?" FontWeight="SemiBold" />
+
+            <Border BorderBrush="{DynamicResource LLHairline}" BorderThickness="1"
+                    CornerRadius="6" Padding="10">
+                <RadioButton GroupName="mode" IsChecked="{Binding IsReclaimChecked, Mode=TwoWay}"
+                             IsEnabled="{Binding ReclaimAvailable}"
+                             VerticalContentAlignment="Top" HorizontalAlignment="Stretch">
+                    <StackPanel Spacing="3">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="Reclaim space" FontWeight="SemiBold" />
+                            <TextBlock Text="(recommended)" Opacity="0.7" />
+                        </StackPanel>
+                        <TextBlock TextWrapping="Wrap" Opacity="0.75" FontSize="12"
+                                   Text="Duplicates are absorbed into storage and this folder's files become links to it. The folder keeps working exactly as before, and the duplicate space is freed." />
+                        <TextBlock TextWrapping="Wrap" Opacity="0.6" FontSize="12"
+                                   Text="Requires this folder and storage on the same drive."
+                                   IsVisible="{Binding ReclaimAvailable}" />
+                        <TextBlock TextWrapping="Wrap" FontSize="12"
+                                   Foreground="{DynamicResource LLDanger}"
+                                   Text="{Binding CrossVolumeReason}"
+                                   IsVisible="{Binding !ReclaimAvailable}" />
+                    </StackPanel>
+                </RadioButton>
+            </Border>
+
+            <Border BorderBrush="{DynamicResource LLHairline}" BorderThickness="1"
+                    CornerRadius="6" Padding="10">
+                <RadioButton GroupName="mode" IsChecked="{Binding IsKeepChecked, Mode=TwoWay}"
+                             VerticalContentAlignment="Top" HorizontalAlignment="Stretch">
+                    <StackPanel Spacing="3">
+                        <TextBlock Text="Keep originals untouched" FontWeight="SemiBold" />
+                        <TextBlock TextWrapping="Wrap" Opacity="0.75" FontSize="12"
+                                   Text="Files are copied into storage; this folder is not modified. New files use extra disk space." />
+                    </StackPanel>
+                </RadioButton>
+            </Border>
         </StackPanel>
 
-        <Button Grid.Row="3" Content="Create instance" Command="{Binding CreateInstanceCommand}" Margin="0,12,0,0" />
+        <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
+            <Button Content="Add to library" Classes="Primary" Command="{Binding CreateInstanceCommand}" />
+            <Button Content="Cancel" Command="{Binding CancelOperationCommand}"
+                    IsVisible="{Binding IsBusy}" />
+        </StackPanel>
 
-        <ListBox Grid.Row="4" Margin="0,12,0,0"
+        <ListBox Grid.Row="5" Margin="0,12,0,0"
                  ItemsSource="{Binding LogLines}"
                  behaviors:AutoScrollBehavior.AutoScrollToEnd="True" />
 
-        <ProgressBar Grid.Row="5" Value="{Binding Progress}" Minimum="0" Maximum="100" Margin="0,12,0,0" />
+        <TextBlock Grid.Row="6" Margin="0,8,0,0" Text="{Binding StatusLine}"
+                   Opacity="0.7" FontSize="12" TextTrimming="PrefixCharacterEllipsis" />
+
+        <ProgressBar Grid.Row="7" Value="{Binding Progress}" Minimum="0" Maximum="100" Margin="0,6,0,0" />
 
     </Grid>
 </UserControl>

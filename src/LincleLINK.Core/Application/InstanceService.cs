@@ -39,6 +39,7 @@ public sealed class InstanceService
     private readonly IFileHasher _hasher;
     private readonly IFileStore _store;
     private readonly IHardLinker _hardLinker;
+    private readonly IHardLinkPreflight _preflight;
     private readonly IInstanceRepository _repository;
     private readonly IDriveInfoProvider _driveInfo;
     private readonly IDialogService _dialogs;
@@ -48,6 +49,7 @@ public sealed class InstanceService
         IFileHasher hasher,
         IFileStore store,
         IHardLinker hardLinker,
+        IHardLinkPreflight preflight,
         IInstanceRepository repository,
         IDriveInfoProvider driveInfo,
         IDialogService dialogs)
@@ -56,6 +58,7 @@ public sealed class InstanceService
         _hasher = hasher;
         _store = store;
         _hardLinker = hardLinker;
+        _preflight = preflight;
         _repository = repository;
         _driveInfo = driveInfo;
         _dialogs = dialogs;
@@ -65,6 +68,7 @@ public sealed class InstanceService
         AddInstanceRequest request,
         IProgress<string>? log = null,
         IProgress<double>? percent = null,
+        IProgress<string>? status = null,
         CancellationToken ct = default)
     {
         var nameError = InstanceNameValidator.FirstError(request.InstanceName);
@@ -75,12 +79,26 @@ public sealed class InstanceService
 
         if (!_fileSystem.DirectoryExists(request.DataPath))
         {
-            return Fail("Data path does not exist or is not a directory.");
+            return Fail("The folder does not exist or is not a directory.");
         }
 
         if (await _repository.ExistsAsync(request.InstanceName, ct))
         {
-            return Fail("An instance with this name already exists.");
+            return Fail("A library entry with this name already exists.");
+        }
+
+        // Reclaim-space (move) mode replaces originals with hard links into
+        // storage, which only works when the folder and storage share a volume.
+        // One clear pre-flight failure beats N per-file link errors (plan 14 D2).
+        if (request.Mode == CopyMoveMode.Move)
+        {
+            var reason = await Task.Run(() => _preflight.CheckLinkTo(request.DataPath), ct);
+            if (!string.IsNullOrEmpty(reason))
+            {
+                return Fail(
+                    $"Can't reclaim space from this folder: {reason} " +
+                    "You can still add it with \"Keep originals\".");
+            }
         }
 
         // Enumerate off the UI thread: recursive enumeration of a large tree can
@@ -107,7 +125,7 @@ public sealed class InstanceService
         var files = enumerated.Files;
         if (files.Count == 0)
         {
-            return Fail("The data path contains no files.");
+            return Fail("The folder contains no files.");
         }
 
         // Low-disk warning only in copy mode; free space measured on the data-path volume.
@@ -117,10 +135,10 @@ public sealed class InstanceService
             if (enumerated.SizeToCopy + LowDiskWiggleRoom > freeSpace)
             {
                 var proceed = await _dialogs.ConfirmAsync(
-                    $"Current drive is low on disk space, do you want to continue? " +
+                    $"This drive is low on disk space, do you want to continue? " +
                     $"Free space: {SizeFormatter.Format(freeSpace)}, " +
-                    $"Size of files about to copy: {SizeFormatter.Format(enumerated.SizeToCopy)}",
-                    "Low disk space!");
+                    $"size of files about to be copied into storage: {SizeFormatter.Format(enumerated.SizeToCopy)}",
+                    "Low disk space");
                 if (!proceed)
                 {
                     log?.Report("Operation cancelled.");
@@ -130,7 +148,7 @@ public sealed class InstanceService
         }
 
         // Hash, dedup-copy and save off the UI thread; log/percent marshal back to it.
-        return await Task.Run(() => HashAndStoreAsync(request, files, log, percent, ct), ct);
+        return await Task.Run(() => HashAndStoreAsync(request, files, log, percent, status, ct), ct);
     }
 
     private static AddInstanceResult Fail(string error) => new(false, error, 0, 0, 0, 0);
@@ -156,6 +174,7 @@ public sealed class InstanceService
         IReadOnlyList<string> files,
         IProgress<string>? log,
         IProgress<double>? percent,
+        IProgress<string>? status,
         CancellationToken ct)
     {
         int filesAdded = 0;
@@ -186,8 +205,10 @@ public sealed class InstanceService
             async (item, token) =>
             {
                 var hash = await _hasher.ComputeHashAsync(item.path, token);
-                // Log after hashing completes so lines stream as work finishes, not all at once.
-                log?.Report($"Hashed {item.path}");
+                // Report after hashing completes so the status line streams as work
+                // finishes; per-file lines go to the transient status channel, not
+                // the log (plan 14 D5).
+                status?.Report($"Hashed {item.path}");
                 hashResults[item.index] = new HashResult(item.path, hash, _fileSystem.GetFileLength(item.path));
                 percent?.Report(Interlocked.Increment(ref hashed) * hashStep);
             });
@@ -216,23 +237,23 @@ public sealed class InstanceService
                     await _store.CopyToStoreAsync(result.Path, storeName, ct);
                 }
 
-                // Move: ensure a db copy exists (dedup skips the copy), then replace the
-                // original with a hard link to the db file so the source path keeps
-                // working while the data is deduplicated in db/.
+                // Reclaim space: ensure a storage copy exists (dedup skips the copy),
+                // then replace the original with a hard link to it so the source path
+                // keeps working while the data is deduplicated in db/.
                 LinkOriginalToStore(result.Path, storeName, log);
 
-                log?.Report(isNew
-                    ? $"Moved {result.Path} into the db (linked back into place)"
-                    : $"{result.Path} already exists in the db");
+                status?.Report(isNew
+                    ? $"Reclaimed {result.Path} (now a link into storage)"
+                    : $"{result.Path} was already in storage (now a link)");
             }
             else if (isNew)
             {
                 await _store.CopyToStoreAsync(result.Path, storeName, ct);
-                log?.Report($"Added {result.Path} to the db");
+                status?.Report($"Added {result.Path} to storage");
             }
             else
             {
-                log?.Report($"{result.Path} already exists in the db");
+                status?.Report($"{result.Path} is already in storage");
             }
 
             if (isNew)
@@ -252,8 +273,8 @@ public sealed class InstanceService
         await _repository.SaveAsync(instance, ct);
 
         log?.Report(
-            $"{LogMessages.InstanceAdded} {alreadyExisted} files already exist. " +
-            $"{SizeFormatter.Format(bytesAdded)} added to the db.");
+            $"{LogMessages.EntryAdded} {alreadyExisted} files were already in storage. " +
+            $"{SizeFormatter.Format(bytesAdded)} added to storage.");
         percent?.Report(100);
 
         return new AddInstanceResult(true, null, filesAdded, bytesAdded, alreadyExisted, files.Count);
@@ -262,23 +283,33 @@ public sealed class InstanceService
     private readonly record struct HashResult(string Path, string Hash, long Length);
 
     /// <summary>
-    /// Replaces the original file at its source path with a hard link to its db copy.
-    /// The data is already safely in <c>db/</c>, so a failed link is non-destructive;
-    /// it is reported on the log and the file stays in the store.
+    /// Replaces the original file at its source path with a hard link to its
+    /// storage copy. Link-then-replace order (plan 14 D3): the link is created at
+    /// a temp name first and only then swapped over the original, so a failed
+    /// link leaves the user's folder untouched.
     /// </summary>
     private void LinkOriginalToStore(string originalPath, string storeName, IProgress<string>? log)
     {
         var dbPath = _store.GetPath(storeName);
-        _fileSystem.DeleteFile(originalPath);
+        var tempLink = $"{originalPath}.{Guid.NewGuid():N}.lincletmp";
 
-        if (_hardLinker.TryCreateLink(dbPath, originalPath, out var error))
+        if (!_hardLinker.TryCreateLink(dbPath, tempLink, out var error))
         {
+            log?.Report(
+                $"File {Path.GetFileName(originalPath)} is in storage, but its original could not be " +
+                $"replaced with a link ({error}). The original file was left unchanged.");
             return;
         }
 
-        log?.Report(
-            $"File {Path.GetFileName(originalPath)} was added to the db but could not be " +
-            $"hard-linked back into place ({error}); it is safe in the db.");
+        try
+        {
+            _fileSystem.MoveFile(tempLink, originalPath, overwrite: true);
+        }
+        catch
+        {
+            _fileSystem.DeleteFile(tempLink);
+            throw;
+        }
     }
 
     /// <summary>
@@ -287,8 +318,9 @@ public sealed class InstanceService
     public async Task<DeleteInstanceResult> DeleteInstanceAsync(string instanceName, CancellationToken ct = default)
     {
         var confirmed = await _dialogs.ConfirmAsync(
-            $"Delete {instanceName}? This will not delete the actual files.",
-            "Delete instance");
+            $"Remove {instanceName} from the library? Its files stay in storage " +
+            "and any deployed folders are untouched.",
+            "Remove from library");
 
         if (!confirmed)
         {

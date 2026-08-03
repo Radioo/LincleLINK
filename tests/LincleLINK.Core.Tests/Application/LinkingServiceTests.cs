@@ -16,10 +16,13 @@ public sealed class LinkingServiceTests
     private readonly IFileSystem _fs = Substitute.For<IFileSystem>();
     private readonly IFileStore _store = Substitute.For<IFileStore>();
     private readonly IHardLinker _hardLinker = Substitute.For<IHardLinker>();
+    private readonly IHardLinkPreflight _preflight = Substitute.For<IHardLinkPreflight>();
     private readonly IInstanceRepository _repository = Substitute.For<IInstanceRepository>();
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
 
-    private LinkingService CreateService() => new(_fs, _store, _hardLinker, _repository, _dialogs);
+    // The preflight substitute returns null (= linkable) by default; the
+    // cross-volume test overrides it explicitly.
+    private LinkingService CreateService() => new(_fs, _store, _hardLinker, _preflight, _repository, _dialogs);
 
     private static Instance SampleInstance() => Instance.Create(
         "inst",
@@ -74,12 +77,27 @@ public sealed class LinkingServiceTests
     }
 
     [Fact]
-    public async Task Duplicates_without_confirmation_cancel_operation()
+    public async Task Cross_volume_target_fails_preflight_with_one_error()
+    {
+        _dialogs.PickFolderAsync(Arg.Any<string>()).Returns("D:\\target");
+        _preflight.CheckLinkTo("D:\\target").Returns("The folder is on a different drive than storage.");
+
+        var result = await CreateService().LinkInstanceAsync("inst");
+
+        result.Cancelled.Should().BeTrue();
+        await _dialogs.Received(1).ErrorAsync(
+            Arg.Is<string>(m => m != null && m.Contains("different drive")), Arg.Any<string>());
+        await _repository.DidNotReceive().GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        _hardLinker.DidNotReceiveWithAnyArgs().TryCreateLink(default!, default!, out _);
+    }
+
+    [Fact]
+    public async Task Conflicting_files_cancel_choice_cancels_operation()
     {
         _dialogs.PickFolderAsync(Arg.Any<string>()).Returns("C:\\target");
         _repository.GetAsync("inst", Arg.Any<CancellationToken>()).Returns(SampleInstance());
         _fs.FileExists(Arg.Any<string>()).Returns(true); // dupes exist
-        _dialogs.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
+        _dialogs.AskConflictAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(ConflictChoice.Cancel);
 
         var result = await CreateService().LinkInstanceAsync("inst");
 
@@ -88,12 +106,12 @@ public sealed class LinkingServiceTests
     }
 
     [Fact]
-    public async Task Duplicates_with_confirmation_delete_then_link()
+    public async Task Conflicting_files_replace_choice_deletes_then_links()
     {
         _dialogs.PickFolderAsync(Arg.Any<string>()).Returns("C:\\target");
         _repository.GetAsync("inst", Arg.Any<CancellationToken>()).Returns(SampleInstance());
         _fs.FileExists(Arg.Any<string>()).Returns(true);
-        _dialogs.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        _dialogs.AskConflictAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(ConflictChoice.Replace);
         _hardLinker.TryCreateLink(Arg.Any<string>(), Arg.Any<string>(), out _).Returns(x =>
         {
             x[2] = null;
@@ -105,6 +123,31 @@ public sealed class LinkingServiceTests
         result.Cancelled.Should().BeFalse();
         _fs.Received().DeleteFile(Arg.Any<string>());
         result.Linked.Should().Be(2);
+        result.SkippedExisting.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Conflicting_files_skip_choice_links_only_missing()
+    {
+        _dialogs.PickFolderAsync(Arg.Any<string>()).Returns("C:\\target");
+        _repository.GetAsync("inst", Arg.Any<CancellationToken>()).Returns(SampleInstance());
+        // a.bin already exists at the target; b.bin does not.
+        _fs.FileExists(Arg.Is<string>(p => p != null && p.EndsWith("a.bin", StringComparison.Ordinal))).Returns(true);
+        _dialogs.AskConflictAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(ConflictChoice.Skip);
+        _hardLinker.TryCreateLink(Arg.Any<string>(), Arg.Any<string>(), out _).Returns(x =>
+        {
+            x[2] = null;
+            return true;
+        });
+
+        var result = await CreateService().LinkInstanceAsync("inst");
+
+        result.Cancelled.Should().BeFalse();
+        result.Linked.Should().Be(1);
+        result.SkippedExisting.Should().Be(1);
+        result.Failed.Should().Be(0);
+        // Skip must never delete what is already there.
+        _fs.DidNotReceiveWithAnyArgs().DeleteFile(default!);
     }
 
     [Fact]

@@ -16,6 +16,12 @@ public interface IFileStore
     bool Exists(string hashedFileName);
     string GetPath(string hashedFileName);
 
+    /// <summary>
+    /// Size in bytes of a stored file, or 0 when it does not exist. A single stat
+    /// call; callers summing many files should do so off the UI thread.
+    /// </summary>
+    long GetSize(string hashedFileName);
+
     /// <summary>Copies a source file into the store; no-op when the hash already exists (dedup). Off-thread.</summary>
     Task CopyToStoreAsync(string sourcePath, string hashedFileName, CancellationToken ct = default);
 

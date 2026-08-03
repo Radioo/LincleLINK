@@ -1,4 +1,4 @@
-# 12 — Verification & Acceptance
+# 12 - Verification & Acceptance
 
 **Parent:** [00-high-level.md](00-high-level.md) §9, §12 (M6); consolidates parity/QA requirements
 **Milestone:** M6
@@ -6,7 +6,7 @@
 
 ## 1. Scope
 
-Define how v3 is proven done: the **feature-parity matrix**, **V2-data migration validation**, a **manual QA script** (per AGENTS — user tests, no screenshot harnesses), a **platform checklist**, the consolidated **behavior-change register**, and the **M6 acceptance gate**.
+Define how v3 is proven done: the **feature-parity matrix**, **V2-data migration validation**, a **manual QA script** (per AGENTS - user tests, no screenshot harnesses), a **platform checklist**, the consolidated **behavior-change register**, and the **M6 acceptance gate**.
 
 ## 2. Feature-parity matrix (v2 → v3)
 
@@ -99,6 +99,21 @@ Prereq: a copy of a real v2 install (`db/` + `instance/*.json` + CWD `settings.j
 | Migrated JSON deleted after verified write; corrupt manifests quarantined to `instance-corrupt/` | `13` D3 | no re-prompt loop, no data loss |
 | Case-insensitive instance-name uniqueness via normalized `NameKey` | `13` D6 | `OrdinalIgnoreCase` parity incl. non-ASCII |
 | `instance/` no longer created eagerly at startup; created lazily by the legacy JSON migration path | `13` | empty dir was vestigial once manifests moved to SQLite |
+| UI vocabulary overhaul: Library/entry/Storage/Deploy (domain types and on-disk names unchanged) | `14` D1 | users misread "instance" and "copy/move" |
+| Move (Reclaim space) uses link-then-replace ordering: temp hard link swapped over the original; failed links leave originals untouched (was delete-then-link) | `14` D3 | closed a cross-volume data-loss window |
+| Same-volume pre-flight (probe link) gates Reclaim mode, deploy, and torrent link with one clear error | `14` D2 | was N per-file failures; constraint lived only in README |
+| `Win32HardLinker` error 17 remapped to cross-drive (`ERROR_NOT_SAME_DEVICE`); 80/183 = already exists | `14` §2 | error-code mapping bug |
+| Duplicate files on deploy: three-way Replace / Skip existing / Cancel (was Yes=delete-all / No=abort) | `14` §3 | per-user request granularity |
+| Per-file progress lines demoted to a transient status line; log behind a Details expander; operations end with result summaries incl. previously discarded error details/counts | `14` D4–D5 | log flooding, silent results |
+| Long-running operations are cancellable from the UI (real `CancellationTokenSource`) | `14` D5 | CT plumbing existed but was never wired |
+| Torrent tab is a visible 3-step wizard; download-path edits no longer reset piece verification; entry changes now do | `14` D7 | invisible gate machine, stale-verification bug |
+| Shell: tabs replaced by sidebar nav + storage card; pages (Library / Torrent pre-fill / Settings) | `15` D1 | modern desktop pattern, brag always visible |
+| Library is master-detail with an inspector (incl. "Unique to this entry" via `GetUniqueSizeAsync`) and a filter box | `15` D2 | actions live on the entry |
+| Add flow hosted as an in-window slide-over panel (no separate dialog window) | `15` D4 | keeps user anchored; library refreshes behind it |
+| Bottom activity bar owns status/progress/cancel/outcomes; log lives in a toggle drawer | `15` D5 | one feedback home on every page; failures can't scroll away |
+| Torrent page: inputs card + vertical stepper; step-3 button states its exact effect ("Link N files") | `15` D6 | visible wizard |
+| Settings become a card grid | `15` D7 | grouping over one thin column |
+| Shell colors are app-owned theme-variant brushes (`LL*` in App.axaml), not Semi internal keys | `15` D1 | deterministic across Semi versions |
 
 ## 7. M6 acceptance gate
 

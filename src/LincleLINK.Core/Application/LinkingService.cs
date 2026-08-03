@@ -7,21 +7,32 @@ using LincleLINK.Core.Domain;
 
 namespace LincleLINK.Core.Application;
 
-public sealed record LinkResult(bool Cancelled, string? Error, int Linked, int Failed, IReadOnlyList<string> Errors);
+public sealed record LinkResult(
+    bool Cancelled,
+    string? Error,
+    int Linked,
+    int Failed,
+    int SkippedExisting,
+    IReadOnlyList<string> Errors);
 
 public sealed record CopyHashedResult(bool Cancelled, string? Error, int Copied, int AlreadyExisted);
 
 /// <summary>
-/// Materializes <c>db/</c> data back to disk: hard-link an instance to a target
-/// directory, or copy its hashed files flat (plan 06). Folder picks and
-/// confirmations go through <see cref="IDialogService"/>. Per-file hard-link
-/// failures are logged and the operation continues.
+/// Materializes <c>db/</c> data back to disk: deploy an instance to a target
+/// directory via hard links, or export its hashed files flat (plan 06, plan 14).
+/// Folder picks and confirmations go through <see cref="IDialogService"/>.
+/// Per-file hard-link failures are collected, summarized on the log (capped), and
+/// the operation continues.
 /// </summary>
 public sealed class LinkingService
 {
+    /// <summary>Per-file error lines logged before collapsing into an "…and N more." line.</summary>
+    private const int MaxLoggedErrors = 20;
+
     private readonly IFileSystem _fileSystem;
     private readonly IFileStore _store;
     private readonly IHardLinker _hardLinker;
+    private readonly IHardLinkPreflight _preflight;
     private readonly IInstanceRepository _repository;
     private readonly IDialogService _dialogs;
 
@@ -29,12 +40,14 @@ public sealed class LinkingService
         IFileSystem fileSystem,
         IFileStore store,
         IHardLinker hardLinker,
+        IHardLinkPreflight preflight,
         IInstanceRepository repository,
         IDialogService dialogs)
     {
         _fileSystem = fileSystem;
         _store = store;
         _hardLinker = hardLinker;
+        _preflight = preflight;
         _repository = repository;
         _dialogs = dialogs;
     }
@@ -45,20 +58,29 @@ public sealed class LinkingService
         IProgress<double>? percent = null,
         CancellationToken ct = default)
     {
-        var target = await _dialogs.PickFolderAsync("Select link target directory");
+        var target = await _dialogs.PickFolderAsync($"Deploy {instanceName} - select a target folder");
         if (target is null)
         {
-            return new LinkResult(true, null, 0, 0, []);
+            return new LinkResult(true, null, 0, 0, 0, []);
+        }
+
+        // One clear cross-volume failure up front instead of one per file (plan 14 D2).
+        var preflightError = await Task.Run(() => _preflight.CheckLinkTo(target), ct);
+        if (!string.IsNullOrEmpty(preflightError))
+        {
+            await _dialogs.ErrorAsync($"Can't deploy to this folder: {preflightError}", "Deploy to folder");
+            return new LinkResult(true, null, 0, 0, 0, []);
         }
 
         var (instance, notFound) = await InstanceLookup.GetAsync(_repository, instanceName, ct);
         if (instance is null)
         {
-            return new LinkResult(false, notFound, 0, 0, []);
+            return new LinkResult(false, notFound, 0, 0, 0, []);
         }
 
         var errors = new List<string>();
         int linked = 0;
+        int skippedExisting = 0;
 
         // 1. Create the directory structure (v2 order: dirs first).
         foreach (var dir in instance.DirectoryList)
@@ -75,36 +97,40 @@ public sealed class LinkingService
             _fileSystem.CreateDirectory(targetDir);
         }
 
-        // 2. Duplicate detection.
+        // 2. Conflict detection: Replace / Skip existing / Cancel (plan 14 §3).
+        var skipExisting = false;
         var dupes = instance.FileList.Count(f =>
             TryBuildTargetPath(target, f.RelativePath, f.FileName, out var p)
             && _fileSystem.FileExists(p));
 
         if (dupes > 0)
         {
-            var proceed = await _dialogs.ConfirmAsync(
-                $"{dupes} duplicate files already exist in the target directory. " +
-                "Do you want to delete each one before linking new ones? " +
-                "'No' cancels the operation entirely",
-                "Duplicate files detected");
+            var choice = await _dialogs.AskConflictAsync(
+                $"{dupes} of this entry's files already exist in the target folder. " +
+                "Replace them with links into storage, skip them, or cancel?",
+                "Files already exist");
 
-            if (!proceed)
+            if (choice == ConflictChoice.Cancel)
             {
-                return new LinkResult(true, null, 0, 0, errors);
+                return new LinkResult(true, null, 0, 0, 0, errors);
             }
 
-            foreach (var file in instance.FileList)
+            skipExisting = choice == ConflictChoice.Skip;
+            if (choice == ConflictChoice.Replace)
             {
-                if (TryBuildTargetPath(target, file.RelativePath, file.FileName, out var existing)
-                    && _fileSystem.FileExists(existing))
+                foreach (var file in instance.FileList)
                 {
-                    _fileSystem.DeleteFile(existing);
+                    if (TryBuildTargetPath(target, file.RelativePath, file.FileName, out var existing)
+                        && _fileSystem.FileExists(existing))
+                    {
+                        _fileSystem.DeleteFile(existing);
+                    }
                 }
             }
         }
 
         // 3. Link each file; per-file failures log and continue.
-        log?.Report("Linking...");
+        log?.Report($"Deploying {instanceName}...");
         var progress = ProgressStep.Over(instance.FileList.Count);
         int index = 0;
 
@@ -118,7 +144,11 @@ public sealed class LinkingService
                 continue;
             }
 
-            if (_hardLinker.TryCreateLink(_store.GetPath(file.HashedFileName), targetPath, out var error))
+            if (skipExisting && _fileSystem.FileExists(targetPath))
+            {
+                skippedExisting++;
+            }
+            else if (_hardLinker.TryCreateLink(_store.GetPath(file.HashedFileName), targetPath, out var error))
             {
                 linked++;
             }
@@ -130,25 +160,45 @@ public sealed class LinkingService
             percent?.Report(progress.Report(ref index));
         }
 
-        if (errors.Count > 0)
+        ReportSummary(log, linked, skippedExisting, errors);
+        return new LinkResult(false, null, linked, errors.Count, skippedExisting, errors);
+    }
+
+    /// <summary>
+    /// Deploy summary (plan 14 D4): one outcome line, then the per-file error
+    /// details that were previously collected and discarded, capped at
+    /// <see cref="MaxLoggedErrors"/> lines.
+    /// </summary>
+    private static void ReportSummary(IProgress<string>? log, int linked, int skippedExisting, List<string> errors)
+    {
+        var skippedNote = skippedExisting > 0 ? $" {skippedExisting} existing files were skipped." : string.Empty;
+
+        if (errors.Count == 0)
         {
-            log?.Report($"Linking finished with {errors.Count} failure(s).");
-        }
-        else
-        {
-            log?.Report("Done!");
+            log?.Report($"Deployed {linked} files.{skippedNote}");
+            return;
         }
 
-        return new LinkResult(false, null, linked, errors.Count, errors);
+        log?.Report($"Deployed {linked} files; {errors.Count} failed:{skippedNote}");
+        foreach (var error in errors.Take(MaxLoggedErrors))
+        {
+            log?.Report($"  {error}");
+        }
+
+        if (errors.Count > MaxLoggedErrors)
+        {
+            log?.Report($"  …and {errors.Count - MaxLoggedErrors} more.");
+        }
     }
 
     public async Task<CopyHashedResult> CopyHashedFilesAsync(
         string instanceName,
         IProgress<string>? log = null,
         IProgress<double>? percent = null,
+        IProgress<string>? status = null,
         CancellationToken ct = default)
     {
-        var dest = await _dialogs.PickFolderAsync("Select destination");
+        var dest = await _dialogs.PickFolderAsync("Export storage files - select a destination folder");
         if (dest is null)
         {
             return new CopyHashedResult(true, null, 0, 0);
@@ -173,17 +223,21 @@ public sealed class LinkingService
             if (_fileSystem.FileExists(destination))
             {
                 alreadyExisted++;
-                log?.Report($"{destination} already exists.");
+                status?.Report($"{destination} already exists.");
             }
             else
             {
                 await _store.CopyFromStoreAsync(file.HashedFileName, destination, ct);
                 copied++;
+                status?.Report($"Exported {file.HashedFileName}");
             }
 
             percent?.Report(progress.Report(ref index));
         }
 
+        log?.Report(alreadyExisted > 0
+            ? $"Exported {copied} files. {alreadyExisted} already existed and were skipped."
+            : $"Exported {copied} files.");
         return new CopyHashedResult(false, null, copied, alreadyExisted);
     }
 

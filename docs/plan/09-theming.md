@@ -1,4 +1,4 @@
-# 09 — Theming (Semi.Avalonia)
+# 09 - Theming (Semi.Avalonia)
 
 **Parent:** [00-high-level.md](00-high-level.md) §7, §9; [08-viewmodels-ui.md](08-viewmodels-ui.md) §7
 **Milestone:** M5
@@ -6,13 +6,13 @@
 
 ## 1. Scope
 
-Define the v3 theme. **No `Avalonia.Themes.Fluent`, no hand-rolled control templates.** The UI uses **Semi.Avalonia** (Avalonia theme inspired by Semi Design) with its **default control styling — including default element sizes and spacing**. The v3 contribution is limited to keeping the V2 layout structure (3 tabs / splitter / log / progress / DataGrid, plus the add-instance dialog) and wiring light/dark via settings.
+Define the v3 theme. **No `Avalonia.Themes.Fluent`, no hand-rolled control templates.** The UI uses **Semi.Avalonia** (Avalonia theme inspired by Semi Design) with its **default control styling - including default element sizes and spacing**. The v3 contribution is limited to keeping the V2 layout structure (3 tabs / splitter / log / progress / DataGrid, plus the add-instance dialog) and wiring light/dark via settings.
 
 ## 2. Theme stack (D1)
 
-- **Semi.Avalonia 12.1.0.1** — requires Avalonia `>= 12.1.0` (keeps the Avalonia 12.1.x pin; NuGet-compatible with net8/net9/net10). Added to package pins in `01` §4 (replaces `Avalonia.Themes.Fluent` / the draft SimpleTheme plan).
-- **Semi.Avalonia.DataGrid 12.1.x** — separate Semi package for `DataGrid` styling (the app uses a DataGrid on the Instances tab).
-- Both are registered as `Application.Styles` (Semi's usage model — not merged resource dictionaries):
+- **Semi.Avalonia 12.1.0.1** - requires Avalonia `>= 12.1.0` (keeps the Avalonia 12.1.x pin; NuGet-compatible with net8/net9/net10). Added to package pins in `01` §4 (replaces `Avalonia.Themes.Fluent` / the draft SimpleTheme plan).
+- **Semi.Avalonia.DataGrid 12.1.x** - separate Semi package for `DataGrid` styling (the app uses a DataGrid on the Instances tab).
+- Both are registered as `Application.Styles` (Semi's usage model - not merged resource dictionaries):
   ```xaml
   <Application.Styles>
       <semi:SemiTheme />
@@ -29,13 +29,13 @@ Define the v3 theme. **No `Avalonia.Themes.Fluent`, no hand-rolled control templ
   public interface IThemeManager { void Apply(bool dark); }
   ```
   impl sets `Application.Current.RequestedThemeVariant = dark ? ThemeVariant.Dark : ThemeVariant.Light`.
-- No V2 palette migration needed — the V2 brush keys (`WindowBackgroundBrush`, `TextBrush`, `AccentBrush`, …) are **not** carried over; XAML binds to controls and lets Semi style them. Layout XAML no longer sets theme brushes (except optional accent override).
+- No V2 palette migration needed - the V2 brush keys (`WindowBackgroundBrush`, `TextBrush`, `AccentBrush`, …) are **not** carried over; XAML binds to controls and lets Semi style them. Layout XAML no longer sets theme brushes (except optional accent override).
 
 ## 4. Layout & styling (D3)
 
-- **Keep V2 structure:** window grid rows — tab area / 5px splitter / log panel / status progress bar; three tabs (Instances, Link to torrent, Other); Instances tab = button row + DataGrid (Name / File count / Instance size); Link-to-torrent tab = field rows + action buttons + matched-files list; Other tab = status lines + Import DBInfo.xml + Light/Dark radio buttons + add-instance hash-thread slider; AddInstanceWindow rows (name, path+browse, copy/move radios, create, log, progress).
-- **Styling is Semi's default** — no custom sizes, spacing, or templates. Where V2 used `{DynamicResource ...}` theme brushes on the window background / splitter / progress bar, v3 uses Semi defaults (or a minimal override brush if the accent decision above is made).
-- Minimal polish allowed in layout XAML only: consistent margins/padding, `TextBox`/`Button` arrangement, column widths — matching V2 behavior, not restyling controls.
+- **Keep V2 structure:** window grid rows - tab area / 5px splitter / log panel / status progress bar; three tabs (Instances, Link to torrent, Other); Instances tab = button row + DataGrid (Name / File count / Instance size); Link-to-torrent tab = field rows + action buttons + matched-files list; Other tab = status lines + Import DBInfo.xml + Light/Dark radio buttons + add-instance hash-thread slider; AddInstanceWindow rows (name, path+browse, copy/move radios, create, log, progress).
+- **Styling is Semi's default** - no custom sizes, spacing, or templates. Where V2 used `{DynamicResource ...}` theme brushes on the window background / splitter / progress bar, v3 uses Semi defaults (or a minimal override brush if the accent decision above is made).
+- Minimal polish allowed in layout XAML only: consistent margins/padding, `TextBox`/`Button` arrangement, column widths - matching V2 behavior, not restyling controls.
 
 ## 5. Theme switching & persistence
 

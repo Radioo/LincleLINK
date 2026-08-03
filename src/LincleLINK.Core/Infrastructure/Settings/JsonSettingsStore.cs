@@ -97,7 +97,7 @@ public sealed class JsonSettingsStore : ISettingsStore
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            // Best-effort, like v2 — but surface the failure so it is not invisible.
+            // Best-effort, like v2 - but surface the failure so it is not invisible.
             Console.Error.WriteLine($"Failed to save settings to {_settingsFile}: {e.Message}");
         }
     }
