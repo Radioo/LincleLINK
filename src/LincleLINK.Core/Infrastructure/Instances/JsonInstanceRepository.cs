@@ -48,6 +48,35 @@ public sealed class JsonInstanceRepository : IInstanceRepository
         return instances;
     }
 
+    public async Task<IReadOnlyList<string>> GetAllHashedFileNamesAsync(CancellationToken ct = default)
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var instance in await GetAllAsync(ct))
+        {
+            foreach (var file in instance.FileList)
+            {
+                names.Add(file.HashedFileName);
+            }
+        }
+
+        return names.Order(StringComparer.Ordinal).ToArray();
+    }
+
+    public async Task<IReadOnlyList<InstanceListEntry>> GetSummariesAsync(CancellationToken ct = default)
+    {
+        var summaries = new List<InstanceListEntry>();
+        foreach (var name in await GetNamesAsync(ct))
+        {
+            var instance = await GetAsync(name, ct);
+            if (instance is not null)
+            {
+                summaries.Add(InstanceListEntry.From(instance));
+            }
+        }
+
+        return summaries;
+    }
+
     public async Task<Instance?> GetAsync(string name, CancellationToken ct = default)
     {
         ValidateName(name);
@@ -152,6 +181,14 @@ public sealed class JsonInstanceRepository : IInstanceRepository
 
             return true;
         }, ct);
+    }
+
+    public async Task BulkInsertAsync(IReadOnlyList<Instance> instances, CancellationToken ct = default)
+    {
+        foreach (var instance in instances)
+        {
+            await SaveAsync(instance, ct);
+        }
     }
 
     private string PathFor(string name) => Path.Combine(_paths.InstanceDirectory, name + ".json");

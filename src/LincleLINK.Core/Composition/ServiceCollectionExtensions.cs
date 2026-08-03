@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 using LincleLINK.Core.Abstractions.Disk;
 using LincleLINK.Core.Abstractions.Filesystem;
 using LincleLINK.Core.Abstractions.Hashing;
@@ -14,6 +15,7 @@ using LincleLINK.Core.Infrastructure.Hashing;
 using LincleLINK.Core.Infrastructure.Instances;
 using LincleLINK.Core.Infrastructure.Linking;
 using LincleLINK.Core.Infrastructure.Paths;
+using LincleLINK.Core.Infrastructure.Persistence;
 using LincleLINK.Core.Infrastructure.Storage;
 using LincleLINK.Core.Infrastructure.Torrents;
 
@@ -69,7 +71,18 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddSingleton<IFileStore, FileStore>();
-        services.AddSingleton<IInstanceRepository, JsonInstanceRepository>();
+
+        // SQLite instance metadata (plan 13): a singleton context factory keeps the
+        // singleton repository on short-lived contexts per operation. The DB file
+        // resolves from the app's IAppPaths (data directory).
+        services.AddDbContextFactory<LincleLinkDbContext>((sp, builder) =>
+        {
+            var paths = sp.GetRequiredService<IAppPaths>();
+            builder.UseSqlite(LincleLinkPersistence.ConnectionStringFor(paths.DataDirectory));
+        });
+
+        services.AddSingleton<IInstanceRepository, SqliteInstanceRepository>();
+        services.AddSingleton<StorageMigrationService>();
         services.AddSingleton<ITorrentSource, MonoTorrentSource>();
 
         services.AddSingleton<LegacyImporter>();

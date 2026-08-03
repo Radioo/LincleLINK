@@ -25,6 +25,7 @@ Define how v3 is proven done: the **feature-parity matrix**, **V2-data migration
 | F11 | Status panel (db size/savings/free) | `StatusServiceTests` (`08`) | Values match `du`/Explorer; appear on load (no interaction needed) |
 | F12 | Dark mode + persistence | `MainViewModelTests` (`08`,`09`) | Toggle Light/Dark radios; restart; persists |
 | F13 | Log panel + progress | `MainViewModelTests` (`08`) | Watch a long op |
+| F14 | SQLite instance storage + one-time migration | `InstanceRepositoryContractTests` (Json+Sqlite), `StorageMigrationServiceTests`, `SqliteInstanceRepositoryTests` (`13`) | See QA §4 step 12 |
 
 ## 3. V2-data migration validation
 
@@ -52,6 +53,7 @@ Prereq: a copy of a real v2 install (`db/` + `instance/*.json` + CWD `settings.j
 9. Move the add-instance hash-thread slider (Other tab) to 1 → add a large instance → UI stays responsive, hashing is visibly serialized → restart → slider persists.
 10. Add a large instance (default threads) → the log keeps streaming without the window freezing; scroll up to read earlier lines, then scroll down → auto-scroll resumes at the bottom.
 11. Fresh start → Other tab shows db size/savings/free immediately (no selection needed).
+12. **SQLite migration (M7, `13`):** on a data dir with legacy `instance/*.json` → launch → non-dismissable "Upgrading database" window with progress; JSON files gone afterwards; instance list/status identical to before; `linclelinc.db` appears at the data root (not inside `db/`); restart → no prompt. Fresh install → no prompt. Corrupt-manifest case → file moved to `instance-corrupt/`, rest migrate, app opens.
 
 **Linux (same core steps):**
 1–8 as above (dark-mode title bar: no-op expected).
@@ -92,6 +94,11 @@ Prereq: a copy of a real v2 install (`db/` + `instance/*.json` + CWD `settings.j
 | `AppSettings` gains `HashThreadCount` (clamped 1..ProcessorCount) | `03` | add-instance thread slider persistence |
 | Status `Savings` clamped at 0 (orphaned `db/` files) | `08` | negative savings crashed `SizeFormatter` |
 | UI redesign (Semi), layout preserved | `09` | modernization |
+| Instance metadata moves to SQLite (`linclelinc.db`); `db/` dedup store stays flat files | `13` D1 | EF Core code-first, scalable metadata |
+| Forced one-time JSON → SQLite migration at launch for older users; new installs skip | `13` D2 | owner decision: no decline path |
+| Migrated JSON deleted after verified write; corrupt manifests quarantined to `instance-corrupt/` | `13` D3 | no re-prompt loop, no data loss |
+| Case-insensitive instance-name uniqueness via normalized `NameKey` | `13` D6 | `OrdinalIgnoreCase` parity incl. non-ASCII |
+| `instance/` no longer created eagerly at startup; created lazily by the legacy JSON migration path | `13` | empty dir was vestigial once manifests moved to SQLite |
 
 ## 7. M6 acceptance gate
 

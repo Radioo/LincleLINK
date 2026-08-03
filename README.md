@@ -19,7 +19,7 @@ The tool's main purpose is to store all your data in its own `db` folder. The fi
 
 ## Instances
 Instances are simply a record of: file names, their hashes and their location whithin the original data structure. When adding an instance, you have an option of choosing to copy or move files to the `db`. Moving is advised to reduce space and disk stress. ***It is highly recommended to only add the `data` folder of a game as an instance.***  
-Here's an example of one file record:  
+Since v3 (M7), instance records are stored in a SQLite database (`linclelinc.db`) instead of `instance/*.json`. Existing JSON data is migrated automatically with a one-time prompt at launch; the old JSON files are deleted once the migration completes successfully. Here's an example of one file record:  
 ```
     {
       "FileName": "25063_pre.2dx",

@@ -3,7 +3,6 @@ using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Application;
-using LincleLINK.Core.Domain;
 using NSubstitute;
 using Xunit;
 
@@ -22,11 +21,10 @@ public sealed class UnusedFilesServiceTests
     {
         _store.GetAllHashedFileNamesAsync(Arg.Any<CancellationToken>())
             .Returns(["AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin"]);
-        _repository.GetAllAsync(Arg.Any<CancellationToken>()).Returns([
-            Instance.Create("a", [new InstanceFile("f.bin", "", 1, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin")], []),
-        ]);
+        _repository.GetAllHashedFileNamesAsync(Arg.Any<CancellationToken>())
+            .Returns(["AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin"]);
 
-        var result = await CreateService().CheckAndDeleteAsync();
+        var result = await CreateService().CheckAndDeleteAsync(threadCount: 4);
 
         await _dialogs.Received(1).InfoAsync(Arg.Any<string>(), Arg.Any<string>());
         result.Found.Should().Be(0);
@@ -38,12 +36,11 @@ public sealed class UnusedFilesServiceTests
     {
         _store.GetAllHashedFileNamesAsync(Arg.Any<CancellationToken>())
             .Returns(["AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin", "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.bin"]);
-        _repository.GetAllAsync(Arg.Any<CancellationToken>()).Returns([
-            Instance.Create("a", [new InstanceFile("f.bin", "", 1, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin")], []),
-        ]);
+        _repository.GetAllHashedFileNamesAsync(Arg.Any<CancellationToken>())
+            .Returns(["AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin"]);
         _dialogs.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
 
-        var result = await CreateService().CheckAndDeleteAsync();
+        var result = await CreateService().CheckAndDeleteAsync(threadCount: 4);
 
         result.Found.Should().Be(1);
         result.Deleted.Should().Be(1);
@@ -55,10 +52,10 @@ public sealed class UnusedFilesServiceTests
     {
         _store.GetAllHashedFileNamesAsync(Arg.Any<CancellationToken>())
             .Returns(["BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.bin"]);
-        _repository.GetAllAsync(Arg.Any<CancellationToken>()).Returns([]);
+        _repository.GetAllHashedFileNamesAsync(Arg.Any<CancellationToken>()).Returns([]);
         _dialogs.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
 
-        var result = await CreateService().CheckAndDeleteAsync();
+        var result = await CreateService().CheckAndDeleteAsync(threadCount: 4);
 
         result.Cancelled.Should().BeTrue();
         result.Found.Should().Be(1);

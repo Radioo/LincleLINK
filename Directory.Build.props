@@ -12,6 +12,14 @@
     <!-- Pin resolved transitive dependency versions for auditable, reproducible restores. -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+
+    <!--
+      The publish matrix (build.yml) covers win-x64, linux-x64, osx-x64 and
+      osx-arm64. Declaring the full RID set makes every restore write all four
+      RID sections into packages.lock.json on any host OS, so the committed lock
+      files are stable across machines instead of being rewritten per-platform.
+    -->
+    <RuntimeIdentifiers>win-x64;linux-x64;osx-x64;osx-arm64</RuntimeIdentifiers>
   </PropertyGroup>
 
 </Project>

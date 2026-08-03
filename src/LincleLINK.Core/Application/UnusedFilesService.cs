@@ -8,6 +8,9 @@ public sealed record UnusedFilesResult(bool Cancelled, int Found, int Deleted);
 
 /// <summary>
 /// Finds and deletes <c>db/</c> files referenced by no instance (plan 06 §6).
+/// The referenced set is a column-only projection (never the full instances) and
+/// the whole scan runs off the caller's thread, so a large library does not stall
+/// the UI; deletion is parallelized with bounded parallelism.
 /// </summary>
 public sealed class UnusedFilesService
 {
@@ -24,20 +27,27 @@ public sealed class UnusedFilesService
 
     public async Task<UnusedFilesResult> CheckAndDeleteAsync(
         IProgress<string>? log = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        int threadCount = 0)
     {
-        var all = await _store.GetAllHashedFileNamesAsync(ct);
-        var referenced = new HashSet<string>(StringComparer.Ordinal);
+        // Clamped worker count, mirroring the settings store: the "Others"-tab
+        // value bounds both add-instance hashing and this deletion scan. The
+        // default resolves to the core count (Environment.ProcessorCount is not a
+        // compile-time constant, so it cannot be the default parameter value).
+        var maxThreads = Environment.ProcessorCount;
+        threadCount = Math.Clamp(threadCount > 0 ? threadCount : maxThreads, 1, maxThreads);
 
-        foreach (var instance in await _repository.GetAllAsync(ct))
+        // Compute the unused set off the caller's (UI) thread: the db/ directory
+        // scan plus building a HashSet of every referenced hash over ~1M rows must
+        // never block the interface. Dialogs below run back on the caller context.
+        var unused = await Task.Run(async () =>
         {
-            foreach (var file in instance.FileList)
-            {
-                referenced.Add(file.HashedFileName);
-            }
-        }
+            var all = await _store.GetAllHashedFileNamesAsync(ct);
+            var referenced = (await _repository.GetAllHashedFileNamesAsync(ct))
+                .ToHashSet(StringComparer.Ordinal);
 
-        var unused = all.Where(name => !referenced.Contains(name)).ToList();
+            return all.Where(name => !referenced.Contains(name)).ToList();
+        }, ct);
 
         if (unused.Count == 0)
         {
@@ -51,12 +61,22 @@ public sealed class UnusedFilesService
             return new UnusedFilesResult(true, unused.Count, 0);
         }
 
-        foreach (var name in unused)
+        var deleted = 0;
+        var options = new ParallelOptions
         {
-            await _store.DeleteAsync(name, ct);
-        }
+            MaxDegreeOfParallelism = threadCount,
+            CancellationToken = ct,
+        };
 
-        log?.Report($"{unused.Count} unused files deleted.");
-        return new UnusedFilesResult(false, unused.Count, unused.Count);
+        await Parallel.ForEachAsync(unused, options, async (name, token) =>
+        {
+            await _store.DeleteAsync(name, token);
+            // Use the increment's return value: reading the shared field afterwards
+            // lets parallel workers log duplicate or out-of-order counts.
+            var count = Interlocked.Increment(ref deleted);
+            log?.Report($"{count} unused files deleted.");
+        });
+
+        return new UnusedFilesResult(false, unused.Count, deleted);
     }
 }

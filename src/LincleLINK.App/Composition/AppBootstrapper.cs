@@ -78,6 +78,7 @@ public static class AppBootstrapper
 
         // Transient so the Add Instance dialog starts fresh (no remembered fields/log).
         services.AddTransient<AddInstanceViewModel>();
+        services.AddTransient<StorageMigrationViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<Func<AddInstanceViewModel>>(sp => () => sp.GetRequiredService<AddInstanceViewModel>());
 

@@ -10,6 +10,10 @@ public interface IAppPaths
     string DbDirectory { get; }
     string InstanceDirectory { get; }
 
-    /// <summary>Creates <c>db/</c> and <c>instance/</c> under the data root (v2 CheckDirs).</summary>
+    /// <summary>
+    /// Creates the data-root layout at startup. Only <c>db/</c> is created eagerly
+    /// (the dedup store); since plan 13 moved instance manifests to SQLite, the
+    /// <c>instance/</c> folder is created lazily by the legacy JSON migration path.
+    /// </summary>
     void EnsureCreated();
 }
