@@ -158,3 +158,4 @@ Order matters — expand in this sequence, then lock each before implementation:
 12. `12-verification.md` (parity test checklist v2 vs v3, manual QA script)
 13. `13-sqlite-storage.md` (EF Core SQLite instance metadata + forced one-time migration — M7)
 14. `14-ux-clarity.md` (vocabulary overhaul, add-flow redesign, pre-flight + safe reclaim, result surfacing, shell refresh — M8)
+15. `15-shell-redesign.md` (sidebar + inspector shell, activity bar, slide-over add, torrent stepper, settings cards — M9)

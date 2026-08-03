@@ -30,6 +30,12 @@ public partial class AddInstanceViewModel : ViewModelBase
 
     public ObservableCollection<string> LogLines { get; } = [];
 
+    /// <summary>
+    /// True once an add completed and requested close — lets the hosting shell
+    /// distinguish success from a user-dismissed panel (plan 15 D4).
+    /// </summary>
+    public bool CompletedSuccessfully { get; private set; }
+
     public override string Title => "Add folder to library";
 
     public override Size DialogSize => new(560, 640);
@@ -232,6 +238,7 @@ public partial class AddInstanceViewModel : ViewModelBase
 
             if (result.Success)
             {
+                CompletedSuccessfully = true;
                 RequestClose();
             }
             else if (result.Error is not null)
@@ -267,6 +274,10 @@ public partial class AddInstanceViewModel : ViewModelBase
         _operationCts?.Cancel();
         StatusLine = "Cancelling...";
     }
+
+    /// <summary>Dismisses the hosting panel (disabled while an add is running).</summary>
+    [RelayCommand(CanExecute = nameof(CanInteract))]
+    private void Close() => RequestClose();
 
     private bool CanInteract() => !IsBusy;
 

@@ -38,12 +38,17 @@ public sealed class UnusedFilesServiceTests
             .Returns(["AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin", "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.bin"]);
         _repository.GetAllHashedFileNamesAsync(Arg.Any<CancellationToken>())
             .Returns(["AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin"]);
+        _store.GetSize("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.bin").Returns(2048);
         _dialogs.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
 
         var result = await CreateService().CheckAndDeleteAsync(threadCount: 4);
 
         result.Found.Should().Be(1);
         result.Deleted.Should().Be(1);
+        result.FoundBytes.Should().Be(2048);
+        // The prompt states the reclaimable size, not just a file count.
+        await _dialogs.Received(1).ConfirmAsync(
+            Arg.Is<string>(m => m != null && m.Contains("(2 KB)")), Arg.Any<string>());
         await _store.Received(1).DeleteAsync("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.bin", Arg.Any<CancellationToken>());
     }
 

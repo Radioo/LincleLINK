@@ -29,4 +29,10 @@ public interface IOperationHost
 
     /// <summary>Runs an operation on the thread pool, marshaling log/status/progress to the UI.</summary>
     Task RunOperationAsync(Func<OperationContext, Task> operation);
+
+    /// <summary>
+    /// Posts an outcome line to the shell's activity bar (plan 15 D5), e.g.
+    /// "✓ Deployed 4,812 files". Warning outcomes render in the warning color.
+    /// </summary>
+    void ReportOutcome(string message, bool isWarning = false);
 }

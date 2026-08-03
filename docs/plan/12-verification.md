@@ -107,6 +107,13 @@ Prereq: a copy of a real v2 install (`db/` + `instance/*.json` + CWD `settings.j
 | Per-file progress lines demoted to a transient status line; log behind a Details expander; operations end with result summaries incl. previously discarded error details/counts | `14` D4–D5 | log flooding, silent results |
 | Long-running operations are cancellable from the UI (real `CancellationTokenSource`) | `14` D5 | CT plumbing existed but was never wired |
 | Torrent tab is a visible 3-step wizard; download-path edits no longer reset piece verification; entry changes now do | `14` D7 | invisible gate machine, stale-verification bug |
+| Shell: tabs replaced by sidebar nav + storage card; pages (Library / Torrent pre-fill / Settings) | `15` D1 | modern desktop pattern, brag always visible |
+| Library is master-detail with an inspector (incl. "Unique to this entry" via `GetUniqueSizeAsync`) and a filter box | `15` D2 | actions live on the entry |
+| Add flow hosted as an in-window slide-over panel (no separate dialog window) | `15` D4 | keeps user anchored; library refreshes behind it |
+| Bottom activity bar owns status/progress/cancel/outcomes; log lives in a toggle drawer | `15` D5 | one feedback home on every page; failures can't scroll away |
+| Torrent page: inputs card + vertical stepper; step-3 button states its exact effect ("Link N files") | `15` D6 | visible wizard |
+| Settings become a card grid | `15` D7 | grouping over one thin column |
+| Shell colors are app-owned theme-variant brushes (`LL*` in App.axaml), not Semi internal keys | `15` D1 | deterministic across Semi versions |
 
 ## 7. M6 acceptance gate
 

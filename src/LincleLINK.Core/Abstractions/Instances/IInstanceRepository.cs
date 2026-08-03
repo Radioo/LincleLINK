@@ -26,6 +26,14 @@ public interface IInstanceRepository
     /// <summary>Case-insensitive existence check on all platforms.</summary>
     Task<bool> ExistsAsync(string name, CancellationToken ct = default);
 
+    /// <summary>
+    /// Total bytes of dedup files referenced by this instance and by no other —
+    /// what the storage cleanup could reclaim after removing the entry (plan 15
+    /// D2, the inspector's "Unique to this entry" figure). Returns 0 for an
+    /// unknown name. Duplicated hashes within the same instance count once.
+    /// </summary>
+    Task<long> GetUniqueSizeAsync(string name, CancellationToken ct = default);
+
     Task SaveAsync(Instance instance, CancellationToken ct = default);
     Task<bool> DeleteAsync(string name, CancellationToken ct = default);
 

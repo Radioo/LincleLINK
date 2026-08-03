@@ -1,10 +1,11 @@
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Storage;
+using LincleLINK.Core.Domain;
 
 namespace LincleLINK.Core.Application;
 
-public sealed record UnusedFilesResult(bool Cancelled, int Found, int Deleted);
+public sealed record UnusedFilesResult(bool Cancelled, int Found, int Deleted, long FoundBytes = 0);
 
 /// <summary>
 /// Finds and deletes <c>db/</c> files referenced by no instance (plan 06 §6).
@@ -41,13 +42,24 @@ public sealed class UnusedFilesService
         // Compute the unused set off the caller's (UI) thread: the db/ directory
         // scan plus building a HashSet of every referenced hash over ~1M rows must
         // never block the interface. Dialogs below run back on the caller context.
-        var unused = await Task.Run(async () =>
+        var (unused, unusedBytes) = await Task.Run(async () =>
         {
             var all = await _store.GetAllHashedFileNamesAsync(ct);
             var referenced = (await _repository.GetAllHashedFileNamesAsync(ct))
                 .ToHashSet(StringComparer.Ordinal);
 
-            return all.Where(name => !referenced.Contains(name)).ToList();
+            var orphans = all.Where(name => !referenced.Contains(name)).ToList();
+
+            // Per-file stat calls; stays inside this Task.Run so a large orphan
+            // set never blocks the caller's (UI) thread.
+            long bytes = 0;
+            foreach (var name in orphans)
+            {
+                ct.ThrowIfCancellationRequested();
+                bytes += _store.GetSize(name);
+            }
+
+            return (orphans, bytes);
         }, ct);
 
         if (unused.Count == 0)
@@ -59,11 +71,12 @@ public sealed class UnusedFilesService
         }
 
         var confirmed = await _dialogs.ConfirmAsync(
-            $"{unused.Count} files in storage don't belong to any library entry. Delete them?",
+            $"{unused.Count} files in storage ({SizeFormatter.Format(unusedBytes)}) " +
+            "don't belong to any library entry. Delete them?",
             "Clean up storage");
         if (!confirmed)
         {
-            return new UnusedFilesResult(true, unused.Count, 0);
+            return new UnusedFilesResult(true, unused.Count, 0, unusedBytes);
         }
 
         var deleted = 0;
@@ -83,7 +96,7 @@ public sealed class UnusedFilesService
             status?.Report($"Deleted {count} of {unused.Count} unneeded files...");
         });
 
-        log?.Report($"Deleted {deleted} files from storage.");
-        return new UnusedFilesResult(false, unused.Count, deleted);
+        log?.Report($"Deleted {deleted} files from storage ({SizeFormatter.Format(unusedBytes)} freed).");
+        return new UnusedFilesResult(false, unused.Count, deleted, unusedBytes);
     }
 }

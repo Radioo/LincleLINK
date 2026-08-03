@@ -77,6 +77,45 @@ public sealed class JsonInstanceRepository : IInstanceRepository
         return summaries;
     }
 
+    public async Task<long> GetUniqueSizeAsync(string name, CancellationToken ct = default)
+    {
+        ValidateName(name);
+
+        // In-memory equivalent of the SQLite GROUP BY: a hash counts when this
+        // entry references it and no other entry does (dedup within the entry).
+        var target = await GetAsync(name, ct);
+        if (target is null)
+        {
+            return 0;
+        }
+
+        var others = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var other in await GetAllAsync(ct))
+        {
+            if (string.Equals(other.InstanceName, target.InstanceName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            foreach (var file in other.FileList)
+            {
+                others.Add(file.HashedFileName);
+            }
+        }
+
+        long total = 0;
+        var counted = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var file in target.FileList)
+        {
+            if (!others.Contains(file.HashedFileName) && counted.Add(file.HashedFileName))
+            {
+                total += file.FileSize;
+            }
+        }
+
+        return total;
+    }
+
     public async Task<Instance?> GetAsync(string name, CancellationToken ct = default)
     {
         ValidateName(name);

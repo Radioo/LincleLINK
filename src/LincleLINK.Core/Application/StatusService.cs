@@ -10,8 +10,17 @@ namespace LincleLINK.Core.Application;
 public sealed record StatusSummary(long DbSize, long InstancesTotalSize, long Savings, long FreeSpace)
 {
     public string DbSizeString => SizeFormatter.Format(DbSize);
+    public string LibrarySizeString => SizeFormatter.Format(Math.Max(0, InstancesTotalSize));
     public string SavingsString => SizeFormatter.Format(Savings);
     public string FreeSpaceString => SizeFormatter.Format(FreeSpace);
+
+    /// <summary>
+    /// Storage size as a share of the library's un-deduplicated total (0..1) —
+    /// drives the sidebar storage bar (plan 15 D1). 0 while the library is empty.
+    /// </summary>
+    public double StorageShare => InstancesTotalSize > 0
+        ? Math.Clamp((double)DbSize / InstancesTotalSize, 0, 1)
+        : 0;
 }
 
 /// <summary>Computes the Other-tab status lines (v2 UpdateDBSize logic).</summary>

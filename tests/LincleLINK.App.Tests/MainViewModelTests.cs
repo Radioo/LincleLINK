@@ -22,7 +22,6 @@ public sealed class MainViewModelTests
 {
     private readonly IInstanceRepository _repository = Substitute.For<IInstanceRepository>();
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
-    private readonly IAppDialogHost _dialogHost = Substitute.For<IAppDialogHost>();
     private readonly IThemeManager _themeManager = Substitute.For<IThemeManager>();
     private readonly IFileSystem _fs = Substitute.For<IFileSystem>();
     private readonly IFileHasher _hasher = Substitute.For<IFileHasher>();
@@ -43,7 +42,6 @@ public sealed class MainViewModelTests
         _repository,
         new StatusService(_store, _repository, _driveInfo, _paths),
         _dialogs,
-        _dialogHost,
         _themeManager,
         _settingsStore,
         _taskbarProgress,
@@ -84,64 +82,113 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
-    public async Task OpenAddInstance_hosts_dialog_and_forwards_thread_count()
+    public void OpenAddInstance_opens_panel_and_forwards_thread_count()
     {
         StubStatus();
         _settingsStore.Load().Returns(new AppSettings(AppTheme.Light, "C:\\data", 2));
         var vm = CreateViewModel();
-        AddInstanceViewModel? shown = null;
-        _dialogHost.When(x => x.ShowDialogAsync(Arg.Any<AddInstanceViewModel>()))
-            .Do(ci => shown = ci.Arg<AddInstanceViewModel>());
 
         vm.ThreadCount = 3;
-        await vm.OpenAddInstanceCommand.ExecuteAsync(null);
+        vm.OpenAddInstanceCommand.Execute(null);
 
-        await _dialogHost.Received(1).ShowDialogAsync(Arg.Any<AddInstanceViewModel>());
-        shown!.ThreadCount.Should().Be(3);
+        vm.IsAddPanelOpen.Should().BeTrue();
+        vm.AddInstance.Should().NotBeNull();
+        vm.AddInstance!.ThreadCount.Should().Be(3);
     }
 
     [Fact]
-    public async Task OpenAddInstance_does_not_disable_command_while_dialog_is_open()
-    {
-        StubStatus();
-        var dialogOpen = new TaskCompletionSource();
-        _dialogHost.ShowDialogAsync(Arg.Any<AddInstanceViewModel>()).Returns(dialogOpen.Task);
-        var vm = CreateViewModel();
-
-        var executing = vm.OpenAddInstanceCommand.ExecuteAsync(null);
-
-        vm.IsBusy.Should().BeFalse();
-        vm.OpenAddInstanceCommand.CanExecute(null).Should().BeTrue();
-
-        dialogOpen.TrySetResult();
-        await executing;
-    }
-
-    [Fact]
-    public async Task OpenAddInstance_re_enables_command_after_dialog_closes()
+    public void OpenAddInstance_is_idempotent_while_panel_is_open()
     {
         StubStatus();
         var vm = CreateViewModel();
 
-        await vm.OpenAddInstanceCommand.ExecuteAsync(null);
+        vm.OpenAddInstanceCommand.Execute(null);
+        var first = vm.AddInstance;
+        vm.OpenAddInstanceCommand.Execute(null);
 
-        vm.IsBusy.Should().BeFalse();
+        vm.AddInstance.Should().BeSameAs(first);
+    }
+
+    [Fact]
+    public void Closing_the_add_panel_clears_it_and_refreshes()
+    {
+        StubStatus();
+        var vm = CreateViewModel();
+
+        vm.OpenAddInstanceCommand.Execute(null);
+        var panel = vm.AddInstance!;
+        panel.CloseCommand.Execute(null);
+
+        vm.IsAddPanelOpen.Should().BeFalse();
+        vm.AddInstance.Should().BeNull();
         vm.OpenAddInstanceCommand.CanExecute(null).Should().BeTrue();
     }
 
     [Fact]
-    public async Task OpenAddInstance_survives_failing_post_dialog_refresh()
+    public async Task Closing_the_add_panel_survives_failing_refresh()
     {
         StubStatus();
         _repository.GetSummariesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromException<IReadOnlyList<InstanceListEntry>>(new IOException("db unavailable")));
         var vm = CreateViewModel();
 
-        await vm.OpenAddInstanceCommand.ExecuteAsync(null);
+        vm.OpenAddInstanceCommand.Execute(null);
+        vm.AddInstance!.CloseCommand.Execute(null);
 
-        vm.IsBusy.Should().BeFalse();
-        vm.OpenAddInstanceCommand.CanExecute(null).Should().BeTrue();
+        // The refresh runs fire-and-forget; give the failed task a beat to land.
+        await Task.Delay(50);
+
+        vm.IsAddPanelOpen.Should().BeFalse();
         vm.LogLines.Should().Contain(m => m.Contains("Could not refresh the library"));
+    }
+
+    [Fact]
+    public void Filter_narrows_the_grid_and_clears_hidden_selection()
+    {
+        StubStatus();
+        var vm = CreateViewModel();
+        vm.Instances.Add(new InstanceListEntry("IIDX 31", 1, 10, "10 B"));
+        vm.Instances.Add(new InstanceListEntry("SDVX VI", 1, 10, "10 B"));
+        vm.FilterText = " "; // whitespace = no filter, but triggers ApplyFilter over the seeded list
+
+        vm.FilteredInstances.Should().HaveCount(2);
+
+        vm.SelectedInstance = vm.FilteredInstances[1];
+        vm.FilterText = "iidx";
+
+        vm.FilteredInstances.Should().ContainSingle(e => e.InstanceName == "IIDX 31");
+        vm.SelectedInstance.Should().BeNull();
+    }
+
+    [Fact]
+    public void Nav_index_drives_page_flags()
+    {
+        StubStatus();
+        var vm = CreateViewModel();
+
+        vm.IsLibraryPage.Should().BeTrue();
+
+        vm.SelectedNavIndex = 1;
+        vm.IsLibraryPage.Should().BeFalse();
+        vm.IsTorrentPage.Should().BeTrue();
+
+        vm.SelectedNavIndex = 2;
+        vm.IsSettingsPage.Should().BeTrue();
+        vm.IsTorrentPage.Should().BeFalse();
+    }
+
+    [Fact]
+    public void ReportOutcome_sets_activity_line_and_warning_flag()
+    {
+        StubStatus();
+        var vm = CreateViewModel();
+
+        vm.ReportOutcome("✓ Deployed 10 files");
+        vm.LastOutcome.Should().Be("✓ Deployed 10 files");
+        vm.LastOutcomeIsWarning.Should().BeFalse();
+
+        vm.ReportOutcome("⚠ 3 failed", isWarning: true);
+        vm.LastOutcomeIsWarning.Should().BeTrue();
     }
 
     [Fact]
@@ -311,6 +358,25 @@ public sealed class MainViewModelTests
         vm.DataDirectory.Should().Be("C:\\new-data");
         vm.DataDirectoryChangePending.Should().BeTrue();
         vm.LogLines.Should().Contain(m => m.Contains("Restart"));
+
+        // The restart requirement must be explicit: a popup, not just a log line.
+        await _dialogs.Received(1).InfoAsync(
+            Arg.Is<string>(m => m != null && m.Contains("Restart")),
+            "Restart required");
+    }
+
+    [Fact]
+    public async Task ChangeDataDirectory_cancelled_shows_no_restart_popup()
+    {
+        _settingsStore.Load().Returns(new AppSettings(AppTheme.Light, "C:\\data", 2));
+        _dialogs.PickFolderAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns((string?)null);
+
+        var vm = CreateViewModel();
+        vm.DataDirectory = "C:\\data";
+
+        await vm.ChangeDataDirectoryCommand.ExecuteAsync(null);
+
+        await _dialogs.DidNotReceiveWithAnyArgs().InfoAsync(default!, default!);
     }
 
     [Fact]

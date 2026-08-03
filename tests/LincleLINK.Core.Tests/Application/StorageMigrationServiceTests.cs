@@ -456,6 +456,7 @@ public sealed class StorageMigrationServiceTests : IDisposable
         public Task<IReadOnlyList<InstanceListEntry>> GetSummariesAsync(CancellationToken ct = default) => _inner.GetSummariesAsync(ct);
         public Task<Instance?> GetAsync(string name, CancellationToken ct = default) => _inner.GetAsync(name, ct);
         public Task<bool> ExistsAsync(string name, CancellationToken ct = default) => _inner.ExistsAsync(name, ct);
+        public Task<long> GetUniqueSizeAsync(string name, CancellationToken ct = default) => _inner.GetUniqueSizeAsync(name, ct);
         public Task<bool> DeleteAsync(string name, CancellationToken ct = default) => _inner.DeleteAsync(name, ct);
 
         public async Task SaveAsync(Instance instance, CancellationToken ct = default)

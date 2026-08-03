@@ -80,6 +80,13 @@ public partial class TorrentCheckViewModel : ViewModelBase
     [ObservableProperty]
     private string _linkHint = "Verify pieces first.";
 
+    /// <summary>
+    /// Step-3 button label; states the exact effect once verification computed the
+    /// eligible file count (plan 15 D6), e.g. "Link 2,096 files".
+    /// </summary>
+    [ObservableProperty]
+    private string _linkButtonText = "Link verified files";
+
     public TorrentCheckViewModel(
         TorrentService torrentService,
         IDialogService dialogs,
@@ -186,6 +193,11 @@ public partial class TorrentCheckViewModel : ViewModelBase
             _badPieces = result.BadPieces;
             VerifySummary = $"{result.MatchedPieces} of {result.TotalPieces} pieces verified.";
             PiecesVerified = true;
+
+            var bad = result.BadPieces.ToHashSet();
+            var eligible = result.Files.Count(f =>
+                f.HashedFileName is not null && !f.Pieces.Any(bad.Contains));
+            LinkButtonText = $"Link {eligible} files";
             UpdateHints();
         });
     }
@@ -216,6 +228,7 @@ public partial class TorrentCheckViewModel : ViewModelBase
             }
 
             LinkSummary = $"Linked {result.Linked} files, skipped {result.Skipped}.";
+            _host.ReportOutcome($"✓ Pre-fill finished: linked {result.Linked} files, skipped {result.Skipped}");
         });
 
         // Linked files now exist at the target, so previous match/verify results
@@ -243,6 +256,7 @@ public partial class TorrentCheckViewModel : ViewModelBase
         PiecesVerified = false;
         MatchSummary = string.Empty;
         VerifySummary = string.Empty;
+        LinkButtonText = "Link verified files";
         if (!keepLinkSummary)
         {
             LinkSummary = string.Empty;

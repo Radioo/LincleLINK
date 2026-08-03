@@ -76,6 +76,42 @@ public abstract class InstanceRepositoryContractTests : IDisposable
     }
 
     [Fact]
+    public async Task GetUniqueSize_counts_only_hashes_no_other_entry_references()
+    {
+        var repo = CreateRepository();
+
+        // "A" shares SHARED with "B", holds UNIQUE alone, and references DUPED
+        // twice (must count once). "B" also has its own unshared hash.
+        await repo.SaveAsync(Instance.Create(
+            "A",
+            [
+                new InstanceFile("shared.bin", "", 100, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin"),
+                new InstanceFile("unique.bin", "", 40, "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.bin"),
+                new InstanceFile("duped1.bin", "", 7, "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC.bin"),
+                new InstanceFile("duped2.bin", "sub", 7, "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC.bin"),
+            ],
+            [""]));
+        await repo.SaveAsync(Instance.Create(
+            "B",
+            [
+                new InstanceFile("shared.bin", "", 100, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin"),
+                new InstanceFile("b-only.bin", "", 9, "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD.bin"),
+            ],
+            [""]));
+
+        (await repo.GetUniqueSizeAsync("A")).Should().Be(40 + 7);
+        (await repo.GetUniqueSizeAsync("B")).Should().Be(9);
+        (await repo.GetUniqueSizeAsync("a")).Should().Be(47, "lookup is case-insensitive");
+    }
+
+    [Fact]
+    public async Task GetUniqueSize_unknown_entry_returns_zero()
+    {
+        var repo = CreateRepository();
+        (await repo.GetUniqueSizeAsync("nope")).Should().Be(0);
+    }
+
+    [Fact]
     public async Task GetNames_returns_sorted_names()
     {
         var repo = CreateRepository();
