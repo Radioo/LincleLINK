@@ -107,6 +107,16 @@
                             <TextBlock Grid.Column="1" Text="{Binding ThreadCount}" VerticalAlignment="Center" MinWidth="24" TextAlignment="Right" />
                         </Grid>
                     </StackPanel>
+
+                    <StackPanel Margin="0,8,0,0" Spacing="4">
+                        <TextBlock Text="Data directory" />
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <TextBox Grid.Column="0" Text="{Binding DataDirectory}" IsReadOnly="True" />
+                            <Button Grid.Column="1" Content="Change..." Command="{Binding ChangeDataDirectoryCommand}" />
+                        </Grid>
+                        <TextBlock Text="Takes effect after restarting LincleLINK"
+                                   IsVisible="{Binding DataDirectoryChangePending}" />
+                    </StackPanel>
                 </StackPanel>
             </TabItem>
 

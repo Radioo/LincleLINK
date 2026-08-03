@@ -54,7 +54,8 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         nameof(LinkFilesCommand),
         nameof(CopyHashedCommand),
         nameof(CheckUnusedCommand),
-        nameof(ImportLegacyCommand))]
+        nameof(ImportLegacyCommand),
+        nameof(ChangeDataDirectoryCommand))]
     private bool _isBusy;
     
     [ObservableProperty]
@@ -68,6 +69,17 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
 
     [ObservableProperty]
     private string _freeSpace = string.Empty;
+
+    /// <summary>
+    /// Data directory shown on the Other tab. The active directory is frozen at
+    /// boot (IAppPaths singleton, SQLite connection string), so a change here is
+    /// persisted only and picked up on the next launch.
+    /// </summary>
+    [ObservableProperty]
+    private string _dataDirectory = string.Empty;
+
+    [ObservableProperty]
+    private bool _dataDirectoryChangePending;
 
     public MainViewModel(
         InstanceService instanceService,
@@ -240,6 +252,21 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         await RefreshAllAsync();
     }
 
+    [RelayCommand(CanExecute = nameof(CanChangeDataDirectory))]
+    private async Task ChangeDataDirectoryAsync()
+    {
+        var path = await _dialogs.PickFolderAsync("Select data directory", DataDirectory);
+        if (path is null || string.Equals(path, DataDirectory, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        SaveSettings(dataDirectory: path);
+        DataDirectory = path;
+        DataDirectoryChangePending = true;
+        LogLines.Add($"Data directory set to {path}. Restart LincleLINK to apply.");
+    }
+
     public async Task RunOperationAsync(
         Func<IProgress<string>, IProgress<double>, Task> operation)
     {
@@ -274,6 +301,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     private bool CanDeleteInstance() => CanOperateWithSelection();
     private bool CanCheckUnused() => CanOperate();
     private bool CanImportLegacy() => CanOperate();
+    private bool CanChangeDataDirectory() => CanOperate();
 
     private bool CanOperate() => !IsBusy;
 
@@ -322,12 +350,12 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     /// Persists a single setting change, preserving the other fields from the
     /// currently stored settings so startup seeding never clobbers them.
     /// </summary>
-    private void SaveSettings(AppTheme? theme = null, int? threads = null)
+    private void SaveSettings(AppTheme? theme = null, int? threads = null, string? dataDirectory = null)
     {
         var current = _settingsStore.Load();
         _settingsStore.Save(new AppSettings(
             theme ?? current.Theme,
-            current.DataDirectory,
+            dataDirectory ?? current.DataDirectory,
             threads ?? current.HashThreadCount));
     }
 

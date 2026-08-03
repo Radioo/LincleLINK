@@ -13,8 +13,12 @@ public interface IDialogService
     Task InfoAsync(string message, string title = "");
     Task ErrorAsync(string message, string title = "");
 
-    /// <summary>Returns null when the user cancels.</summary>
-    Task<string?> PickFolderAsync(string title);
+    /// <summary>
+    /// Returns null when the user cancels. When <paramref name="startDirectory"/>
+    /// names an existing directory, the picker opens there; otherwise it opens at
+    /// the platform default location.
+    /// </summary>
+    Task<string?> PickFolderAsync(string title, string? startDirectory = null);
 
     /// <summary>Returns null when the user cancels.</summary>
     Task<string?> PickOpenFileAsync(string title, FileType fileType);

@@ -63,6 +63,9 @@ public partial class App : Application
                 desktop.MainWindow.DataContext = viewModel;
                 viewModel.SetTheme(settings.Theme);
                 viewModel.ThreadCount = settings.HashThreadCount;
+                // Resolved to an absolute path by FirstLaunchService before this
+                // point; the fallback only covers a hand-edited settings file.
+                viewModel.DataDirectory = settings.DataDirectory ?? string.Empty;
 
                 // The first-run dialog shows the main window before the DataContext is
                 // set, so Opened cannot drive the initial refresh in that case; fire it

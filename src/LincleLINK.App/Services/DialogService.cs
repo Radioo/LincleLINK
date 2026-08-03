@@ -36,13 +36,23 @@ public sealed class DialogService : IDialogService, IAppDialogHost
     public Task ErrorAsync(string message, string title = "")
         => ShowMessageAsync(message, title, MessageDialogButtons.Ok);
 
-    public async Task<string?> PickFolderAsync(string title)
+    public async Task<string?> PickFolderAsync(string title, string? startDirectory = null)
     {
         var storage = GetStorageProvider();
+
+        // TryGetFolderFromPathAsync returns null for a missing/inaccessible path,
+        // which falls back to the picker's platform default location.
+        IStorageFolder? startLocation = null;
+        if (!string.IsNullOrWhiteSpace(startDirectory))
+        {
+            startLocation = await storage.TryGetFolderFromPathAsync(startDirectory);
+        }
+
         var result = await storage.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
             Title = title,
             AllowMultiple = false,
+            SuggestedStartLocation = startLocation,
         });
 
         return result.Count > 0 ? result[0].TryGetLocalPath() : null;

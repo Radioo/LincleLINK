@@ -284,6 +284,66 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task ChangeDataDirectory_persists_and_flags_restart()
+    {
+        _settingsStore.Load().Returns(new AppSettings(AppTheme.Light, "C:\\data", 2));
+        AppSettings? saved = null;
+        _settingsStore.When(x => x.Save(Arg.Any<AppSettings>()))
+            .Do(callInfo => saved = callInfo.Arg<AppSettings>());
+        _dialogs.PickFolderAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("C:\\new-data");
+
+        var vm = CreateViewModel();
+        vm.DataDirectory = "C:\\data";
+
+        await vm.ChangeDataDirectoryCommand.ExecuteAsync(null);
+
+        // The picker must open in the currently configured directory.
+        await _dialogs.Received(1).PickFolderAsync(Arg.Any<string>(), "C:\\data");
+        saved.Should().NotBeNull();
+        saved!.DataDirectory.Should().Be("C:\\new-data");
+        saved.Theme.Should().Be(AppTheme.Light);
+        saved.HashThreadCount.Should().Be(2);
+        vm.DataDirectory.Should().Be("C:\\new-data");
+        vm.DataDirectoryChangePending.Should().BeTrue();
+        vm.LogLines.Should().Contain(m => m.Contains("Restart"));
+    }
+
+    [Fact]
+    public async Task ChangeDataDirectory_cancelled_or_unchanged_saves_nothing()
+    {
+        _settingsStore.Load().Returns(new AppSettings(AppTheme.Light, "C:\\data", 2));
+        _dialogs.PickFolderAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns((string?)null);
+
+        var vm = CreateViewModel();
+        vm.DataDirectory = "C:\\data";
+
+        await vm.ChangeDataDirectoryCommand.ExecuteAsync(null);
+
+        _settingsStore.DidNotReceive().Save(Arg.Any<AppSettings>());
+        vm.DataDirectoryChangePending.Should().BeFalse();
+
+        // Re-picking the current directory (any casing) is a no-op too.
+        _dialogs.PickFolderAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns("c:\\DATA");
+
+        await vm.ChangeDataDirectoryCommand.ExecuteAsync(null);
+
+        _settingsStore.DidNotReceive().Save(Arg.Any<AppSettings>());
+        vm.DataDirectoryChangePending.Should().BeFalse();
+    }
+
+    [Fact]
+    public void ChangeDataDirectory_command_is_gated_on_busy()
+    {
+        StubStatus();
+        var vm = CreateViewModel();
+
+        vm.ChangeDataDirectoryCommand.CanExecute(null).Should().BeTrue();
+
+        vm.IsBusy = true;
+        vm.ChangeDataDirectoryCommand.CanExecute(null).Should().BeFalse();
+    }
+
+    [Fact]
     public void Torrent_input_edits_reset_piece_gates()
     {
         StubStatus();
