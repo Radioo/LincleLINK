@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Appium;
@@ -118,18 +119,40 @@ public sealed class AppSession : IDisposable
         // CI screens can be as small as 1024x768; the app's default 1120-wide
         // window would push right-side controls (inspector, activity bar buttons)
         // offscreen where clicks silently miss. Pin it to a size that always fits.
-        try
-        {
-            driver.Manage().Window.Position = new System.Drawing.Point(0, 0);
-            driver.Manage().Window.Size = new System.Drawing.Size(1000, 700);
-        }
-        catch (WebDriverException)
-        {
-            // Cosmetic hardening only; never fail the launch over it.
-        }
+        // WinAppDriver does not implement the WebDriver window-rect endpoints, so
+        // this goes through Win32 (WAD window handles are literal HWNDs).
+        TryResizeMainWindow(driver);
 
         return new AppSession(driver, serverUrl, appPath, tempRoot, settingsFile, dataDirectory);
     }
+
+    private static void TryResizeMainWindow(WindowsDriver<WindowsElement> driver)
+    {
+        try
+        {
+            var hwnd = new IntPtr(Convert.ToInt64(driver.CurrentWindowHandle, 16));
+            SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 1000, 700, SwpNoZOrder | SwpNoActivate);
+        }
+        catch
+        {
+            // Cosmetic hardening only; never fail the launch over it.
+        }
+    }
+
+    private const uint SwpNoZOrder = 0x0004;
+    private const uint SwpNoActivate = 0x0010;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(
+        IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
+
+    /// <summary>
+    /// WinAppDriver reports unsupported/unknown commands in ways the Selenium 3
+    /// client surfaces as <see cref="InvalidOperationException"/> rather than a
+    /// <see cref="WebDriverException"/>; poll loops must treat both as
+    /// "not available yet" instead of letting them escape.
+    /// </summary>
+    private static bool IsDriverError(Exception e) => e is WebDriverException or InvalidOperationException;
 
     /// <summary>Kills leftover app instances started from the test output copy of
     /// the exe (never a user's real install, which lives elsewhere).</summary>
@@ -204,7 +227,7 @@ public sealed class AppSession : IDisposable
         {
             return count();
         }
-        catch (WebDriverException)
+        catch (Exception e) when (IsDriverError(e))
         {
             // The window itself is gone; that counts as "element gone".
             return 0;
@@ -245,7 +268,7 @@ public sealed class AppSession : IDisposable
             var found = Driver.FindElementsByAccessibilityId(id);
             return found.Count > 0 ? found.First().Text : string.Empty;
         }
-        catch (WebDriverException)
+        catch (Exception e) when (IsDriverError(e))
         {
             return string.Empty;
         }
@@ -269,7 +292,7 @@ public sealed class AppSession : IDisposable
                     return found.First();
                 }
             }
-            catch (WebDriverException e)
+            catch (Exception e) when (IsDriverError(e))
             {
                 // The current window may just have closed (e.g. a dialog);
                 // fall through to the handle scan.
@@ -289,13 +312,13 @@ public sealed class AppSession : IDisposable
                             return found.First();
                         }
                     }
-                    catch (WebDriverException e)
+                    catch (Exception e) when (IsDriverError(e))
                     {
                         lastError = e;
                     }
                 }
             }
-            catch (WebDriverException e)
+            catch (Exception e) when (IsDriverError(e))
             {
                 lastError = e;
             }
@@ -358,13 +381,13 @@ public sealed class AppSession : IDisposable
                             return;
                         }
                     }
-                    catch (WebDriverException)
+                    catch (Exception e) when (IsDriverError(e))
                     {
                         // Window closed mid-scan; keep looking.
                     }
                 }
             }
-            catch (WebDriverException)
+            catch (Exception e) when (IsDriverError(e))
             {
                 // Handle list unavailable for a moment; retry.
             }
@@ -390,7 +413,7 @@ public sealed class AppSession : IDisposable
                          ?? found.FirstOrDefault();
                 return window is not null;
             }
-            catch (WebDriverException)
+            catch (Exception e) when (IsDriverError(e))
             {
                 return false;
             }
@@ -406,7 +429,7 @@ public sealed class AppSession : IDisposable
             {
                 return Desktop.FindElementsByName(title).Count == 0;
             }
-            catch (WebDriverException)
+            catch (Exception e) when (IsDriverError(e))
             {
                 return true;
             }
