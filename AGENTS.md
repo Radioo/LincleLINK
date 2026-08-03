@@ -4,7 +4,6 @@
 
 - Build: `dotnet build LincleLINK.sln`; tests: `dotnet test LincleLINK.sln`.
 - CI: GitHub Actions matrix (`windows-latest` + `ubuntu-latest` + `macos-latest`) - `.github/workflows/ci.yml`.
-- Appium UI tests: `tests/LincleLINK.UITests/` (WinAppDriver, Windows-only, skipped unless `LINCLELINK_UI_TESTS=1`; CI runs them in the `ui-test` job). See `docs/ui-tests.md`. The app takes `--settings-file=<path>` to redirect config for isolated runs; keep `AutomationProperties.AutomationId` on controls these tests drive.
 - `TreatWarningsAsErrors` is on for Core + both test projects (off for App). Keep builds at 0 warnings.
 - **Do NOT test UI changes via screenshots/render-capture harnesses** - ask the user to test and report instead.
 

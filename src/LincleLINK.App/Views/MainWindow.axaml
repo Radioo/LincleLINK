@@ -35,19 +35,19 @@
                                     <Setter Property="Margin" Value="0,1" />
                                 </Style>
                             </ListBox.Styles>
-                            <ListBoxItem AutomationProperties.AutomationId="NavLibrary">
+                            <ListBoxItem>
                                 <StackPanel Orientation="Horizontal" Spacing="10">
                                     <TextBlock Text="▤" Width="16" TextAlignment="Center" />
                                     <TextBlock Text="Library" />
                                 </StackPanel>
                             </ListBoxItem>
-                            <ListBoxItem AutomationProperties.AutomationId="NavTorrent">
+                            <ListBoxItem>
                                 <StackPanel Orientation="Horizontal" Spacing="10">
                                     <TextBlock Text="⇣" Width="16" TextAlignment="Center" />
                                     <TextBlock Text="Torrent pre-fill" />
                                 </StackPanel>
                             </ListBoxItem>
-                            <ListBoxItem AutomationProperties.AutomationId="NavSettings">
+                            <ListBoxItem>
                                 <StackPanel Orientation="Horizontal" Spacing="10">
                                     <TextBlock Text="⚙" Width="16" TextAlignment="Center" />
                                     <TextBlock Text="Settings" />
@@ -62,7 +62,6 @@
                                 CornerRadius="8" Padding="11,10">
                             <StackPanel Spacing="4">
                                 <TextBlock Text="{Binding Savings, StringFormat=Saving {0}}"
-                                           AutomationProperties.AutomationId="StorageSavings"
                                            FontWeight="Bold" FontSize="14"
                                            Foreground="{DynamicResource LLAccentText}" />
                                 <!-- MinWidth=0 is load-bearing: the themed ProgressBar template has a
@@ -81,7 +80,6 @@
                                 </Grid>
                                 <Button Content="Clean up storage..." FontSize="11.5" Padding="8,4"
                                         HorizontalAlignment="Stretch" Margin="0,4,0,0"
-                                        AutomationProperties.AutomationId="CleanupStorage"
                                         Command="{Binding CheckUnusedCommand}"
                                         ToolTip.Tip="Find and delete storage files that no longer belong to any library entry" />
                             </StackPanel>
@@ -99,18 +97,15 @@
                             <TextBlock Grid.Column="1" Text="{Binding Instances.Count, StringFormat={}{0} entries}"
                                        Opacity="0.6" FontSize="12" VerticalAlignment="Center" />
                             <TextBox Grid.Column="3" MinWidth="170" PlaceholderText="Filter entries..."
-                                     Text="{Binding FilterText, Mode=TwoWay}"
-                                     AutomationProperties.AutomationId="LibraryFilter" />
+                                     Text="{Binding FilterText, Mode=TwoWay}" />
                             <Button Grid.Column="4" Classes="Primary" Content="＋ Add folder..."
                                     Command="{Binding OpenAddInstanceCommand}"
-                                    AutomationProperties.AutomationId="AddFolderButton"
                                     ToolTip.Tip="Register a folder as a library entry and absorb its files into storage" />
                         </Grid>
 
                         <Panel Grid.Row="1">
                             <Grid ColumnDefinitions="*,250" ColumnSpacing="12" IsVisible="{Binding !!Instances.Count}">
                                 <DataGrid Grid.Column="0"
-                                          AutomationProperties.AutomationId="LibraryGrid"
                                           ItemsSource="{Binding FilteredInstances}"
                                           AutoGenerateColumns="False"
                                           IsReadOnly="True"
@@ -140,7 +135,6 @@
                                             IsVisible="{Binding SelectedInstance, Converter={x:Static ObjectConverters.IsNotNull}}">
                                         <StackPanel Spacing="10">
                                             <TextBlock Text="{Binding SelectedInstance.InstanceName}"
-                                                       AutomationProperties.AutomationId="InspectorName"
                                                        FontWeight="Bold" FontSize="15" TextWrapping="Wrap" />
                                             <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
                                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Files" Opacity="0.6" FontSize="12" />
@@ -149,20 +143,16 @@
                                                 <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedInstance.TotalFileSizeString}" FontSize="12" />
                                                 <TextBlock Grid.Row="2" Grid.Column="0" Text="Unique to this entry" Opacity="0.6" FontSize="12"
                                                            ToolTip.Tip="Bytes in storage referenced by no other entry - what a removal plus storage cleanup would free" />
-                                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedUniqueSizeText}" FontSize="12"
-                                                           AutomationProperties.AutomationId="InspectorUniqueSize" />
+                                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedUniqueSizeText}" FontSize="12" />
                                             </Grid>
                                             <Button Classes="Primary" HorizontalAlignment="Stretch"
                                                     Content="Deploy to folder..." Command="{Binding LinkFilesCommand}"
-                                                    AutomationProperties.AutomationId="InspectorDeploy"
                                                     ToolTip.Tip="Recreate this entry anywhere on the same drive using hard links - no extra disk space" />
                                             <Button HorizontalAlignment="Stretch"
                                                     Content="Export storage files..." Command="{Binding CopyHashedCommand}"
-                                                    AutomationProperties.AutomationId="InspectorExport"
                                                     ToolTip.Tip="Copy this entry's files out of storage under their hashed names" />
                                             <Button Classes="Danger" HorizontalAlignment="Stretch"
                                                     Content="Remove from library" Command="{Binding DeleteInstanceCommand}"
-                                                    AutomationProperties.AutomationId="InspectorRemove"
                                                     ToolTip.Tip="Forget this entry - its files stay in storage and deployed folders are untouched" />
                                         </StackPanel>
                                     </Border>
@@ -177,13 +167,11 @@
                             <StackPanel IsVisible="{Binding !Instances.Count}"
                                         VerticalAlignment="Center" HorizontalAlignment="Center"
                                         Spacing="12" MaxWidth="460">
-                                <TextBlock Text="Your library is empty" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center"
-                                           AutomationProperties.AutomationId="LibraryEmptyState" />
+                                <TextBlock Text="Your library is empty" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
                                 <TextBlock TextWrapping="Wrap" Opacity="0.7" TextAlignment="Center" FontSize="13"
                                            Text="Add a game's data folder to store it deduplicated - identical files across versions are stored only once. You can then deploy any entry to any folder on the same drive, using no extra disk space." />
                                 <Button Content="＋ Add your first folder" Classes="Primary"
-                                        Command="{Binding OpenAddInstanceCommand}" HorizontalAlignment="Center"
-                                        AutomationProperties.AutomationId="AddFirstFolder" />
+                                        Command="{Binding OpenAddInstanceCommand}" HorizontalAlignment="Center" />
                             </StackPanel>
                         </Panel>
                     </Grid>
@@ -192,8 +180,7 @@
                     <ScrollViewer IsVisible="{Binding IsTorrentPage}">
                         <StackPanel Spacing="12">
                             <StackPanel Spacing="2">
-                                <TextBlock Text="Torrent pre-fill" FontSize="19" FontWeight="Bold"
-                                       AutomationProperties.AutomationId="TorrentPageHeader" />
+                                <TextBlock Text="Torrent pre-fill" FontSize="19" FontWeight="Bold" />
                                 <TextBlock TextWrapping="Wrap" Opacity="0.7" FontSize="12.5"
                                            Text="Already have most of a torrent's files in your library? Link them into the download folder first - your torrent client then only fetches what's missing, and verified links won't be overwritten." />
                             </StackPanel>
@@ -206,7 +193,6 @@
                                         <TextBlock Text="Library entry to pre-fill from" FontSize="12" Opacity="0.7" />
                                         <ComboBox ItemsSource="{Binding Instances}"
                                                   SelectedItem="{Binding TorrentCheck.TorrentInstance, Mode=TwoWay}"
-                                                  AutomationProperties.AutomationId="TorrentEntryCombo"
                                                   HorizontalAlignment="Stretch">
                                             <ComboBox.ItemTemplate>
                                                 <DataTemplate x:DataType="domain:InstanceListEntry">
@@ -218,22 +204,19 @@
                                     <StackPanel Grid.Row="0" Grid.Column="1" Spacing="4">
                                         <TextBlock Text="Torrent file" FontSize="12" Opacity="0.7" />
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                            <TextBox Grid.Column="0" Text="{Binding TorrentCheck.TorrentFilePath, Mode=TwoWay}"
-                                                     AutomationProperties.AutomationId="TorrentFile" />
+                                            <TextBox Grid.Column="0" Text="{Binding TorrentCheck.TorrentFilePath, Mode=TwoWay}" />
                                             <Button Grid.Column="1" Content="Browse..." Command="{Binding TorrentCheck.BrowseTorrentFileCommand}" />
                                         </Grid>
                                     </StackPanel>
                                     <StackPanel Grid.Row="1" Grid.Column="0" Spacing="4">
                                         <TextBlock Text="Data folder inside the torrent" FontSize="12" Opacity="0.7" />
                                         <TextBox Text="{Binding TorrentCheck.RelativePath, Mode=TwoWay}" PlaceholderText="contents\data"
-                                                 AutomationProperties.AutomationId="TorrentRelativePath"
                                                  ToolTip.Tip="Where the data folder sits within the torrent's structure - usually contents\data" />
                                     </StackPanel>
                                     <StackPanel Grid.Row="1" Grid.Column="1" Spacing="4">
                                         <TextBlock Text="Download folder (point your torrent client here)" FontSize="12" Opacity="0.7" />
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                            <TextBox Grid.Column="0" Text="{Binding TorrentCheck.TorrentDownloadPath, Mode=TwoWay}"
-                                                     AutomationProperties.AutomationId="TorrentDownloadPath" />
+                                            <TextBox Grid.Column="0" Text="{Binding TorrentCheck.TorrentDownloadPath, Mode=TwoWay}" />
                                             <Button Grid.Column="1" Content="Browse..." Command="{Binding TorrentCheck.BrowseTorrentDlPathCommand}" />
                                         </Grid>
                                     </StackPanel>
@@ -260,12 +243,10 @@
                                         </Border>
                                     </Panel>
                                     <Button Grid.Row="0" Grid.Column="1" Content="Match files" HorizontalAlignment="Stretch"
-                                            AutomationProperties.AutomationId="TorrentMatch"
                                             Command="{Binding TorrentCheck.CheckFilesCommand}"
                                             ToolTip.Tip="Quick name and size comparison between the torrent and the selected entry" />
                                     <StackPanel Grid.Row="0" Grid.Column="2" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding TorrentCheck.MatchSummary}" FontSize="12" Opacity="0.85"
-                                                   AutomationProperties.AutomationId="TorrentMatchSummary"
                                                    IsVisible="{Binding TorrentCheck.MatchSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                     </StackPanel>
 
@@ -285,15 +266,12 @@
                                         </Border>
                                     </Panel>
                                     <Button Grid.Row="2" Grid.Column="1" Content="Verify pieces" HorizontalAlignment="Stretch"
-                                            AutomationProperties.AutomationId="TorrentVerify"
                                             Command="{Binding TorrentCheck.CheckPiecesCommand}"
                                             ToolTip.Tip="Byte-exact piece check - only fully verified files get linked, so nothing is overwritten" />
                                     <StackPanel Grid.Row="2" Grid.Column="2" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding TorrentCheck.VerifySummary}" FontSize="12" Opacity="0.85"
-                                                   AutomationProperties.AutomationId="TorrentVerifySummary"
                                                    IsVisible="{Binding TorrentCheck.VerifySummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                         <TextBlock Text="{Binding TorrentCheck.VerifyHint}" FontSize="12" Opacity="0.5"
-                                                   AutomationProperties.AutomationId="TorrentVerifyHint"
                                                    IsVisible="{Binding TorrentCheck.VerifyHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                     </StackPanel>
 
@@ -314,15 +292,12 @@
                                     </Panel>
                                     <Button Grid.Row="4" Grid.Column="1" Content="{Binding TorrentCheck.LinkButtonText}"
                                             HorizontalAlignment="Stretch" Classes="Primary"
-                                            AutomationProperties.AutomationId="TorrentLink"
                                             Command="{Binding TorrentCheck.LinkToTorrentCommand}"
                                             ToolTip.Tip="Hard-link every verified file into the download folder" />
                                     <StackPanel Grid.Row="4" Grid.Column="2" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding TorrentCheck.LinkSummary}" FontSize="12" Opacity="0.85"
-                                                   AutomationProperties.AutomationId="TorrentLinkSummary"
                                                    IsVisible="{Binding TorrentCheck.LinkSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                         <TextBlock Text="{Binding TorrentCheck.LinkHint}" FontSize="12" Opacity="0.5"
-                                                   AutomationProperties.AutomationId="TorrentLinkHint"
                                                    IsVisible="{Binding TorrentCheck.LinkHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                     </StackPanel>
                                 </Grid>
@@ -339,8 +314,7 @@
                     <!-- ═════ Settings page (plan 15 D7) ═════ -->
                     <ScrollViewer IsVisible="{Binding IsSettingsPage}">
                         <StackPanel Spacing="12">
-                            <TextBlock Text="Settings" FontSize="19" FontWeight="Bold"
-                                       AutomationProperties.AutomationId="SettingsPageHeader" />
+                            <TextBlock Text="Settings" FontSize="19" FontWeight="Bold" />
                             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="12">
 
                                 <Border Grid.Row="0" Grid.Column="0" Background="{DynamicResource LLCard}"
@@ -349,12 +323,9 @@
                                         <TextBlock Text="Appearance" FontWeight="SemiBold" FontSize="13.5" />
                                         <TextBlock Text="Theme follows your system by default" Opacity="0.6" FontSize="11.5" />
                                         <StackPanel Orientation="Horizontal" Spacing="14">
-                                            <RadioButton Content="Light" GroupName="theme" IsChecked="{Binding IsLightTheme, Mode=TwoWay}"
-                                                         AutomationProperties.AutomationId="ThemeLight" />
-                                            <RadioButton Content="Dark" GroupName="theme" IsChecked="{Binding IsDarkTheme, Mode=TwoWay}"
-                                                         AutomationProperties.AutomationId="ThemeDark" />
-                                            <RadioButton Content="System" GroupName="theme" IsChecked="{Binding IsSystemTheme, Mode=TwoWay}"
-                                                         AutomationProperties.AutomationId="ThemeSystem" />
+                                            <RadioButton Content="Light" GroupName="theme" IsChecked="{Binding IsLightTheme, Mode=TwoWay}" />
+                                            <RadioButton Content="Dark" GroupName="theme" IsChecked="{Binding IsDarkTheme, Mode=TwoWay}" />
+                                            <RadioButton Content="System" GroupName="theme" IsChecked="{Binding IsSystemTheme, Mode=TwoWay}" />
                                         </StackPanel>
                                     </StackPanel>
                                 </Border>
@@ -366,10 +337,8 @@
                                         <TextBlock Text="Worker threads for hashing and storage cleanup" Opacity="0.6" FontSize="11.5" />
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                             <Slider Grid.Column="0" Minimum="1" Maximum="{Binding MaxThreadCount}"
-                                                    AutomationProperties.AutomationId="ThreadSlider"
                                                     Value="{Binding ThreadCount, Mode=TwoWay}" />
                                             <TextBlock Grid.Column="1" Text="{Binding ThreadCount}" VerticalAlignment="Center"
-                                                       AutomationProperties.AutomationId="ThreadCountText"
                                                        MinWidth="24" TextAlignment="Right" />
                                         </Grid>
                                     </StackPanel>
@@ -381,13 +350,10 @@
                                         <TextBlock Text="Data location" FontWeight="SemiBold" FontSize="13.5" />
                                         <TextBlock Text="Where storage (db) and the library database live" Opacity="0.6" FontSize="11.5" />
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                            <TextBox Grid.Column="0" Text="{Binding DataDirectory}" IsReadOnly="True"
-                                                     AutomationProperties.AutomationId="SettingsDataDirectory" />
-                                            <Button Grid.Column="1" Content="Change..." Command="{Binding ChangeDataDirectoryCommand}"
-                                                    AutomationProperties.AutomationId="ChangeDataDir" />
+                                            <TextBox Grid.Column="0" Text="{Binding DataDirectory}" IsReadOnly="True" />
+                                            <Button Grid.Column="1" Content="Change..." Command="{Binding ChangeDataDirectoryCommand}" />
                                         </Grid>
                                         <TextBlock Text="Takes effect after restarting LincleLINK"
-                                                   AutomationProperties.AutomationId="RestartPendingNote"
                                                    Foreground="{DynamicResource LLWarning}" FontSize="11.5"
                                                    IsVisible="{Binding DataDirectoryChangePending}" />
                                     </StackPanel>
@@ -399,7 +365,6 @@
                                         <TextBlock Text="Import from LincleLINK v1" FontWeight="SemiBold" FontSize="13.5" />
                                         <TextBlock Text="Bring in a legacy DBInfo.xml library list" Opacity="0.6" FontSize="11.5" />
                                         <Button Content="Import DBInfo.xml..." Command="{Binding ImportLegacyCommand}"
-                                                AutomationProperties.AutomationId="ImportLegacy"
                                                 HorizontalAlignment="Left" />
                                     </StackPanel>
                                 </Border>
@@ -425,7 +390,6 @@
         <Border Grid.Row="1" IsVisible="{Binding IsLogOpen}"
                 BorderBrush="{DynamicResource LLHairline}" BorderThickness="0,1,0,0">
             <ListBox Height="160" FontSize="12"
-                     AutomationProperties.AutomationId="ActivityLogList"
                      ItemsSource="{Binding LogLines}"
                      behaviors:AutoScrollBehavior.AutoScrollToEnd="True" />
         </Border>
@@ -442,12 +406,10 @@
                                TextTrimming="PrefixCharacterEllipsis" IsVisible="{Binding IsBusy}" />
                     <Panel IsVisible="{Binding !IsBusy}">
                         <TextBlock Text="{Binding LastOutcome}" FontSize="12" Opacity="0.7"
-                                   AutomationProperties.AutomationId="ActivityOutcome"
                                    TextTrimming="CharacterEllipsis"
                                    IsVisible="{Binding !LastOutcomeIsWarning}" />
                         <TextBlock Text="{Binding LastOutcome}" FontSize="12"
                                    Foreground="{DynamicResource LLWarning}"
-                                   AutomationProperties.AutomationId="ActivityOutcomeWarning"
                                    TextTrimming="CharacterEllipsis"
                                    IsVisible="{Binding LastOutcomeIsWarning}" />
                     </Panel>
@@ -463,7 +425,6 @@
                         Command="{Binding CancelOperationCommand}" IsVisible="{Binding IsBusy}" />
                 <Button Grid.Column="4" Content="Activity log ▸" FontSize="12" Padding="10,3"
                         Background="Transparent" BorderThickness="0"
-                        AutomationProperties.AutomationId="ActivityLogToggle"
                         Foreground="{DynamicResource LLAccentText}" FontWeight="SemiBold"
                         Command="{Binding ToggleLogCommand}" />
             </Grid>

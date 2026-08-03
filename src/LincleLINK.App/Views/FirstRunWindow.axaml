@@ -8,27 +8,21 @@
         <TextBlock Text="LincleLINK keeps your game data deduplicated in its own storage folder and can recreate any entry anywhere on the same drive using hard links - at no extra disk cost." TextWrapping="Wrap" />
         <TextBlock Text="Choose where LincleLINK should keep its storage. Pick a drive with room for your data - deploying entries only works onto that same drive." TextWrapping="Wrap" />
         <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Opacity="0.8"
-                   AutomationProperties.AutomationId="FirstRunStatus"
                    IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 
         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="0,6,0,0">
             <TextBlock Grid.Column="0" Text="Data directory" VerticalAlignment="Center" />
-            <TextBox Grid.Column="1" Text="{Binding DataDirectory, Mode=TwoWay}"
-                     AutomationProperties.AutomationId="FirstRunDataDirectory" />
+            <TextBox Grid.Column="1" Text="{Binding DataDirectory, Mode=TwoWay}" />
             <Button Grid.Column="2" Content="Browse..." Command="{Binding BrowseCommand}" />
         </Grid>
 
         <StackPanel Orientation="Horizontal" Spacing="24">
             <TextBlock Text="Theme" VerticalAlignment="Center" />
-            <RadioButton Content="Light" GroupName="theme" IsChecked="{Binding IsLightTheme, Mode=TwoWay}"
-                         AutomationProperties.AutomationId="FirstRunThemeLight" />
-            <RadioButton Content="Dark" GroupName="theme" IsChecked="{Binding IsDarkTheme, Mode=TwoWay}"
-                         AutomationProperties.AutomationId="FirstRunThemeDark" />
-            <RadioButton Content="System" GroupName="theme" IsChecked="{Binding IsSystemTheme, Mode=TwoWay}"
-                         AutomationProperties.AutomationId="FirstRunThemeSystem" />
+            <RadioButton Content="Light" GroupName="theme" IsChecked="{Binding IsLightTheme, Mode=TwoWay}" />
+            <RadioButton Content="Dark" GroupName="theme" IsChecked="{Binding IsDarkTheme, Mode=TwoWay}" />
+            <RadioButton Content="System" GroupName="theme" IsChecked="{Binding IsSystemTheme, Mode=TwoWay}" />
         </StackPanel>
 
-        <Button Content="Use this directory" Command="{Binding ConfirmCommand}" HorizontalAlignment="Right" MinWidth="160"
-                AutomationProperties.AutomationId="FirstRunConfirm" />
+        <Button Content="Use this directory" Command="{Binding ConfirmCommand}" HorizontalAlignment="Right" MinWidth="160" />
     </StackPanel>
 </UserControl>
