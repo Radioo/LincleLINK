@@ -12,6 +12,7 @@ using LincleLINK.Core.Abstractions.Paths;
 using LincleLINK.Core.Abstractions.Settings;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
+using LincleLINK.Core.Infrastructure.Collections;
 
 namespace LincleLINK.App.ViewModels;
 
@@ -35,6 +36,9 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     private readonly Func<AddInstanceViewModel> _addInstanceFactory;
     private readonly LogoCatalog _logoCatalog;
     private readonly IAppPaths _paths;
+
+    /// <summary>Logo key → index in the built-in catalog, i.e. the supported-list order.</summary>
+    private readonly Dictionary<string, int> _logoOrder;
 
     public ObservableCollection<InstanceListEntry> Instances { get; } = [];
 
@@ -274,6 +278,13 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         _addInstanceFactory = addInstanceFactory;
         _logoCatalog = logoCatalog;
         _paths = paths;
+
+        _logoOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < logoCatalog.AllLogos.Count; i++)
+        {
+            _logoOrder[logoCatalog.AllLogos[i].LogoKey] = i;
+        }
+
         TorrentCheck = new TorrentCheckViewModel(torrentService, dialogs, hardLinkPreflight, this);
     }
 
@@ -636,7 +647,10 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         var selectedName = SelectedInstance?.InstanceName;
 
         Instances.Clear();
-        foreach (var summary in all)
+        foreach (var summary in all
+                     .OrderBy(LogoSortTier)
+                     .ThenBy(LogoCatalogIndex)
+                     .ThenBy(e => e.InstanceName, NaturalStringComparer.Instance))
         {
             Instances.Add(summary with { LogoUri = ResolveLogoPath(summary) });
         }
@@ -650,6 +664,40 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         }
 
         LogLines.Add(LogMessages.LibraryRefreshed);
+    }
+
+    /// <summary>
+    /// The logo key an entry is shown with (custom image, picked logo, or the
+    /// auto-detected one), matching <see cref="ResolveLogoPath"/>.
+    /// </summary>
+    private static string? EffectiveLogoKey(InstanceListEntry entry)
+    {
+        if (entry.CustomLogoSource == "custom")
+        {
+            return null;
+        }
+
+        if (entry.CustomLogoSource is { } customKey)
+        {
+            return customKey;
+        }
+
+        return entry.DetectedGame?.LogoKey;
+    }
+
+    /// <summary>0 for entries whose logo is in the built-in catalog, 1 otherwise.</summary>
+    private int LogoSortTier(InstanceListEntry entry)
+        => EffectiveLogoKey(entry) is { } key && _logoOrder.ContainsKey(key) ? 0 : 1;
+
+    /// <summary>Index of the entry's logo in the built-in catalog (int.MaxValue when unknown).</summary>
+    private int LogoCatalogIndex(InstanceListEntry entry)
+    {
+        if (EffectiveLogoKey(entry) is { } key && _logoOrder.TryGetValue(key, out var index))
+        {
+            return index;
+        }
+
+        return int.MaxValue;
     }
 
     private string? ResolveLogoPath(InstanceListEntry entry)

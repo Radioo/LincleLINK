@@ -2,6 +2,7 @@ using System.Text;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Domain;
 using LincleLINK.Core.Domain.Validation;
+using LincleLINK.Core.Infrastructure.Collections;
 using LincleLINK.Core.Infrastructure.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -29,7 +30,7 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
     {
         await using var context = await _contextFactory.CreateDbContextAsync(ct);
         var names = await context.Instances.Select(x => x.InstanceName).ToListAsync(ct);
-        return names.Order(StringComparer.Ordinal).ToArray();
+        return names.Order(NaturalStringComparer.Instance).ToArray();
     }
 
     public async Task<IReadOnlyList<Instance>> GetAllAsync(CancellationToken ct = default)
@@ -41,7 +42,7 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
             .ToListAsync(ct);
 
         return entities
-            .OrderBy(x => x.InstanceName, StringComparer.Ordinal)
+            .OrderBy(x => x.InstanceName, NaturalStringComparer.Instance)
             .Select(ToDomain)
             .ToList();
     }
@@ -87,7 +88,7 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
             .ToListAsync(ct);
 
         return summaries
-            .OrderBy(x => x.InstanceName, StringComparer.Ordinal)
+            .OrderBy(x => x.InstanceName, NaturalStringComparer.Instance)
             .ToArray();
     }
 

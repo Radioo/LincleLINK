@@ -87,6 +87,36 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task RefreshInstances_orders_by_supported_list_not_by_name()
+    {
+        StubStatus();
+        _repository.GetSummariesAsync(Arg.Any<CancellationToken>()).Returns([
+            Entry("SDVX EXCEED GEAR", "SDVX/SDVX_EXCEED_GEAR_logo"),
+            Entry("beatmania IIDX 9th style", "IIDX/AC_9th_style_logo"),
+            Entry("SDVX NABLA", "SDVX/SDVX_NABLA_logo"),
+            Entry("SDVX BOOTH", "SDVX/SDVX_BOOTH_logo"),
+            Entry("ZZZ unknown", null),
+        ]);
+
+        var vm = CreateViewModel();
+        await vm.InitializeAsync();
+
+        vm.Instances.Select(i => i.InstanceName).Should().Equal(
+            "beatmania IIDX 9th style", // catalog index 0
+            "SDVX BOOTH",               // first SDVX entry
+            "SDVX EXCEED GEAR",         // second-to-last SDVX entry
+            "SDVX NABLA",               // last SDVX entry
+            "ZZZ unknown");             // no known logo sorts after, by name
+    }
+
+    private static InstanceListEntry Entry(string name, string? logoKey) =>
+        new(name, 1, 10, "10 B")
+        {
+            DetectedGame = logoKey is null ? null : new GameVersionInfo(
+                "KFC", "SOUND VOLTEX", null, null, null, null, null, name, logoKey, DetectionConfidence.Xml),
+        };
+
+    [Fact]
     public void OpenAddInstance_opens_panel_and_forwards_thread_count()
     {
         StubStatus();

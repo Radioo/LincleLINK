@@ -124,6 +124,18 @@ public abstract class InstanceRepositoryContractTests : IDisposable
     }
 
     [Fact]
+    public async Task GetNames_sorts_embedded_numbers_naturally()
+    {
+        var repo = CreateRepository();
+        await repo.SaveAsync(Instance.Create("IIDX 10th style", [], []));
+        await repo.SaveAsync(Instance.Create("IIDX 9th style", [], []));
+        await repo.SaveAsync(Instance.Create("IIDX 28 BISTROVER", [], []));
+
+        var names = await repo.GetNamesAsync();
+        names.Should().Equal("IIDX 9th style", "IIDX 10th style", "IIDX 28 BISTROVER");
+    }
+
+    [Fact]
     public async Task GetAll_returns_all_instances_sorted()
     {
         var repo = CreateRepository();
@@ -148,6 +160,17 @@ public abstract class InstanceRepositoryContractTests : IDisposable
         summaries.Select(s => s.InstanceName).Should().Equal("Alpha", "beta");
         summaries[1].FileCount.Should().Be(1);
         summaries[1].TotalFileSize.Should().Be(100);
+    }
+
+    [Fact]
+    public async Task GetSummaries_orders_embedded_numbers_naturally()
+    {
+        var repo = CreateRepository();
+        await repo.SaveAsync(Instance.Create("IIDX 10th style", [], []));
+        await repo.SaveAsync(Instance.Create("IIDX 9th style", [], []));
+
+        var summaries = await repo.GetSummariesAsync();
+        summaries.Select(s => s.InstanceName).Should().Equal("IIDX 9th style", "IIDX 10th style");
     }
 
     [Fact]
