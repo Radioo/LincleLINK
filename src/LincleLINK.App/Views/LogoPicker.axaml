@@ -1,0 +1,50 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LincleLINK.App.ViewModels"
+             xmlns:logos="using:LincleLINK.App.Logos"
+             x:Class="LincleLINK.App.Views.LogoPicker"
+             x:DataType="vm:MainViewModel">
+    <Panel>
+        <Border Background="{DynamicResource LLVeil}" />
+        <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                Width="420" Height="420"
+                Background="{DynamicResource LLSurface}"
+                BorderBrush="{DynamicResource LLHairline}" BorderThickness="1"
+                CornerRadius="10" BoxShadow="0 0 24 0 #40000000" Padding="14">
+            <Grid RowDefinitions="Auto,Auto,*,Auto">
+                <TextBlock Grid.Row="0" Text="Choose a logo" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,8" />
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                    <Button Content="Reset to auto" FontSize="11" Padding="6,2"
+                            Command="{Binding SetCustomLogoCommand}"
+                            CommandParameter="{x:Null}" />
+                    <Button Content="Add custom image..." FontSize="11" Padding="6,2"
+                            Command="{Binding SetCustomImageCommand}" />
+                </StackPanel>
+                <ScrollViewer Grid.Row="2">
+                    <ItemsControl ItemsSource="{Binding AvailableLogos}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="logos:LogoEntry">
+                                <Border Width="72" Height="72" Margin="4" Padding="4"
+                                        Background="{DynamicResource LLCard}"
+                                        BorderBrush="{DynamicResource LLHairline}" BorderThickness="1"
+                                        CornerRadius="6" Cursor="Hand"
+                                        ToolTip.Tip="{Binding DisplayName}"
+                                        PointerPressed="OnLogoClicked">
+                                    <Image Stretch="Uniform" Source="{Binding AssetPath, Converter={StaticResource LogoSourceConverter}}" />
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+                <Button Grid.Row="3" Content="Close" FontSize="11" Padding="8,3"
+                        HorizontalAlignment="Right" Margin="0,8,0,0"
+                        Command="{Binding CloseLogoPickerCommand}" />
+            </Grid>
+        </Border>
+    </Panel>
+</UserControl>
