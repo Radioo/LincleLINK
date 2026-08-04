@@ -24,7 +24,6 @@
     <PackageVersion Include="MonoTorrent" Version="3.0.2" />
     <!-- Session-bus access for the Linux taskbar (Unity LauncherEntry) progress
          signal; pinned to the version Avalonia.FreeDesktop already pulls in. -->
-    <PackageVersion Include="System.IO.Pipelines" Version="10.0.10" />
     <PackageVersion Include="Tmds.DBus.Protocol" Version="0.94.1" />
     <!-- Storage (SQLite instance metadata) -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
