@@ -297,6 +297,38 @@ public sealed class GameVersionDetectorTests : IDisposable
     }
 
     [Fact]
+    public async Task Sdvx_2016121200_maps_to_gravity_wars()
+    {
+        // Regression: a real SDVX build dated 2016-12-12 sat in the gap between
+        // III GRAVITY WARS (ended 2016-12-01) and IV HEAVENLY HAVEN (2016-12-15),
+        // so it resolved no title. Ranges are now contiguous.
+        _temp.CreateFile(
+            "prop/ea3-config.xml",
+            System.Text.Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="utf-8"?>
+                <ea3>
+                  <soft>
+                    <model>KFC</model>
+                    <dest>J</dest>
+                    <spec>A</spec>
+                    <rev>A</rev>
+                    <ext>2016121200</ext>
+                  </soft>
+                </ea3>
+                """));
+        _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("data/graphics/a.bin");
+
+        var result = await CreateDetector().DetectAsync(_temp.Root);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("KFC");
+        result.Info.DateCode.Should().Be("2016121200");
+        result.Info.DisplayTitle.Should().Be("SOUND VOLTEX III GRAVITY WARS");
+        result.Info.LogoKey.Should().Be("SDVX/SDVX_III_logo");
+    }
+
+    [Fact]
     public async Task Missing_directory_returns_null_info()
     {
         var missing = Path.Combine(_temp.Root, "does-not-exist");
