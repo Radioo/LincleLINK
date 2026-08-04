@@ -252,6 +252,51 @@ public sealed class GameVersionDetectorTests : IDisposable
     }
 
     [Fact]
+    public async Task Config_under_prop_defaults_with_config_root_bootstrap()
+    {
+        // IIDX dumps keep the template ea3-config under prop/defaults and put the
+        // authoritative release_code in a <config>-rooted bootstrap.xml.
+        _temp.CreateFile(
+            "contents/prop/defaults/ea3-config.xml",
+            System.Text.Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="utf-8"?>
+                <ea3>
+                  <soft>
+                    <model>LDJ</model>
+                    <dest>J</dest>
+                    <spec>A</spec>
+                    <rev>A</rev>
+                    <ext>2010042100</ext>
+                  </soft>
+                </ea3>
+                """));
+        _temp.CreateFile(
+            "contents/prop/bootstrap.xml",
+            System.Text.Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="shift_jis"?>
+                <config>
+                  <release_code>2014071600</release_code>
+                </config>
+                """));
+        for (var i = 0; i < 5; i++)
+        {
+            _temp.CreateFile($"contents/modules/m{i}.dll", [0x4D, 0x5A, 0, 0]);
+        }
+
+        _temp.CreateFile("contents/modules/bm2dx.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("contents/data/graphics/a.bin");
+
+        var result = await CreateDetector().DetectAsync(Path.Combine(_temp.Root, "contents", "data"));
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("LDJ");
+        result.Info.DateCode.Should().Be("2014071600"); // bootstrap release_code wins over config ext
+        result.Info.DisplayTitle.Should().Be("beatmania IIDX 21 SPADA");
+        result.Info.LogoKey.Should().Be("IIDX/AC_SPADA_logo");
+        result.DataFolderName.Should().Be("data");
+    }
+
+    [Fact]
     public async Task Missing_directory_returns_null_info()
     {
         var missing = Path.Combine(_temp.Root, "does-not-exist");

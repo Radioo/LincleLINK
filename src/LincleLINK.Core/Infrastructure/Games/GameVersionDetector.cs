@@ -103,8 +103,27 @@ public sealed class GameVersionDetector : IGameVersionDetector
     ];
 
     // ── config file names (checked in order) ───────────────────────────
+    // EA3 configs may sit directly under prop/ or under prop/defaults/
+    // (the runtime copies defaults/ea3-config.xml into /dev/nvram at boot).
     private static readonly string[] Ea3ConfigNames =
-        ["prop/ea3-config.xml", "prop/ea3-cfg.xml", "prop/eamuse-config.xml", "prop/ea3-ident.xml"];
+        [
+            "prop/ea3-config.xml",
+            "prop/ea3-cfg.xml",
+            "prop/eamuse-config.xml",
+            "prop/ea3-ident.xml",
+            "prop/defaults/ea3-config.xml",
+            "prop/defaults/ea3-cfg.xml",
+            "prop/defaults/eamuse-config.xml",
+            "prop/defaults/ea3-ident.xml",
+        ];
+
+    // Bare filenames used to classify a folder as the prop/config support folder.
+    private static readonly string[] Ea3ConfigFileNames =
+        ["ea3-config.xml", "ea3-cfg.xml", "eamuse-config.xml", "ea3-ident.xml"];
+
+    // Files that only ever appear in prop/, used to spot the config support folder.
+    private static readonly string[] PropMarkerFiles =
+        ["bootstrap.xml", "avs-config.xml", "share-config.xml", "avs-config_debug.xml"];
 
     public Task<DetectionResult> DetectAsync(string rootPath, CancellationToken ct = default)
     {
@@ -228,12 +247,13 @@ public sealed class GameVersionDetector : IGameVersionDetector
 
     private bool IsSupportFolder(string dir)
     {
-        foreach (var configName in Ea3ConfigNames)
+        // prop/defaults nests the template config one level down, so search the
+        // folder itself and its immediate subdirectories (bounded - never recurse
+        // into data/, which can be huge).
+        if (ContainsAny(dir, Ea3ConfigFileNames, depth: 2)
+            || ContainsAny(dir, PropMarkerFiles, depth: 1))
         {
-            if (_fileSystem.FileExists(Path.Combine(dir, configName)))
-            {
-                return true;
-            }
+            return true;
         }
 
         if (_fileSystem.DirectoryExists(Path.Combine(dir, "nvram")))
@@ -249,6 +269,40 @@ public sealed class GameVersionDetector : IGameVersionDetector
             {
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// True when any of <paramref name="fileNames"/> exists at or below
+    /// <paramref name="dir"/> within the given <paramref name="depth"/> (1 = direct
+    /// children only). Config props are shallow, so a small bounded search is safe.
+    /// </summary>
+    private bool ContainsAny(string dir, string[] fileNames, int depth)
+    {
+        var folders = new[] { dir };
+        for (var level = 1; level <= depth; level++)
+        {
+            var next = new List<string>();
+            foreach (var folder in folders)
+            {
+                foreach (var fileName in fileNames)
+                {
+                    if (_fileSystem.FileExists(Path.Combine(folder, fileName)))
+                    {
+                        return true;
+                    }
+                }
+
+                if (level < depth)
+                {
+                    next.AddRange(_fileSystem.EnumerateDirectories(folder, recursive: false));
+                }
+            }
+
+            folders = next.ToArray();
+            if (folders.Length == 0) break;
         }
 
         return false;
@@ -374,7 +428,9 @@ public sealed class GameVersionDetector : IGameVersionDetector
                     {
                         var bText = _fileSystem.ReadAllText(bootstrapPath);
                         var bDoc = XDocument.Parse(bText);
-                        var releaseCode = (string?)bDoc.Root?.Element("config")?.Element("release_code");
+                        // release_code is <config><release_code> under a <param>
+                        // wrapper, or <config><release_code> with <config> as root.
+                        var releaseCode = bDoc.Root?.Descendants("release_code").FirstOrDefault()?.Value;
                         if (releaseCode is not null &&
                             long.TryParse(releaseCode, CultureInfo.InvariantCulture, out var rc) &&
                             long.TryParse(ext, CultureInfo.InvariantCulture, out var extVal) &&
