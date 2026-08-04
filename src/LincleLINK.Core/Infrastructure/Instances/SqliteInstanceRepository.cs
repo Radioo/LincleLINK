@@ -71,7 +71,19 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
                 x.InstanceName,
                 x.TotalFileCount,
                 x.TotalFileSize,
-                x.TotalFileSizeString))
+                x.TotalFileSizeString)
+            {
+                DetectedGame = x.GameCode != null || x.GameTitle != null ? new GameVersionInfo(
+                    x.GameCode ?? string.Empty,
+                    x.GameTitle ?? string.Empty,
+                    null, null, null,
+                    x.DateCode,
+                    x.PeIdentifier,
+                    x.DisplayTitle,
+                    x.LogoKey,
+                    string.IsNullOrEmpty(x.PeIdentifier) ? DetectionConfidence.Xml : DetectionConfidence.XmlAndPe) : null,
+                CustomLogoSource = x.CustomLogoSource,
+            })
             .ToListAsync(ct);
 
         return summaries
@@ -156,7 +168,7 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
 
         if (existing is null)
         {
-            context.Instances.Add(new InstanceEntity
+            var entity = new InstanceEntity
             {
                 InstanceName = instance.InstanceName,
                 NameKey = key,
@@ -165,16 +177,18 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
                 TotalFileSizeString = instance.TotalFileSizeString,
                 Files = MapFiles(instance, instance.InstanceName),
                 Directories = MapDirectories(instance, instance.InstanceName),
-            });
+            };
+            ApplyGameInfo(entity, instance.DetectedGame);
+            entity.CustomLogoSource = instance.CustomLogoSource;
+            context.Instances.Add(entity);
         }
         else
         {
-            // Upsert under the case-insensitive identity: keep the canonical
-            // InstanceName of the first-seen casing, refresh totals and replace the
-            // ordered children (JSON-file-equivalent "atomic rewrite").
             existing.TotalFileSize = instance.TotalFileSize;
             existing.TotalFileCount = instance.TotalFileCount;
             existing.TotalFileSizeString = instance.TotalFileSizeString;
+            ApplyGameInfo(existing, instance.DetectedGame);
+            existing.CustomLogoSource = instance.CustomLogoSource;
 
             context.InstanceFiles.RemoveRange(existing.Files);
             context.InstanceDirectories.RemoveRange(existing.Directories);
@@ -250,8 +264,9 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
-            INSERT INTO "Instances" ("InstanceName", "NameKey", "TotalFileSize", "TotalFileCount", "TotalFileSizeString")
-            VALUES ($name, $key, $size, $count, $sizeString)
+            INSERT INTO "Instances" ("InstanceName", "NameKey", "TotalFileSize", "TotalFileCount", "TotalFileSizeString",
+            "GameCode", "GameTitle", "DateCode", "PeIdentifier", "DisplayTitle", "LogoKey", "CustomLogoSource")
+            VALUES ($name, $key, $size, $count, $sizeString, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
             """;
         command.Parameters.Add(new SqliteParameter("$name", instance.InstanceName));
         command.Parameters.Add(new SqliteParameter("$key", LincleLinkPersistence.NameKeyOf(instance.InstanceName)));
@@ -351,6 +366,8 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
         TotalFileSize = entity.TotalFileSize,
         TotalFileCount = entity.TotalFileCount,
         TotalFileSizeString = entity.TotalFileSizeString,
+        DetectedGame = ToGameVersionInfo(entity),
+        CustomLogoSource = entity.CustomLogoSource,
         FileList = entity.Files
             .OrderBy(f => f.Ordinal)
             .Select(f => new InstanceFile(f.FileName, f.RelativePath, f.FileSize, f.HashedFileName))
@@ -360,6 +377,32 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
             .Select(d => d.Value)
             .ToList(),
     };
+
+    private static GameVersionInfo? ToGameVersionInfo(InstanceEntity entity)
+    {
+        if (string.IsNullOrEmpty(entity.GameCode) && string.IsNullOrEmpty(entity.GameTitle))
+            return null;
+
+        return new GameVersionInfo(
+            entity.GameCode ?? string.Empty,
+            entity.GameTitle ?? string.Empty,
+            null, null, null,
+            entity.DateCode,
+            entity.PeIdentifier,
+            entity.DisplayTitle,
+            entity.LogoKey,
+            string.IsNullOrEmpty(entity.PeIdentifier) ? DetectionConfidence.Xml : DetectionConfidence.XmlAndPe);
+    }
+
+    private static void ApplyGameInfo(InstanceEntity entity, GameVersionInfo? info)
+    {
+        entity.GameCode = info?.GameCode;
+        entity.GameTitle = info?.GameTitle;
+        entity.DateCode = info?.DateCode;
+        entity.PeIdentifier = info?.PeIdentifier;
+        entity.DisplayTitle = info?.DisplayTitle;
+        entity.LogoKey = info?.LogoKey;
+    }
 
     private static List<InstanceFileEntity> MapFiles(Instance instance, string instanceName)
         => instance.FileList
@@ -390,5 +433,20 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
         {
             throw new ArgumentException(error, nameof(name));
         }
+    }
+
+    public async Task SetCustomLogoAsync(string name, string? logoSource, CancellationToken ct = default)
+    {
+        ValidateName(name);
+
+        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        var entity = await context.Instances.FirstOrDefaultAsync(x => x.NameKey == LincleLinkPersistence.NameKeyOf(name), ct);
+        if (entity is null)
+        {
+            return;
+        }
+
+        entity.CustomLogoSource = logoSource;
+        await context.SaveChangesAsync(ct);
     }
 }

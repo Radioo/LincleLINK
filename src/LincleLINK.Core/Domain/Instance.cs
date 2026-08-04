@@ -18,6 +18,12 @@ public sealed class Instance
     public List<InstanceFile> FileList { get; set; } = [];
     public List<string> DirectoryList { get; set; } = [];
 
+    [JsonIgnore]
+    public GameVersionInfo? DetectedGame { get; set; }
+
+    [JsonIgnore]
+    public string? CustomLogoSource { get; set; }
+
     /// <summary>
     /// Creates an instance computing totals and unique directory list from the
     /// given files and directories (mirrors the v2 constructor).

@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using LincleLINK.Core.Abstractions.Disk;
 using LincleLINK.Core.Abstractions.Filesystem;
+using LincleLINK.Core.Abstractions.Games;
 using LincleLINK.Core.Abstractions.Hashing;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Linking;
@@ -11,6 +12,7 @@ using LincleLINK.Core.Abstractions.Torrents;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Infrastructure.Disk;
 using LincleLINK.Core.Infrastructure.Filesystem;
+using LincleLINK.Core.Infrastructure.Games;
 using LincleLINK.Core.Infrastructure.Hashing;
 using LincleLINK.Core.Infrastructure.Instances;
 using LincleLINK.Core.Infrastructure.Linking;
@@ -34,6 +36,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<IFileSystem, FileSystem>();
         services.AddSingleton<IFileHasher, Md5FileHasher>();
+        services.AddSingleton<IGameVersionDetector, GameVersionDetector>();
 
         services.AddSingleton<IDriveInfoProvider>(_ =>
         {

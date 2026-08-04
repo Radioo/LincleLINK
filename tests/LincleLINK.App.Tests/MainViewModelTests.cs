@@ -4,6 +4,7 @@ using LincleLINK.App.ViewModels;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Disk;
 using LincleLINK.Core.Abstractions.Filesystem;
+using LincleLINK.Core.Abstractions.Games;
 using LincleLINK.Core.Abstractions.Hashing;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Linking;
@@ -32,9 +33,10 @@ public sealed class MainViewModelTests
     private readonly ITaskbarProgress _taskbarProgress = Substitute.For<ITaskbarProgress>();
 
     private readonly IHardLinkPreflight _preflight = Substitute.For<IHardLinkPreflight>();
+    private readonly IGameVersionDetector _detector = Substitute.For<IGameVersionDetector>();
 
     private MainViewModel CreateViewModel() => new(
-        new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _driveInfo, _dialogs),
+        new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _driveInfo, _dialogs, _detector),
         new LinkingService(_fs, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _dialogs),
         new UnusedFilesService(_store, _repository, _dialogs),
         new LegacyImporter(_repository),
@@ -47,7 +49,7 @@ public sealed class MainViewModelTests
         _taskbarProgress,
         _preflight,
         () => new AddInstanceViewModel(
-            new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _driveInfo, _dialogs),
+            new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _driveInfo, _dialogs, _detector),
             _dialogs, _taskbarProgress, _fs, _preflight));
 
     private void StubStatus(long dbSize = 0, long free = 1)

@@ -470,5 +470,8 @@ public sealed class StorageMigrationServiceTests : IDisposable
             BulkInsertCalls++;
             await _inner.BulkInsertAsync(instances, ct);
         }
+
+        public Task SetCustomLogoAsync(string name, string? logoSource, CancellationToken ct = default)
+            => _inner.SetCustomLogoAsync(name, logoSource, ct);
     }
 }

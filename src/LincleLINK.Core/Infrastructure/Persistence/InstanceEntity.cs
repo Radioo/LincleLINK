@@ -13,6 +13,13 @@ public sealed class InstanceEntity
     public long TotalFileSize { get; set; }
     public int TotalFileCount { get; set; }
     public string TotalFileSizeString { get; set; } = string.Empty;
+    public string? GameCode { get; set; }
+    public string? GameTitle { get; set; }
+    public string? DateCode { get; set; }
+    public string? PeIdentifier { get; set; }
+    public string? DisplayTitle { get; set; }
+    public string? LogoKey { get; set; }
+    public string? CustomLogoSource { get; set; }
     public List<InstanceFileEntity> Files { get; set; } = [];
     public List<InstanceDirectoryEntity> Directories { get; set; } = [];
 }

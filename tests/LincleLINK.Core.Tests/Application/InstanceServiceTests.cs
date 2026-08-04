@@ -2,6 +2,7 @@ using FluentAssertions;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Disk;
 using LincleLINK.Core.Abstractions.Filesystem;
+using LincleLINK.Core.Abstractions.Games;
 using LincleLINK.Core.Abstractions.Hashing;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Linking;
@@ -32,11 +33,12 @@ public sealed class InstanceServiceTests
     private readonly IInstanceRepository _repository = Substitute.For<IInstanceRepository>();
     private readonly IDriveInfoProvider _driveInfo = Substitute.For<IDriveInfoProvider>();
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
+    private readonly IGameVersionDetector _detector = Substitute.For<IGameVersionDetector>();
 
     // The preflight substitute returns null (= linkable) by default, matching the
     // common same-volume case; cross-volume tests override it explicitly.
     private InstanceService CreateService()
-        => new(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs);
+        => new(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, _detector);
 
     private void StubDataPath(string dataPath, params string[] files)
     {

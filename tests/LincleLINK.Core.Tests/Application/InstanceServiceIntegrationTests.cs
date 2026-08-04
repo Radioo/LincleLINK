@@ -1,6 +1,7 @@
 using FluentAssertions;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Disk;
+using LincleLINK.Core.Abstractions.Games;
 using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
@@ -59,7 +60,8 @@ public sealed class InstanceServiceIntegrationTests : IDisposable
             new HardLinkPreflight(paths, linker),
             new JsonInstanceRepository(paths),
             Substitute.For<IDriveInfoProvider>(),
-            Substitute.For<IDialogService>());
+            Substitute.For<IDialogService>(),
+            Substitute.For<IGameVersionDetector>());
 
         var result = await service.CreateInstanceAsync(new AddInstanceRequest("inst", dataPath, CopyMoveMode.Move));
 
@@ -106,7 +108,8 @@ public sealed class InstanceServiceIntegrationTests : IDisposable
             new HardLinkPreflight(paths, linker),
             new JsonInstanceRepository(paths),
             driveInfo,
-            Substitute.For<IDialogService>());
+            Substitute.For<IDialogService>(),
+            Substitute.For<IGameVersionDetector>());
 
         var result = await service.CreateInstanceAsync(new AddInstanceRequest("inst", dataPath, CopyMoveMode.Copy));
 

@@ -230,6 +230,12 @@ public sealed class JsonInstanceRepository : IInstanceRepository
         }
     }
 
+    public Task SetCustomLogoAsync(string name, string? logoSource, CancellationToken ct = default)
+    {
+        // JSON repository is superseded by SQLite; logo customization is SQLite-only.
+        return Task.CompletedTask;
+    }
+
     private string PathFor(string name) => Path.Combine(_paths.InstanceDirectory, name + ".json");
 
     /// <summary>
