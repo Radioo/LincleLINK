@@ -12,6 +12,7 @@ public sealed record InstanceListEntry(
 {
     public GameVersionInfo? DetectedGame { get; init; }
     public string? CustomLogoSource { get; init; }
+    public string? LogoUri { get; init; }
 
     public static InstanceListEntry From(Instance instance) =>
         new(instance.InstanceName, instance.FileList.Count, instance.TotalFileSize, instance.TotalFileSizeString)

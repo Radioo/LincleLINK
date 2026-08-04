@@ -1,5 +1,6 @@
 using FluentAssertions;
 using LincleLINK.App.Abstractions;
+using LincleLINK.App.Logos;
 using LincleLINK.App.ViewModels;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Disk;
@@ -34,6 +35,7 @@ public sealed class MainViewModelTests
 
     private readonly IHardLinkPreflight _preflight = Substitute.For<IHardLinkPreflight>();
     private readonly IGameVersionDetector _detector = Substitute.For<IGameVersionDetector>();
+    private readonly LogoCatalog _logoCatalog = new();
 
     private MainViewModel CreateViewModel() => new(
         new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _driveInfo, _dialogs, _detector),
@@ -50,7 +52,8 @@ public sealed class MainViewModelTests
         _preflight,
         () => new AddInstanceViewModel(
             new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _driveInfo, _dialogs, _detector),
-            _dialogs, _taskbarProgress, _fs, _preflight));
+            _dialogs, _taskbarProgress, _fs, _preflight, _detector),
+        _logoCatalog, _paths);
 
     private void StubStatus(long dbSize = 0, long free = 1)
     {

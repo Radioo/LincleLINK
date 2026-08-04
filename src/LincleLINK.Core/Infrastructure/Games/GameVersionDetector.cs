@@ -29,7 +29,7 @@ public sealed class GameVersionDetector : IGameVersionDetector
         ["mdxja_hm65.dll"]  = ("DanceDanceRevolution", "MDX"),
     };
 
-    // ── model → game title ─────────────────────────────────────────────
+    // ── model ↁEgame title ─────────────────────────────────────────────
     private static readonly Dictionary<string, string> ModelTitle = new(StringComparer.OrdinalIgnoreCase)
     {
         ["JDZ"] = "beatmania IIDX",
@@ -52,47 +52,47 @@ public sealed class GameVersionDetector : IGameVersionDetector
         ["DanceDanceRevolution"] = "data",
     };
 
-    // ── datecode → arcade release (best-effort) ─────────────────────────
+    // ── datecode ↁEarcade release (best-effort) ─────────────────────────
     private static readonly List<ArcadeRelease> ArcadeReleases =
     [
         // IIDX - LDJ model
-        new("LDJ", "beatmania IIDX", "AC_19_Lincle_logo",            2011091500, 2012060100, "19 Lincle"),
-        new("LDJ", "beatmania IIDX", "AC_tricoro_logo",              2012091900, 2013110100, "20 tricoro"),
-        new("LDJ", "beatmania IIDX", "AC_SPADA_logo",                2013111300, 2014090100, "21 SPADA"),
-        new("LDJ", "beatmania IIDX", "AC_PENDUAL_logo",              2014091700, 2015110100, "22 PENDUAL"),
-        new("LDJ", "beatmania IIDX", "AC_copula_logo",               2015111100, 2016100100, "23 copula"),
-        new("LDJ", "beatmania IIDX", "AC_SINOBUZ_logo",              2016102600, 2017120100, "24 SINOBUZ"),
-        new("LDJ", "beatmania IIDX", "AC_CANNON_BALLERS_logo",       2017122100, 2018110100, "25 CANNON BALLERS"),
-        new("LDJ", "beatmania IIDX", "AC_Rootage_logo",              2018110900, 2019100100, "26 Rootage"),
-        new("LDJ", "beatmania IIDX", "AC_HEROIC_VERSE_logo",         2019101000, 2020100100, "27 HEROIC VERSE"),
-        new("LDJ", "beatmania IIDX", "AC_BISTROVER_logo",            2020102800, 2021100100, "28 BISTROVER"),
-        new("LDJ", "beatmania IIDX", "AC_CastHour_logo",             2021101300, 2022100100, "29 CastHour"),
-        new("LDJ", "beatmania IIDX", "AC_RESIDENT_logo",             2022101900, 2023100100, "30 RESIDENT"),
-        new("LDJ", "beatmania IIDX", "AC_EPOLIS_logo",               2023101800, 2024100100, "31 EPOLIS"),
-        new("LDJ", "beatmania IIDX", "AC_Pinky_Crush_logo",          2024100900, 2025040100, "32 Pinky Crush"),
-        new("LDJ", "beatmania IIDX", "AC_Sparkle_Shower_logo",       2025041000, 2026020100, "33 Sparkle Shower"),
-        new("LDJ", "beatmania IIDX", "AC_ZINRAI_logo",               2026021900, 2999999999, "34 ZINRAI"),
+        new("LDJ", "beatmania IIDX", "IIDX/AC_Lincle_logo",             2011091500, 2012060100, "19 Lincle"),
+        new("LDJ", "beatmania IIDX", "IIDX/AC_tricoro_logo",              2012091900, 2013110100, "20 tricoro"),
+        new("LDJ", "beatmania IIDX", "IIDX/AC_SPADA_logo",                2013111300, 2014090100, "21 SPADA"),
+        new("LDJ", "beatmania IIDX", "IIDX/AC_PENDUAL_logo",              2014091700, 2015110100, "22 PENDUAL"),
+        new("LDJ", "beatmania IIDX", "IIDX/AC_copula_logo",               2015111100, 2016100100, "23 copula"),
+        new("LDJ", "beatmania IIDX", "IIDX/AC_SINOBUZ_logo",              2016102600, 2017120100, "24 SINOBUZ"),
+        new("LDJ", "beatmania IIDX", "IIDX/AC_CANNON_BALLERS_logo",       2017122100, 2018110100, "25 CANNON BALLERS"),
+        new("LDJ", "beatmania IIDX", "IIDX/AC_Rootage_logo",              2018110900, 2019100100, "26 Rootage"),
+        new("LDJ", "beatmania IIDX", "IIDX/AC_HEROIC_VERSE_logo",         2019101000, 2020100100, "27 HEROIC VERSE"),
+        new("LDJ", "beatmania IIDX", "IIDX/AC_BISTROVER_logo",            2020102800, 2021100100, "28 BISTROVER"),
+        new("LDJ", "beatmania IIDX", "IIDX/AC_CastHour_logo",             2021101300, 2022100100, "29 CastHour"),
+        new("LDJ", "beatmania IIDX", "IIDX/AC_RESIDENT_logo",             2022101900, 2023100100, "30 RESIDENT"),
+        new("LDJ", "beatmania IIDX", "IIDX/AC_EPOLIS_logo",               2023101800, 2024100100, "31 EPOLIS"),
+        new("LDJ", "beatmania IIDX", "IIDX/AC_Pinky_Crush_logo",          2024100900, 2025040100, "32 Pinky Crush"),
+        new("LDJ", "beatmania IIDX", "IIDX/AC_Sparkle_Shower_logo",       2025041000, 2026020100, "33 Sparkle Shower"),
+        new("LDJ", "beatmania IIDX", "IIDX/AC_ZINRAI_logo",               2026021900, 2999999999, "34 ZINRAI"),
         // older IIDX models (JDZ/KDZ)
-        new("JDZ", "beatmania IIDX", "AC_IIDX_RED_logo",             2006052400, 2007070100, "11 IIDX RED"),
-        new("JDZ", "beatmania IIDX", "AC_HAPPY_SKY_logo",            2005121400, 2006052300, "12 HAPPY SKY"),
-        new("KDZ", "beatmania IIDX", "AC_DistorteD_logo",            2007032800, 2008110100, "13 DistorteD"),
-        new("KDZ", "beatmania IIDX", "AC_GOLD_logo",                 2008111900, 2009120100, "14 GOLD"),
+        new("JDZ", "beatmania IIDX", "IIDX/AC_IIDX_RED_logo",             2006052400, 2007070100, "11 IIDX RED"),
+        new("JDZ", "beatmania IIDX", "IIDX/AC_HAPPY_SKY_logo",            2005121400, 2006052300, "12 HAPPY SKY"),
+        new("KDZ", "beatmania IIDX", "IIDX/AC_DistorteD_logo",            2007032800, 2008110100, "13 DistorteD"),
+        new("KDZ", "beatmania IIDX", "IIDX/AC_GOLD_logo",                 2008111900, 2009120100, "14 GOLD"),
         // SDVX - KFC model
-        new("KFC", "SOUND VOLTEX",    "SDVX_BOOTH_logo",             2012011800, 2013060100, "BOOTH"),
-        new("KFC", "SOUND VOLTEX",    "SDVX_II_logo",                2013060500, 2014110100, "II -infinite infection-"),
-        new("KFC", "SOUND VOLTEX",    "SDVX_III_logo",               2014112000, 2016120100, "III GRAVITY WARS"),
-        new("KFC", "SOUND VOLTEX",    "SDVX_IV_logo",                2016121500, 2019020100, "IV HEAVENLY HAVEN"),
-        new("KFC", "SOUND VOLTEX",    "SDVX_VIVID_WAVE_logo",        2019022800, 2021040100, "VIVID WAVE"),
-        new("KFC", "SOUND VOLTEX",    "SDVX_EXCEED_GEAR_logo",       2021040200, 2024060100, "EXCEED GEAR"),
-        new("UFC", "SOUND VOLTEX",    "SDVX_NABLA_logo",             2024061300, 2999999999, "∇ NABLA"),
+        new("KFC", "SOUND VOLTEX",    "SDVX/SDVX_BOOTH_logo",             2012011800, 2013060100, "BOOTH"),
+        new("KFC", "SOUND VOLTEX",    "SDVX/SDVX_II_logo",                2013060500, 2014110100, "II -infinite infection-"),
+        new("KFC", "SOUND VOLTEX",    "SDVX/SDVX_III_logo",               2014112000, 2016120100, "III GRAVITY WARS"),
+        new("KFC", "SOUND VOLTEX",    "SDVX/SDVX_IV_logo",                2016121500, 2019020100, "IV HEAVENLY HAVEN"),
+        new("KFC", "SOUND VOLTEX",    "SDVX/SDVX_VIVID_WAVE_logo",        2019022800, 2021040100, "VIVID WAVE"),
+        new("KFC", "SOUND VOLTEX",    "SDVX/SDVX_EXCEED_GEAR_logo",       2021040200, 2024060100, "EXCEED GEAR"),
+        new("UFC", "SOUND VOLTEX",    "SDVX/SDVX_NABLA_logo",             2024061300, 2999999999, "∁ENABLA"),
         // DDR - MDX model
-        new("MDX", "DanceDanceRevolution", "AC_DDR_A_logo",          2016031700, 2019030100, "A"),
-        new("MDX", "DanceDanceRevolution", "AC_DDR_A20_logo",        2019032000, 2022030100, "A20"),
-        new("MDX", "DanceDanceRevolution", "AC_DDR_A3_logo-gold",    2022031700, 2024060100, "A3"),
-        new("TDX", "DanceDanceRevolution", "AC_DDR_WORLD_logo",      2024061200, 2999999999, "WORLD"),
+        new("MDX", "DanceDanceRevolution", "DDR/AC_DDR_A_logo",          2016031700, 2019030100, "A"),
+        new("MDX", "DanceDanceRevolution", "DDR/AC_DDR_A20_logo",        2019032000, 2022030100, "A20"),
+        new("MDX", "DanceDanceRevolution", "DDR/AC_DDR_A3_logo-gold",    2022031700, 2024060100, "A3"),
+        new("TDX", "DanceDanceRevolution", "DDR/AC_DDR_WORLD_logo",      2024061200, 2999999999, "WORLD"),
         // DDR - JDX/KDX models (older)
-        new("JDX", "DanceDanceRevolution", "AC_DDR_X_logo",          2008122400, 2009120100, "X"),
-        new("KDX", "DanceDanceRevolution", "AC_DDR_X2_logo",         2010070700, 2011110100, "X2"),
+        new("JDX", "DanceDanceRevolution", "DDR/AC_DDR_X_logo",          2008122400, 2009120100, "X"),
+        new("KDX", "DanceDanceRevolution", "DDR/AC_DDR_X2_logo",         2010070700, 2011110100, "X2"),
     ];
 
     // ── config file names (checked in order) ───────────────────────────

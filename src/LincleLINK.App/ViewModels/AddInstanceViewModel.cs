@@ -1,12 +1,14 @@
 using System.Collections.ObjectModel;
 using Avalonia;
 using LincleLINK.App.Abstractions;
+using LincleLINK.App.Logos;
 using LincleLINK.App.Services;
 using LincleLINK.App.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Filesystem;
+using LincleLINK.Core.Abstractions.Games;
 using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
@@ -27,6 +29,10 @@ public partial class AddInstanceViewModel : ViewModelBase
     private readonly ITaskbarProgress _taskbarProgress;
     private readonly IFileSystem _fileSystem;
     private readonly IHardLinkPreflight _preflight;
+    private readonly IGameVersionDetector _detector;
+
+    private string? _gameRootPath;
+    private string? _dataFolderName;
 
     public ObservableCollection<string> LogLines { get; } = [];
 
@@ -71,6 +77,18 @@ public partial class AddInstanceViewModel : ViewModelBase
     private bool _isCalculatingSize;
 
     [ObservableProperty]
+    private string? _detectedGameText;
+
+    [ObservableProperty]
+    private string? _detectedLogoPath;
+
+    [ObservableProperty]
+    private bool _isGameRootDetected;
+
+    [ObservableProperty]
+    private string? _dataFolderHint;
+
+    [ObservableProperty]
     [NotifyCanExecuteChangedFor(
         nameof(BrowseCommand), nameof(CreateInstanceCommand), nameof(CancelOperationCommand))]
     private bool _isBusy;
@@ -97,13 +115,15 @@ public partial class AddInstanceViewModel : ViewModelBase
         IDialogService dialogs,
         ITaskbarProgress taskbarProgress,
         IFileSystem fileSystem,
-        IHardLinkPreflight preflight)
+        IHardLinkPreflight preflight,
+        IGameVersionDetector detector)
     {
         _service = service;
         _dialogs = dialogs;
         _taskbarProgress = taskbarProgress;
         _fileSystem = fileSystem;
         _preflight = preflight;
+        _detector = detector;
     }
 
     public CopyMoveMode Mode => IsReclaimChecked ? CopyMoveMode.Move : CopyMoveMode.Copy;
@@ -154,6 +174,11 @@ public partial class AddInstanceViewModel : ViewModelBase
         CrossVolumeReason = string.Empty;
         ReclaimAvailable = true;
         IsCalculatingSize = false;
+        DetectedGameText = null;
+        IsGameRootDetected = false;
+        DataFolderHint = null;
+        _gameRootPath = null;
+        _dataFolderName = null;
 
         if (string.IsNullOrWhiteSpace(path) || !_fileSystem.DirectoryExists(path))
         {
@@ -211,6 +236,42 @@ public partial class AddInstanceViewModel : ViewModelBase
             {
                 IsCalculatingSize = false;
             }
+        }
+
+        if (cts.Token.IsCancellationRequested) return;
+
+        try
+        {
+            var detection = await _detector.DetectAsync(path, cts.Token);
+            if (detection.Info is not null)
+            {
+                var code = detection.Info.GameCode;
+                var dc = detection.Info.DateCode ?? "unknown";
+                if (detection.Info.DisplayTitle is not null)
+                    DetectedGameText = $"{detection.Info.DisplayTitle} · {code} {dc}";
+                else
+                    DetectedGameText = $"{detection.Info.GameTitle} · {code} {dc}";
+
+                _gameRootPath = detection.GameRootPath;
+                _dataFolderName = detection.DataFolderName;
+
+                if (detection.IsGameRoot && detection.DataFolderName is not null)
+                {
+                    IsGameRootDetected = true;
+                    DataFolderHint = Path.Combine(DataPath, detection.DataFolderName);
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch { }
+    }
+
+    [RelayCommand]
+    private void SwitchToDataFolder()
+    {
+        if (DataFolderHint is not null)
+        {
+            DataPath = DataFolderHint;
         }
     }
 

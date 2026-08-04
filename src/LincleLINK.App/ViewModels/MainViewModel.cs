@@ -2,11 +2,13 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LincleLINK.App.Abstractions;
+using LincleLINK.App.Logos;
 using LincleLINK.App.Services;
 using LincleLINK.App.ViewModels.Base;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Linking;
+using LincleLINK.Core.Abstractions.Paths;
 using LincleLINK.Core.Abstractions.Settings;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
@@ -31,6 +33,8 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     private readonly ISettingsStore _settingsStore;
     private readonly ITaskbarProgress _taskbarProgress;
     private readonly Func<AddInstanceViewModel> _addInstanceFactory;
+    private readonly LogoCatalog _logoCatalog;
+    private readonly IAppPaths _paths;
 
     public ObservableCollection<InstanceListEntry> Instances { get; } = [];
 
@@ -73,7 +77,11 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         nameof(CopyHashedCommand))]
     private InstanceListEntry? _selectedInstance;
 
-    partial void OnSelectedInstanceChanged(InstanceListEntry? value) => _ = LoadUniqueSizeAsync(value);
+    partial void OnSelectedInstanceChanged(InstanceListEntry? value)
+    {
+        _ = LoadUniqueSizeAsync(value);
+        SelectedLogoUri = value?.LogoUri;
+    }
 
     [ObservableProperty]
     private string _filterText = string.Empty;
@@ -83,6 +91,20 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     /// <summary>Inspector figure: bytes referenced by the selection and no other entry.</summary>
     [ObservableProperty]
     private string _selectedUniqueSizeText = string.Empty;
+
+    [ObservableProperty]
+    private bool _isGridView;
+
+    [ObservableProperty]
+    private string? _selectedLogoUri;
+
+    public ObservableCollection<LogoEntry> AvailableLogos { get; } = [];
+
+    [ObservableProperty]
+    private bool _isLogoPickerOpen;
+
+    partial void OnIsGridViewChanged(bool value) =>
+        SaveSettings(viewMode: value ? LibraryViewMode.Grid : LibraryViewMode.List);
 
     // ── slide-over add flow ────────────────────────────────────────────────
 
@@ -162,6 +184,61 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     [RelayCommand]
     private void ToggleLog() => IsLogOpen = !IsLogOpen;
 
+    [RelayCommand]
+    private void ToggleViewMode() => IsGridView = !IsGridView;
+
+    [RelayCommand]
+    private void OpenLogoPicker()
+    {
+        AvailableLogos.Clear();
+        foreach (var logo in _logoCatalog.AllLogos)
+        {
+            AvailableLogos.Add(logo);
+        }
+
+        IsLogoPickerOpen = true;
+    }
+
+    [RelayCommand]
+    private async Task SetCustomLogo(LogoEntry? logo)
+    {
+        IsLogoPickerOpen = false;
+
+        if (SelectedInstance is null) return;
+
+        var name = SelectedInstance.InstanceName;
+
+        if (logo is null)
+        {
+            // reset to auto
+            LogoCatalog.DeleteCustomLogo(_paths.DataDirectory, name.ToLowerInvariant());
+            await _repository.SetCustomLogoAsync(name, null);
+        }
+        else
+        {
+            await _repository.SetCustomLogoAsync(name, logo.LogoKey);
+        }
+
+        await RefreshInstancesAsync();
+    }
+
+    [RelayCommand]
+    private async Task SetCustomImageAsync()
+    {
+        IsLogoPickerOpen = false;
+
+        if (SelectedInstance is null) return;
+
+        var name = SelectedInstance.InstanceName;
+        var picked = await _dialogs.PickOpenFileAsync("Select image", new Core.Abstractions.Dialogs.FileType("Images", ["*.png", "*.jpg", "*.jpeg"]));
+        if (picked is null) return;
+
+        LogoCatalog.SaveCustomLogo(_paths.DataDirectory, name.ToLowerInvariant(), picked);
+        await _repository.SetCustomLogoAsync(name, "custom");
+
+        await RefreshInstancesAsync();
+    }
+
     private CancellationTokenSource? _operationCts;
 
     public MainViewModel(
@@ -177,7 +254,9 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         ISettingsStore settingsStore,
         ITaskbarProgress taskbarProgress,
         IHardLinkPreflight hardLinkPreflight,
-        Func<AddInstanceViewModel> addInstanceFactory)
+        Func<AddInstanceViewModel> addInstanceFactory,
+        LogoCatalog logoCatalog,
+        IAppPaths paths)
     {
         _instanceService = instanceService;
         _linkingService = linkingService;
@@ -190,6 +269,8 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         _settingsStore = settingsStore;
         _taskbarProgress = taskbarProgress;
         _addInstanceFactory = addInstanceFactory;
+        _logoCatalog = logoCatalog;
+        _paths = paths;
         TorrentCheck = new TorrentCheckViewModel(torrentService, dialogs, hardLinkPreflight, this);
     }
 
@@ -525,13 +606,14 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     /// Persists a single setting change, preserving the other fields from the
     /// currently stored settings so startup seeding never clobbers them.
     /// </summary>
-    private void SaveSettings(AppTheme? theme = null, int? threads = null, string? dataDirectory = null)
+    private void SaveSettings(AppTheme? theme = null, int? threads = null, string? dataDirectory = null, LibraryViewMode? viewMode = null)
     {
         var current = _settingsStore.Load();
         _settingsStore.Save(new AppSettings(
             theme ?? current.Theme,
             dataDirectory ?? current.DataDirectory,
-            threads ?? current.HashThreadCount));
+            threads ?? current.HashThreadCount,
+            viewMode ?? current.ViewMode));
     }
 
     /// <summary>Refreshes the library list and storage card together after an operation.</summary>
@@ -544,12 +626,15 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     public async Task RefreshInstancesAsync()
     {
         var all = await _repository.GetSummariesAsync();
+        var settings = _settingsStore.Load();
+        IsGridView = settings.ViewMode == LibraryViewMode.Grid;
+
         var selectedName = SelectedInstance?.InstanceName;
 
         Instances.Clear();
         foreach (var summary in all)
         {
-            Instances.Add(summary);
+            Instances.Add(summary with { LogoUri = ResolveLogoPath(summary) });
         }
 
         ApplyFilter();
@@ -561,6 +646,30 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         }
 
         LogLines.Add(LogMessages.LibraryRefreshed);
+    }
+
+    private string? ResolveLogoPath(InstanceListEntry entry)
+    {
+        var key = entry.CustomLogoSource;
+        if (key == "custom")
+        {
+            var file = LogoCatalog.GetCustomLogoFilePath(_paths.DataDirectory, entry.InstanceName.ToLowerInvariant());
+            if (file is not null) return file;
+            return null;
+        }
+
+        if (key is not null)
+        {
+            return _logoCatalog.GetLogoPath(key);
+        }
+
+        var detected = entry.DetectedGame?.LogoKey;
+        if (detected is not null)
+        {
+            return _logoCatalog.GetLogoPath(detected);
+        }
+
+        return null;
     }
 
     private void ApplyFilter()

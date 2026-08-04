@@ -38,7 +38,7 @@ public sealed class AddInstanceViewModelTests
     private AddInstanceViewModel Create() =>
         new(
             new InstanceService(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, _detector),
-            _dialogs, _taskbarProgress, _fs, _preflight);
+            _dialogs, _taskbarProgress, _fs, _preflight, _detector);
 
     private void StubDataPath()
     {
