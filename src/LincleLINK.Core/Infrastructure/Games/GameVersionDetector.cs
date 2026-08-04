@@ -90,8 +90,8 @@ public sealed class GameVersionDetector : IGameVersionDetector
         new("KFC", "SOUND VOLTEX",    "SDVX/SDVX_III_logo",               2014112000, 2016121499, "III GRAVITY WARS"),
         new("KFC", "SOUND VOLTEX",    "SDVX/SDVX_IV_logo",                2016121500, 2019022799, "IV HEAVENLY HAVEN"),
         new("KFC", "SOUND VOLTEX",    "SDVX/SDVX_VIVID_WAVE_logo",        2019022800, 2021040199, "VIVID WAVE"),
-        new("KFC", "SOUND VOLTEX",    "SDVX/SDVX_EXCEED_GEAR_logo",       2021040200, 2024061299, "EXCEED GEAR"),
-        new("UFC", "SOUND VOLTEX",    "SDVX/SDVX_NABLA_logo",             2024061300, 2999999999, "∁ENABLA"),
+        new("KFC", "SOUND VOLTEX",    "SDVX/SDVX_EXCEED_GEAR_logo",       2021040200, 2025122399, "EXCEED GEAR"),
+        new("UFC", "SOUND VOLTEX",    "SDVX/SDVX_NABLA_logo",             2025122400, 2999999999, "∁ENABLA"),
         // DDR - MDX model (contiguous: each release ends the day before the next launches)
         new("MDX", "DanceDanceRevolution", "DDR/AC_DDR_A_logo",          2016031700, 2019031999, "A"),
         new("MDX", "DanceDanceRevolution", "DDR/AC_DDR_A20_logo",        2019032000, 2022031699, "A20"),

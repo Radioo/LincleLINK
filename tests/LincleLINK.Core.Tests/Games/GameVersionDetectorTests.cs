@@ -329,6 +329,69 @@ public sealed class GameVersionDetectorTests : IDisposable
     }
 
     [Fact]
+    public async Task Sdvx_2025120900_maps_to_exceed_gear()
+    {
+        // Regression: a real KFC build dated 2025-12-09 (KFC-008-2025120900) used to
+        // fall past the EXCEED GEAR cap (2024-06-13), so it resolved no title.
+        // NABLA (UFC) did not launch until 2025-12-24, so this is still EXCEED GEAR.
+        _temp.CreateFile(
+            "prop/ea3-config.xml",
+            System.Text.Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="utf-8"?>
+                <ea3>
+                  <soft>
+                    <model>KFC</model>
+                    <dest>J</dest>
+                    <spec>A</spec>
+                    <rev>A</rev>
+                    <ext>2025120900</ext>
+                  </soft>
+                </ea3>
+                """));
+        _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("data/graphics/a.bin");
+
+        var result = await CreateDetector().DetectAsync(_temp.Root);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("KFC");
+        result.Info.DateCode.Should().Be("2025120900");
+        result.Info.DisplayTitle.Should().Be("SOUND VOLTEX EXCEED GEAR");
+        result.Info.LogoKey.Should().Be("SDVX/SDVX_EXCEED_GEAR_logo");
+    }
+
+    [Fact]
+    public async Task Sdvx_2025122400_maps_to_nabla()
+    {
+        // NABLA (UFC model) launched 2025-12-24; a build on or after that date is
+        // NABLA, not EXCEED GEAR.
+        _temp.CreateFile(
+            "prop/ea3-config.xml",
+            System.Text.Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="utf-8"?>
+                <ea3>
+                  <soft>
+                    <model>UFC</model>
+                    <dest>J</dest>
+                    <spec>A</spec>
+                    <rev>A</rev>
+                    <ext>2025122400</ext>
+                  </soft>
+                </ea3>
+                """));
+        _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("data/graphics/a.bin");
+
+        var result = await CreateDetector().DetectAsync(_temp.Root);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("UFC");
+        result.Info.DateCode.Should().Be("2025122400");
+        result.Info.DisplayTitle.Should().Be("SOUND VOLTEX ∁ENABLA");
+        result.Info.LogoKey.Should().Be("SDVX/SDVX_NABLA_logo");
+    }
+
+    [Fact]
     public async Task Missing_directory_returns_null_info()
     {
         var missing = Path.Combine(_temp.Root, "does-not-exist");
