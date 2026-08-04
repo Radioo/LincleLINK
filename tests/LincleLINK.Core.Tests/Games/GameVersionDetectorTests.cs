@@ -22,20 +22,33 @@ public sealed class GameVersionDetectorTests : IDisposable
 
     private static GameVersionDetector CreateDetector() => new(new FileSystem());
 
+    // Real EA3 configs express the soft fields as child elements, not attributes.
     private const string IidxConfig =
         """
         <?xml version="1.0" encoding="utf-8"?>
         <ea3>
-          <id pcbid="0123" />
-          <soft model="LDJ" dest="J" spec="A" rev="A" ext="2022101900" />
+          <id><pcbid>0123</pcbid></id>
+          <soft>
+            <model>LDJ</model>
+            <dest>J</dest>
+            <spec>A</spec>
+            <rev>A</rev>
+            <ext>2022101900</ext>
+          </soft>
         </ea3>
         """;
 
-    private const string SdvxConfig =
+    private const string SdvxIiConfig =
         """
         <?xml version="1.0" encoding="utf-8"?>
         <ea3>
-          <soft model="KFC" dest="J" spec="A" rev="1" ext="2021042800" />
+          <soft>
+            <model>KFC</model>
+            <dest>J</dest>
+            <spec>A</spec>
+            <rev>A</rev>
+            <ext>2014102201</ext>
+          </soft>
         </ea3>
         """;
 
@@ -45,47 +58,85 @@ public sealed class GameVersionDetectorTests : IDisposable
         // IIDX layout: game root holds prop/ + bm2dx.dll; instance is root\data.
         _temp.CreateFile("prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(IidxConfig));
         _temp.CreateFile("bm2dx.dll", [0x4D, 0x5A, 0, 0]); // MZ header
-        var dataFolder = _temp.CreateFile("data/somefile.bin");
+        var dataFolder = _temp.CreateFile("data/graphics/somefile.bin");
 
-        var result = await CreateDetector().DetectAsync(Path.GetDirectoryName(dataFolder)!);
+        var result = await CreateDetector().DetectAsync(Path.GetDirectoryName(Path.GetDirectoryName(dataFolder))!);
 
         result.Info.Should().NotBeNull();
         result.Info!.GameCode.Should().Be("LDJ");
         result.Info.GameTitle.Should().Be("beatmania IIDX");
         result.Info.DateCode.Should().Be("2022101900");
-        result.Info.DisplayTitle.Should().NotBeNullOrWhiteSpace();
+        result.Info.DisplayTitle.Should().Be("beatmania IIDX 30 RESIDENT");
         result.GameRootPath.Should().Be(_temp.Root);
         result.IsGameRoot.Should().BeFalse(); // the selected folder is data/, not the root
         result.DataFolderName.Should().Be("data");
     }
 
     [Fact]
-    public async Task Sdvx_contents_data_walks_up_two_levels()
+    public async Task Unwrapped_sdvx_with_dll_in_modules_is_detected()
     {
-        // SDVX layout: game root holds prop/ + soundvoltex.dll; instance is root\contents\data.
-        _temp.CreateFile("prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(SdvxConfig));
-        _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
-        _temp.CreateFile("contents/data/music.bin");
+        // SDVX II (unwrapped): game root holds prop/ + modules/soundvoltex.dll + data/.
+        _temp.CreateFile("prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(SdvxIiConfig));
+        _temp.CreateFile("modules/soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("data/graphics/somefile.bin");
+
+        var result = await CreateDetector().DetectAsync(_temp.Root);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("KFC");
+        result.Info.GameTitle.Should().Be("SOUND VOLTEX");
+        result.Info.DateCode.Should().Be("2014102201");
+        result.Info.DisplayTitle.Should().Be("SOUND VOLTEX II -infinite infection-");
+        result.Info.LogoKey.Should().Be("SDVX/SDVX_II_logo");
+        result.IsGameRoot.Should().BeTrue();
+        result.DataFolderName.Should().Be("data");
+    }
+
+    [Fact]
+    public async Task Unwrapped_sdvx_data_folder_is_detected()
+    {
+        _temp.CreateFile("prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(SdvxIiConfig));
+        _temp.CreateFile("modules/soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("data/graphics/somefile.bin");
+
+        var result = await CreateDetector().DetectAsync(Path.Combine(_temp.Root, "data"));
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("KFC");
+        result.Info.DisplayTitle.Should().Be("SOUND VOLTEX II -infinite infection-");
+        result.IsGameRoot.Should().BeFalse();
+        result.DataFolderName.Should().Be("data");
+    }
+
+    [Fact]
+    public async Task Wrapped_sdvx_inside_contents_is_detected_from_data()
+    {
+        // Wrapped layout: everything lives under contents/ (prop + modules + data).
+        _temp.CreateFile("contents/prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(SdvxIiConfig));
+        _temp.CreateFile("contents/modules/soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("contents/data/graphics/somefile.bin");
 
         var result = await CreateDetector().DetectAsync(Path.Combine(_temp.Root, "contents", "data"));
 
         result.Info.Should().NotBeNull();
         result.Info!.GameCode.Should().Be("KFC");
-        result.Info.GameTitle.Should().Be("SOUND VOLTEX");
-        result.Info.DateCode.Should().Be("2021042800");
-        result.DataFolderName.Should().Be(Path.Combine("contents", "data"));
+        result.Info.DisplayTitle.Should().Be("SOUND VOLTEX II -infinite infection-");
+        result.GameRootPath.Should().Be(Path.Combine(_temp.Root, "contents"));
+        result.DataFolderName.Should().Be("data");
     }
 
     [Fact]
-    public async Task Full_game_root_is_detected_as_game_root()
+    public async Task Wrapped_sdvx_selected_at_game_root_is_game_root()
     {
-        _temp.CreateFile("prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(IidxConfig));
-        _temp.CreateFile("bm2dx.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("contents/prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(SdvxIiConfig));
+        _temp.CreateFile("contents/modules/soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("contents/data/graphics/somefile.bin");
 
         var result = await CreateDetector().DetectAsync(_temp.Root);
 
         result.Info.Should().NotBeNull();
-        result.IsGameRoot.Should().BeTrue();
+        result.Info!.GameCode.Should().Be("KFC");
+        result.IsGameRoot.Should().BeTrue(); // user selected the folder containing the identity level
         result.DataFolderName.Should().Be("data");
     }
 
@@ -127,7 +178,7 @@ public sealed class GameVersionDetectorTests : IDisposable
         // A config that is present but unreadable XML must not abort detection;
         // the DLL scan still identifies the family and a model logo.
         _temp.CreateFile("prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes("<broken"));
-        _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("modules/soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
 
         var result = await CreateDetector().DetectAsync(_temp.Root);
 
@@ -141,7 +192,7 @@ public sealed class GameVersionDetectorTests : IDisposable
     [Fact]
     public async Task Param_wrapped_config_is_parsed()
     {
-        // Real EA3 configs wrap <soft> as <param><ea3><soft .../>.
+        // Attribute-style soft under <param><ea3> must still parse.
         _temp.CreateFile(
             "prop/ea3-config.xml",
             System.Text.Encoding.UTF8.GetBytes("""

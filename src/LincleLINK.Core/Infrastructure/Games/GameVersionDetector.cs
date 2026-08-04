@@ -44,14 +44,6 @@ public sealed class GameVersionDetector : IGameVersionDetector
         ["TDX"] = "DanceDanceRevolution",
     };
 
-    // ── per-game data folder names ─────────────────────────────────────
-    private static readonly Dictionary<string, string> DataFolders = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["beatmania IIDX"]       = "data",
-        ["SOUND VOLTEX"]         = Path.Combine("contents", "data"),
-        ["DanceDanceRevolution"] = "data",
-    };
-
     // ── model → fallback logo (used when the exact datecode is unknown) ─
     private static readonly Dictionary<string, string> ModelLogos = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -123,19 +115,26 @@ public sealed class GameVersionDetector : IGameVersionDetector
             return Task.FromResult(new DetectionResult(null, null, null, false));
         }
 
-        var resolved = ResolveUpwards(rootPath, ct);
+        var resolved = ResolveIdentity(rootPath, ct);
         if (resolved.Info is null)
         {
             return Task.FromResult(new DetectionResult(null, null, null, false));
         }
 
-        var dataFolder = DataFolders.TryGetValue(resolved.Info.GameTitle, out var df) ? df : null;
+        var dataFolder = FindDataFolder(resolved.GameRootPath!, ct);
         var isGameRoot = IsGameRoot(rootPath, resolved.GameRootPath);
 
         return Task.FromResult(new DetectionResult(resolved.Info, resolved.GameRootPath, dataFolder, isGameRoot));
     }
 
-    private (GameVersionInfo? Info, string? GameRootPath) ResolveUpwards(string startPath, CancellationToken ct)
+    /// <summary>
+    /// Locates the game identity, walking up from the selected folder. At each
+    /// level the identity is probed directly and then in each immediate
+    /// subdirectory, so a <c>contents</c> wrapper (which may or may not be
+    /// present) is found by content, never by name. The returned game root is
+    /// the folder that actually holds the identity files.
+    /// </summary>
+    private (GameVersionInfo? Info, string? GameRootPath) ResolveIdentity(string startPath, CancellationToken ct)
     {
         var candidate = startPath;
 
@@ -143,31 +142,22 @@ public sealed class GameVersionDetector : IGameVersionDetector
         {
             ct.ThrowIfCancellationRequested();
 
-            var xmlInfo = TryReadEa3Config(candidate);
-            var dllInfo = TryScanDlls(candidate);
-
-            if (!string.IsNullOrEmpty(xmlInfo.GameCode) || dllInfo.Title is not null)
+            var hit = TryDetect(candidate);
+            if (hit.Info is not null)
             {
-                var gameCode = !string.IsNullOrEmpty(xmlInfo.GameCode) ? xmlInfo.GameCode : dllInfo.ModelHint ?? string.Empty;
-                var gameTitle = ResolveTitle(gameCode) ?? dllInfo.Title ?? string.Empty;
-                var release = ResolveArcadeRelease(gameCode, xmlInfo.Ext);
-                var logoKey = release?.LogoKey ?? ResolveModelLogo(gameCode);
-                var displayTitle = release?.ReleaseName is { } releaseName
-                    ? $"{gameTitle} {releaseName}"
-                    : null;
-                var peId = dllInfo.DllPath is not null ? TryReadPeIdentifier(dllInfo.DllPath, gameCode) : null;
+                return hit;
+            }
 
-                var confidence = DetectionConfidence.Xml;
-                if (peId is not null) confidence = DetectionConfidence.XmlAndPe;
-
-                var info = new GameVersionInfo(
-                    gameCode, gameTitle,
-                    xmlInfo.Dest, xmlInfo.Spec, xmlInfo.Rev,
-                    xmlInfo.Ext, peId,
-                    displayTitle, logoKey,
-                    confidence);
-
-                return (info, candidate);
+            // A game wrapped in <contents> keeps the identity one level down;
+            // probe immediate subdirectories by content, not by name.
+            foreach (var sub in _fileSystem.EnumerateDirectories(candidate, recursive: false))
+            {
+                ct.ThrowIfCancellationRequested();
+                hit = TryDetect(sub);
+                if (hit.Info is not null)
+                {
+                    return hit;
+                }
             }
 
             var parent = Path.GetDirectoryName(candidate);
@@ -177,6 +167,86 @@ public sealed class GameVersionDetector : IGameVersionDetector
 
         return (null, null);
     }
+
+    private (GameVersionInfo? Info, string? GameRootPath) TryDetect(string dir)
+    {
+        var xmlInfo = TryReadEa3Config(dir);
+        var dllInfo = TryScanDlls(dir);
+
+        if (string.IsNullOrEmpty(xmlInfo.GameCode) && dllInfo.Title is null)
+        {
+            return (null, null);
+        }
+
+        var gameCode = !string.IsNullOrEmpty(xmlInfo.GameCode) ? xmlInfo.GameCode : dllInfo.ModelHint ?? string.Empty;
+        var gameTitle = ResolveTitle(gameCode) ?? dllInfo.Title ?? string.Empty;
+        var release = ResolveArcadeRelease(gameCode, xmlInfo.Ext);
+        var logoKey = release?.LogoKey ?? ResolveModelLogo(gameCode);
+        var displayTitle = release?.ReleaseName is { } releaseName
+            ? $"{gameTitle} {releaseName}"
+            : null;
+        var peId = dllInfo.DllPath is not null ? TryReadPeIdentifier(dllInfo.DllPath, gameCode) : null;
+
+        var confidence = DetectionConfidence.Xml;
+        if (peId is not null) confidence = DetectionConfidence.XmlAndPe;
+
+        var info = new GameVersionInfo(
+            gameCode, gameTitle,
+            xmlInfo.Dest, xmlInfo.Spec, xmlInfo.Rev,
+            xmlInfo.Ext, peId,
+            displayTitle, logoKey,
+            confidence);
+
+        return (info, dir);
+    }
+
+    /// <summary>
+    /// Finds the game's data folder by content: among the game root's immediate
+    /// subdirectories, the largest non-support one. Support folders are identified
+    /// by what they contain (config xml, game DLL, nvram), never by name.
+    /// </summary>
+    private string? FindDataFolder(string gameRoot, CancellationToken ct)
+    {
+        string? best = null;
+        var bestEntries = -1;
+
+        foreach (var dir in _fileSystem.EnumerateDirectories(gameRoot, recursive: false))
+        {
+            ct.ThrowIfCancellationRequested();
+            if (IsSupportFolder(dir)) continue;
+
+            var entries = CountEntries(dir);
+            if (entries > bestEntries)
+            {
+                bestEntries = entries;
+                best = dir;
+            }
+        }
+
+        return best is null ? null : Path.GetRelativePath(gameRoot, best);
+    }
+
+    private bool IsSupportFolder(string dir)
+    {
+        foreach (var configName in Ea3ConfigNames)
+        {
+            if (_fileSystem.FileExists(Path.Combine(dir, configName)))
+            {
+                return true;
+            }
+        }
+
+        if (_fileSystem.DirectoryExists(Path.Combine(dir, "nvram")))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private int CountEntries(string dir)
+        => _fileSystem.EnumerateDirectories(dir, recursive: false).Count
+           + _fileSystem.EnumerateFiles(dir, recursive: false).Count;
 
     private static string? ResolveTitle(string gameCode)
     {
@@ -208,19 +278,31 @@ public sealed class GameVersionDetector : IGameVersionDetector
     private static bool IsGameRoot(string selectedPath, string? gameRoot)
     {
         if (gameRoot is null) return false;
-        return string.Equals(
-            Path.GetFullPath(selectedPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
-            Path.GetFullPath(gameRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
-            StringComparison.OrdinalIgnoreCase);
+
+        var selected = Path.GetFullPath(selectedPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var root = Path.GetFullPath(gameRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        if (string.Equals(selected, root, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        // <contents> wrapper: the user selected the folder that directly contains
+        // the identity level (e.g. ...\Game when identity is ...\Game\contents).
+        var parent = Path.GetDirectoryName(root);
+        return parent is not null
+               && string.Equals(selected, Path.GetFullPath(parent).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
     }
 
     // ── XML config ─────────────────────────────────────────────────────
 
     /// <summary>
-    /// Locates the <c>&lt;soft&gt;</c> element carrying the <c>model</c> attribute.
-    /// Real EA3 configs wrap it in various roots (<c>&lt;ea3&gt;</c>,
-    /// <c>&lt;param&gt;&lt;ea3&gt;</c>, <c>&lt;ea3_conf&gt;</c>), so descend through
-    /// those wrapper names rather than assuming a fixed shape.
+    /// Locates the <c>&lt;soft&gt;</c> element carrying a <c>model</c> value. The
+    /// value may be an attribute (<c>&lt;soft model="KFC" /&gt;</c>) or a child
+    /// element (<c>&lt;soft&gt;&lt;model&gt;KFC&lt;/model&gt;&lt;/soft&gt;</c>),
+    /// which is the shape real EA3 configs use. Various wrapper roots
+    /// (<c>&lt;ea3&gt;</c>, <c>&lt;param&gt;&lt;ea3&gt;</c>, <c>&lt;ea3_conf&gt;</c>)
+    /// are handled by descending.
     /// </summary>
     private static XElement? FindSoftNode(XElement? root)
     {
@@ -229,13 +311,26 @@ public sealed class GameVersionDetector : IGameVersionDetector
         var candidates = root.DescendantsAndSelf("soft");
         foreach (var soft in candidates)
         {
-            if (soft.Attribute("model") is not null)
+            if (soft.Attribute("model") is not null || soft.Element("model") is not null)
             {
                 return soft;
             }
         }
 
         return null;
+    }
+
+    /// <summary>Reads a soft field from its attribute or child element, in that order.</summary>
+    private static string? ReadSoftField(XElement soft, string name)
+    {
+        var attribute = soft.Attribute(name)?.Value;
+        if (!string.IsNullOrWhiteSpace(attribute))
+        {
+            return attribute;
+        }
+
+        var element = soft.Element(name)?.Value;
+        return string.IsNullOrWhiteSpace(element) ? null : element;
     }
 
     private Ea3SoftInfo TryReadEa3Config(string candidatePath)
@@ -253,13 +348,13 @@ public sealed class GameVersionDetector : IGameVersionDetector
                 var soft = FindSoftNode(doc.Root);
                 if (soft is null) continue;
 
-                var model = (string?)soft.Attribute("model");
+                var model = ReadSoftField(soft, "model");
                 if (string.IsNullOrWhiteSpace(model)) continue;
 
-                var dest   = (string?)soft.Attribute("dest");
-                var spec   = (string?)soft.Attribute("spec");
-                var rev    = (string?)soft.Attribute("rev");
-                var ext    = (string?)soft.Attribute("ext");
+                var dest   = ReadSoftField(soft, "dest");
+                var spec   = ReadSoftField(soft, "spec");
+                var rev    = ReadSoftField(soft, "rev");
+                var ext    = ReadSoftField(soft, "ext");
 
                 // bootstrap.xml override (release_code)
                 var bootstrapPath = Path.Combine(candidatePath, "prop", "bootstrap.xml");
@@ -299,13 +394,19 @@ public sealed class GameVersionDetector : IGameVersionDetector
 
     private DllScanInfo TryScanDlls(string candidatePath)
     {
+        // Game DLLs live at the root or under modules/; probe both by content.
+        var probes = new[] { candidatePath, Path.Combine(candidatePath, "modules") };
+
         foreach (var (dllName, (title, modelHint)) in KnownDlls)
         {
-            var fullPath = Path.Combine(candidatePath, dllName);
-            if (!_fileSystem.FileExists(fullPath)) continue;
-            if (!HasMzHeader(fullPath)) continue;
+            foreach (var probe in probes)
+            {
+                var fullPath = Path.Combine(probe, dllName);
+                if (!_fileSystem.FileExists(fullPath)) continue;
+                if (!HasMzHeader(fullPath)) continue;
 
-            return new DllScanInfo(title, modelHint, fullPath);
+                return new DllScanInfo(title, modelHint, fullPath);
+            }
         }
 
         return default;

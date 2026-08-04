@@ -255,10 +255,10 @@ public partial class AddInstanceViewModel : ViewModelBase
                 _gameRootPath = detection.GameRootPath;
                 _dataFolderName = detection.DataFolderName;
 
-                if (detection.IsGameRoot && detection.DataFolderName is not null)
+                if (detection.IsGameRoot && detection.DataFolderName is not null && detection.GameRootPath is not null)
                 {
                     IsGameRootDetected = true;
-                    DataFolderHint = Path.Combine(DataPath, detection.DataFolderName);
+                    DataFolderHint = Path.Combine(detection.GameRootPath, detection.DataFolderName);
                 }
             }
         }
