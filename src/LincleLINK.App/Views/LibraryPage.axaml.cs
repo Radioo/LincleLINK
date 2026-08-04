@@ -33,6 +33,22 @@ public partial class LibraryPage : UserControl
             }
         }
     }
+
+    /// <summary>
+    /// Clicking the logo column header restores the default supported-list order:
+    /// it clears the DataGrid's active sort so the grid falls back to the
+    /// ItemsSource order (which the view model keeps in catalog order).
+    /// </summary>
+    private void OnSorting(object? sender, DataGridColumnEventArgs e)
+    {
+        // The logo column is the only template column, so it identifies the
+        // header click that should reset the sort.
+        if (e.Column is DataGridTemplateColumn)
+        {
+            e.Handled = true;
+            LibraryGrid.CollectionView.SortDescriptions.Clear();
+        }
+    }
 }
 
 /// <summary>

@@ -30,6 +30,7 @@
 
                 <DataGrid x:Name="LibraryGrid" Grid.Column="0"
                           ItemsSource="{Binding FilteredInstances}"
+                          Sorting="OnSorting"
                           AutoGenerateColumns="False"
                           IsReadOnly="True"
                           SelectionMode="Single"
@@ -46,7 +47,7 @@
                     </DataGrid.ContextMenu>
                     <DataGrid.Columns>
                         <DataGridTemplateColumn x:DataType="domain:InstanceListEntry"
-                                                Width="44" CanUserSort="False">
+                                                Width="44" CanUserSort="True">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <Image Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality"
