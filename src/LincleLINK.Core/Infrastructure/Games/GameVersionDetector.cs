@@ -131,9 +131,9 @@ public sealed class GameVersionDetector : IGameVersionDetector
             var xmlInfo = TryReadEa3Config(candidate);
             var dllInfo = TryScanDlls(candidate);
 
-            if (xmlInfo.GameCode.Length > 0 || dllInfo.Title is not null)
+            if (!string.IsNullOrEmpty(xmlInfo.GameCode) || dllInfo.Title is not null)
             {
-                var gameCode = xmlInfo.GameCode.Length > 0 ? xmlInfo.GameCode : dllInfo.ModelHint ?? string.Empty;
+                var gameCode = !string.IsNullOrEmpty(xmlInfo.GameCode) ? xmlInfo.GameCode : dllInfo.ModelHint ?? string.Empty;
                 var gameTitle = ResolveTitle(gameCode) ?? dllInfo.Title ?? string.Empty;
                 var logoKey = ResolveArcadeRelease(gameCode, xmlInfo.Ext);
                 var displayTitle = logoKey is not null ? ParseDisplayTitle(logoKey) : null;
@@ -357,7 +357,7 @@ public sealed class GameVersionDetector : IGameVersionDetector
     // ── internal data types ────────────────────────────────────────────
 
     private readonly record struct Ea3SoftInfo(
-        string GameCode, string Dest, string Spec, string Rev, string Ext);
+        string? GameCode, string? Dest, string? Spec, string? Rev, string? Ext);
 
     private readonly record struct DllScanInfo(
         string? Title, string? ModelHint, string? DllPath);
