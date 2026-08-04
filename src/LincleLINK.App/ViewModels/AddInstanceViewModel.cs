@@ -207,11 +207,29 @@ public partial class AddInstanceViewModel : ViewModelBase
 
             var total = await Task.Run(() =>
             {
+                // Walk one directory at a time so a superseded analysis (folder
+                // changed, panel closed) stops promptly instead of finishing a
+                // full recursive enumeration that was never going to be shown.
                 long sum = 0;
-                foreach (var file in _fileSystem.EnumerateFiles(path, recursive: true))
+                var pending = new Stack<string>();
+                pending.Push(path);
+
+                while (pending.Count > 0)
                 {
                     cts.Token.ThrowIfCancellationRequested();
-                    sum += _fileSystem.GetFileLength(file);
+                    var dir = pending.Pop();
+
+                    foreach (var file in _fileSystem.EnumerateFiles(dir, recursive: false))
+                    {
+                        cts.Token.ThrowIfCancellationRequested();
+                        sum += _fileSystem.GetFileLength(file);
+                    }
+
+                    foreach (var sub in _fileSystem.EnumerateDirectories(dir, recursive: false))
+                    {
+                        cts.Token.ThrowIfCancellationRequested();
+                        pending.Push(sub);
+                    }
                 }
 
                 return sum;
