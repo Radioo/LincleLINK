@@ -52,6 +52,21 @@ public sealed class GameVersionDetector : IGameVersionDetector
         ["DanceDanceRevolution"] = "data",
     };
 
+    // ── model → fallback logo (used when the exact datecode is unknown) ─
+    private static readonly Dictionary<string, string> ModelLogos = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["JDZ"] = "IIDX/AC_9th_style_logo",
+        ["KDZ"] = "IIDX/AC_9th_style_logo",
+        ["LDJ"] = "IIDX/AC_9th_style_logo",
+        ["TDJ"] = "IIDX/AC_9th_style_logo",
+        ["KFC"] = "SDVX/SDVX_BOOTH_logo",
+        ["UFC"] = "SDVX/SDVX_NABLA_logo",
+        ["JDX"] = "DDR/AC_DDR_X_logo",
+        ["KDX"] = "DDR/AC_DDR_X_logo",
+        ["MDX"] = "DDR/AC_DDR_A_logo",
+        ["TDX"] = "DDR/AC_DDR_WORLD_logo",
+    };
+
     // ── datecode ↁEarcade release (best-effort) ─────────────────────────
     private static readonly List<ArcadeRelease> ArcadeReleases =
     [
@@ -135,8 +150,11 @@ public sealed class GameVersionDetector : IGameVersionDetector
             {
                 var gameCode = !string.IsNullOrEmpty(xmlInfo.GameCode) ? xmlInfo.GameCode : dllInfo.ModelHint ?? string.Empty;
                 var gameTitle = ResolveTitle(gameCode) ?? dllInfo.Title ?? string.Empty;
-                var logoKey = ResolveArcadeRelease(gameCode, xmlInfo.Ext);
-                var displayTitle = logoKey is not null ? ParseDisplayTitle(logoKey) : null;
+                var release = ResolveArcadeRelease(gameCode, xmlInfo.Ext);
+                var logoKey = release?.LogoKey ?? ResolveModelLogo(gameCode);
+                var displayTitle = release?.ReleaseName is { } releaseName
+                    ? $"{gameTitle} {releaseName}"
+                    : null;
                 var peId = dllInfo.DllPath is not null ? TryReadPeIdentifier(dllInfo.DllPath, gameCode) : null;
 
                 var confidence = DetectionConfidence.Xml;
@@ -165,7 +183,12 @@ public sealed class GameVersionDetector : IGameVersionDetector
         return ModelTitle.TryGetValue(gameCode, out var title) ? title : null;
     }
 
-    private static string? ResolveArcadeRelease(string? gameCode, string? dateCode)
+    private static string? ResolveModelLogo(string? gameCode)
+    {
+        return gameCode is not null && ModelLogos.TryGetValue(gameCode, out var logo) ? logo : null;
+    }
+
+    private static ArcadeRelease? ResolveArcadeRelease(string? gameCode, string? dateCode)
     {
         if (gameCode is null || dateCode is null) return null;
         if (!long.TryParse(dateCode, CultureInfo.InvariantCulture, out var dc)) return null;
@@ -175,19 +198,11 @@ public sealed class GameVersionDetector : IGameVersionDetector
             if (string.Equals(r.Model, gameCode, StringComparison.OrdinalIgnoreCase) &&
                 dc >= r.DateMin && dc <= r.DateMax)
             {
-                return r.LogoKey;
+                return r;
             }
         }
 
         return null;
-    }
-
-    private static string? ParseDisplayTitle(string logoKey)
-    {
-        // logoKey format: "AC_27_HEROIC_VERSE_logo" or "SDVX_VIVID_WAVE_logo" etc.
-        // extract the human title portion
-        var name = Path.GetFileNameWithoutExtension(logoKey);
-        return name.Replace('_', ' ');
     }
 
     private static bool IsGameRoot(string selectedPath, string? gameRoot)
@@ -201,6 +216,28 @@ public sealed class GameVersionDetector : IGameVersionDetector
 
     // ── XML config ─────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Locates the <c>&lt;soft&gt;</c> element carrying the <c>model</c> attribute.
+    /// Real EA3 configs wrap it in various roots (<c>&lt;ea3&gt;</c>,
+    /// <c>&lt;param&gt;&lt;ea3&gt;</c>, <c>&lt;ea3_conf&gt;</c>), so descend through
+    /// those wrapper names rather than assuming a fixed shape.
+    /// </summary>
+    private static XElement? FindSoftNode(XElement? root)
+    {
+        if (root is null) return null;
+
+        var candidates = root.DescendantsAndSelf("soft");
+        foreach (var soft in candidates)
+        {
+            if (soft.Attribute("model") is not null)
+            {
+                return soft;
+            }
+        }
+
+        return null;
+    }
+
     private Ea3SoftInfo TryReadEa3Config(string candidatePath)
     {
         foreach (var name in Ea3ConfigNames)
@@ -213,24 +250,7 @@ public sealed class GameVersionDetector : IGameVersionDetector
                 var text = _fileSystem.ReadAllText(fullPath);
                 var doc = XDocument.Parse(text);
 
-                var soft = doc.Root?.Element("soft");
-                if (soft is null)
-                {
-                    // ea3-ident.xml uses <ea3_conf><soft>
-                    soft = doc.Root?.Element("ea3_conf")?.Element("soft");
-                }
-
-                if (soft is null)
-                {
-                    // ea3-config.xml uses <ea3><soft>
-                    soft = doc.Root?.Element("ea3")?.Element("soft");
-                }
-
-                // direct ea3-config structure: just <soft> inside the root? No, ea3-config.xml root is <ea3>
-                // and <soft> is under it. Actually, re-checking the parser in avs/ea3.cpp: the root is parsed
-                // as property list, and then /ea3/soft is located. The XML structure is <ea3><soft .../>.
-                // The XDocument parser sees <ea3> as root, <soft> as child.
-
+                var soft = FindSoftNode(doc.Root);
                 if (soft is null) continue;
 
                 var model = (string?)soft.Attribute("model");

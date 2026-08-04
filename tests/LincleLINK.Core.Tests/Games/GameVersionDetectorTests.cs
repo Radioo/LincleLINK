@@ -125,7 +125,7 @@ public sealed class GameVersionDetectorTests : IDisposable
     public async Task Unparseable_config_falls_back_to_dll_detection()
     {
         // A config that is present but unreadable XML must not abort detection;
-        // the DLL scan still identifies the family.
+        // the DLL scan still identifies the family and a model logo.
         _temp.CreateFile("prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes("<broken"));
         _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
 
@@ -134,6 +134,57 @@ public sealed class GameVersionDetectorTests : IDisposable
         result.Info.Should().NotBeNull();
         result.Info!.GameCode.Should().Be("KFC"); // model hint from the DLL scan
         result.Info.GameTitle.Should().Be("SOUND VOLTEX");
+        result.Info.LogoKey.Should().Be("SDVX/SDVX_BOOTH_logo"); // model fallback logo
+        result.Info.DisplayTitle.Should().BeNull(); // no release name; VM falls back to GameTitle
+    }
+
+    [Fact]
+    public async Task Param_wrapped_config_is_parsed()
+    {
+        // Real EA3 configs wrap <soft> as <param><ea3><soft .../>.
+        _temp.CreateFile(
+            "prop/ea3-config.xml",
+            System.Text.Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="utf-8"?>
+                <param>
+                  <ea3>
+                    <soft model="KFC" dest="J" spec="A" rev="1" ext="2013060500" />
+                  </ea3>
+                </param>
+                """));
+        _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+
+        var result = await CreateDetector().DetectAsync(_temp.Root);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("KFC");
+        result.Info.DateCode.Should().Be("2013060500");
+        result.Info.LogoKey.Should().Be("SDVX/SDVX_II_logo"); // SDVX II datecode range
+        result.Info.DisplayTitle.Should().Be("SOUND VOLTEX II -infinite infection-");
+    }
+
+    [Fact]
+    public async Task Unknown_datecode_still_resolves_model_logo()
+    {
+        // A datecode that matches no release range must not leave the entry
+        // without an icon; the model fallback logo is used instead.
+        _temp.CreateFile(
+            "prop/ea3-config.xml",
+            System.Text.Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="utf-8"?>
+                <param>
+                  <ea3>
+                    <soft model="KFC" dest="J" spec="A" rev="1" ext="2999010100" />
+                  </ea3>
+                </param>
+                """));
+        _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+
+        var result = await CreateDetector().DetectAsync(_temp.Root);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("KFC");
+        result.Info.LogoKey.Should().Be("SDVX/SDVX_BOOTH_logo"); // fallback, not a specific release
     }
 
     [Fact]
