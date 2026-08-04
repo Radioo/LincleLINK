@@ -3,6 +3,7 @@
         xmlns:vm="using:LincleLINK.App.ViewModels"
         xmlns:domain="using:LincleLINK.Core.Domain"
         xmlns:logos="using:LincleLINK.App.Logos"
+        xmlns:converters="using:LincleLINK.App.Converters"
         xmlns:behaviors="using:LincleLINK.App.Behaviors"
         x:Class="LincleLINK.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
@@ -114,32 +115,37 @@
 
                         <Panel Grid.Row="1">
                             <Grid ColumnDefinitions="*,250" ColumnSpacing="12" IsVisible="{Binding !!Instances.Count}">
-                                <ListBox Grid.Column="0"
+                                <DataGrid Grid.Column="0"
                                           ItemsSource="{Binding FilteredInstances}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
                                           SelectionMode="Single"
-                                          Background="Transparent" BorderThickness="0"
+                                          GridLinesVisibility="None"
                                           SelectedItem="{Binding SelectedInstance, Mode=TwoWay}"
                                           IsVisible="{Binding !IsGridView}">
-                                    <ListBox.Styles>
-                                        <Style Selector="ListBoxItem">
-                                            <Setter Property="Padding" Value="4,3" />
-                                        </Style>
-                                    </ListBox.Styles>
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate x:DataType="domain:InstanceListEntry">
-                                            <Grid ColumnDefinitions="36,Auto,*,Auto,Auto" ColumnSpacing="10">
-                                                <Image Grid.Column="0" Width="32" Height="32" Stretch="Uniform"
-                                                       Source="{Binding LogoUri}" />
-                                                <TextBlock Grid.Column="1" Text="{Binding InstanceName}"
-                                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Grid.Column="3" Text="{Binding FileCount, StringFormat={}{0} files}"
-                                                           Opacity="0.6" FontSize="12" VerticalAlignment="Center" />
-                                                <TextBlock Grid.Column="4" Text="{Binding TotalFileSizeString}"
-                                                           Opacity="0.6" FontSize="12" VerticalAlignment="Center" MinWidth="60" TextAlignment="Right" />
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
+                                    <DataGrid.ContextMenu>
+                                        <ContextMenu x:DataType="vm:MainViewModel">
+                                            <MenuItem Header="Deploy to folder..." Command="{Binding LinkFilesCommand}" />
+                                            <MenuItem Header="Export storage files..." Command="{Binding CopyHashedCommand}" />
+                                            <Separator />
+                                            <MenuItem Header="Remove from library" Command="{Binding DeleteInstanceCommand}" />
+                                        </ContextMenu>
+                                    </DataGrid.ContextMenu>
+                                    <DataGrid.Columns>
+                                        <DataGridTemplateColumn x:DataType="domain:InstanceListEntry"
+                                                                Width="44" CanUserSort="False">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Image Width="32" Height="32" Stretch="Uniform"
+                                                           Source="{Binding LogoUri, Converter={StaticResource LogoSourceConverter}}" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="Name" Binding="{Binding InstanceName}" Width="3*" />
+                                        <DataGridTextColumn Header="Files" Binding="{Binding FileCount}" Width="1*" />
+                                        <DataGridTextColumn Header="Size" Binding="{Binding TotalFileSizeString}" Width="1*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
 
                                 <ScrollViewer Grid.Column="0" IsVisible="{Binding IsGridView}">
                                     <ItemsControl ItemsSource="{Binding FilteredInstances}">
@@ -157,7 +163,7 @@
                                                         PointerPressed="OnGridItemClicked">
                                                     <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <Image Width="64" Height="64" Stretch="Uniform"
-                                                               Source="{Binding LogoUri}" />
+                                                               Source="{Binding LogoUri, Converter={StaticResource LogoSourceConverter}}" />
                                                         <TextBlock Text="{Binding InstanceName}" TextAlignment="Center"
                                                                    TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
                                                                    FontSize="12" />
@@ -177,7 +183,7 @@
                                         <StackPanel Spacing="10">
                                             <Panel HorizontalAlignment="Center">
                                                 <Image Width="100" Height="60" Stretch="Uniform"
-                                                       Source="{Binding SelectedLogoUri}"
+                                                       Source="{Binding SelectedLogoUri, Converter={StaticResource LogoSourceConverter}}"
                                                        IsVisible="{Binding SelectedLogoUri, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                                 <Border Width="100" Height="60"
                                                         Background="{DynamicResource LLSurface}"
@@ -470,7 +476,7 @@
                                             CornerRadius="6" Cursor="Hand"
                                             ToolTip.Tip="{Binding DisplayName}"
                                             PointerPressed="OnLogoClicked">
-                                        <Image Stretch="Uniform" Source="{Binding AssetPath}" />
+                                        <Image Stretch="Uniform" Source="{Binding AssetPath, Converter={StaticResource LogoSourceConverter}}" />
                                     </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
