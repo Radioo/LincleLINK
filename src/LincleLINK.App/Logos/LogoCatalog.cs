@@ -29,7 +29,7 @@ public sealed class LogoCatalog
         return _keyToPath.TryGetValue(logoKey, out var path) ? path : null;
     }
 
-    public string? GetCustomLogoFilePath(string dataDirectory, string nameKey)
+    public static string? GetCustomLogoFilePath(string dataDirectory, string nameKey)
     {
         var filePath = Path.Combine(dataDirectory, "custom_logos", nameKey + ".png");
         return File.Exists(filePath) ? filePath : null;

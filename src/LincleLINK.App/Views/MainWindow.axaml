@@ -92,18 +92,12 @@
 
                     <!-- ═════ Library page (plan 15 D2) ═════ -->
                     <Grid IsVisible="{Binding IsLibraryPage}" RowDefinitions="Auto,*">
-                    <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="10" Margin="0,0,0,10">
+                        <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="10" Margin="0,0,0,10">
                             <TextBlock Grid.Column="0" Text="Library" FontSize="19" FontWeight="Bold" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1" Text="{Binding Instances.Count, StringFormat={}{0} entries}"
                                        Opacity="0.6" FontSize="12" VerticalAlignment="Center" />
-                            <TextBox Grid.Column="2" MinWidth="170" PlaceholderText="Filter entries..."
+                            <TextBox Grid.Column="3" MinWidth="170" PlaceholderText="Filter entries..."
                                      Text="{Binding FilterText, Mode=TwoWay}" />
-                            <Button Grid.Column="3" Padding="8,4" BorderThickness="0" Background="Transparent"
-                                    Command="{Binding ToggleViewModeCommand}"
-                                    ToolTip.Tip="Switch between list and grid view">
-                                <TextBlock Text="☰" FontSize="14" IsVisible="{Binding !IsGridView}" />
-                                <TextBlock Text="⊞" FontSize="14" IsVisible="{Binding IsGridView}" />
-                            </Button>
                             <Button Grid.Column="4" Classes="Primary" Content="＋ Add folder..."
                                     Command="{Binding OpenAddInstanceCommand}"
                                     ToolTip.Tip="Register a folder as a library entry and absorb its files into storage" />
@@ -111,58 +105,27 @@
 
                         <Panel Grid.Row="1">
                             <Grid ColumnDefinitions="*,250" ColumnSpacing="12" IsVisible="{Binding !!Instances.Count}">
-
-                                <!-- list view -->
-                                <ListBox Grid.Column="0"
-                                         ItemsSource="{Binding FilteredInstances}"
-                                         SelectionMode="Single"
-                                         Background="Transparent" BorderThickness="0"
-                                         SelectedItem="{Binding SelectedInstance, Mode=TwoWay}"
-                                         IsVisible="{Binding !IsGridView}">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate x:DataType="domain:InstanceListEntry">
-                                            <Grid ColumnDefinitions="36,Auto,*,Auto,Auto" ColumnSpacing="10" Margin="4,3">
-                                                <Image Grid.Column="0" Width="32" Height="32" Stretch="Uniform"
-                                                       Source="{Binding LogoUri}" />
-                                                <TextBlock Grid.Column="1" Text="{Binding InstanceName}"
-                                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Grid.Column="3" Text="{Binding FileCount, StringFormat={}{0} files}"
-                                                           Opacity="0.6" FontSize="12" VerticalAlignment="Center" />
-                                                <TextBlock Grid.Column="4" Text="{Binding TotalFileSizeString}"
-                                                           Opacity="0.6" FontSize="12" VerticalAlignment="Center" MinWidth="60" TextAlignment="Right" />
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-
-                                <!-- grid view -->
-                                <ScrollViewer Grid.Column="0" IsVisible="{Binding IsGridView}">
-                                    <ItemsControl ItemsSource="{Binding FilteredInstances}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <WrapPanel />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="domain:InstanceListEntry">
-                                                <Border Width="150" Height="140" Margin="6" Padding="10"
-                                                        Background="{DynamicResource LLCard}"
-                                                        BorderBrush="{DynamicResource LLHairline}" BorderThickness="1"
-                                                        CornerRadius="8"
-                                                        Cursor="Hand"
-                                                        PointerPressed="OnGridItemClicked">
-                                                    <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <Image Width="64" Height="64" Stretch="Uniform"
-                                                               Source="{Binding LogoUri}" />
-                                                        <TextBlock Text="{Binding InstanceName}" TextAlignment="Center"
-                                                                   TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
-                                                                   FontSize="12" />
-                                                    </StackPanel>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </ScrollViewer>
+                                <DataGrid Grid.Column="0"
+                                          ItemsSource="{Binding FilteredInstances}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          SelectionMode="Single"
+                                          GridLinesVisibility="None"
+                                          SelectedItem="{Binding SelectedInstance, Mode=TwoWay}">
+                                    <DataGrid.ContextMenu>
+                                        <ContextMenu x:DataType="vm:MainViewModel">
+                                            <MenuItem Header="Deploy to folder..." Command="{Binding LinkFilesCommand}" />
+                                            <MenuItem Header="Export storage files..." Command="{Binding CopyHashedCommand}" />
+                                            <Separator />
+                                            <MenuItem Header="Remove from library" Command="{Binding DeleteInstanceCommand}" />
+                                        </ContextMenu>
+                                    </DataGrid.ContextMenu>
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Name" Binding="{Binding InstanceName}" Width="3*" />
+                                        <DataGridTextColumn Header="Files" Binding="{Binding FileCount}" Width="1*" />
+                                        <DataGridTextColumn Header="Size" Binding="{Binding TotalFileSizeString}" Width="1*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
 
                                 <!-- inspector -->
                                 <Panel Grid.Column="1">
@@ -171,7 +134,6 @@
                                             CornerRadius="8" Padding="14" VerticalAlignment="Top"
                                             IsVisible="{Binding SelectedInstance, Converter={x:Static ObjectConverters.IsNotNull}}">
                                         <StackPanel Spacing="10">
-                                            <!-- logo + change -->
                                             <Panel HorizontalAlignment="Center">
                                                 <Image Width="100" Height="60" Stretch="Uniform"
                                                        Source="{Binding SelectedLogoUri}"
@@ -193,18 +155,18 @@
                                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="Size when deployed" Opacity="0.6" FontSize="12" />
                                                 <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedInstance.TotalFileSizeString}" FontSize="12" />
                                                 <TextBlock Grid.Row="2" Grid.Column="0" Text="Unique to this entry" Opacity="0.6" FontSize="12"
-                                                           ToolTip.Tip="Bytes in storage referenced by no other entry" />
+                                                           ToolTip.Tip="Bytes in storage referenced by no other entry - what a removal plus storage cleanup would free" />
                                                 <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedUniqueSizeText}" FontSize="12" />
                                             </Grid>
                                             <Button Classes="Primary" HorizontalAlignment="Stretch"
                                                     Content="Deploy to folder..." Command="{Binding LinkFilesCommand}"
-                                                    ToolTip.Tip="Recreate this entry anywhere on the same drive using hard links" />
+                                                    ToolTip.Tip="Recreate this entry anywhere on the same drive using hard links - no extra disk space" />
                                             <Button HorizontalAlignment="Stretch"
                                                     Content="Export storage files..." Command="{Binding CopyHashedCommand}"
                                                     ToolTip.Tip="Copy this entry's files out of storage under their hashed names" />
                                             <Button Classes="Danger" HorizontalAlignment="Stretch"
                                                     Content="Remove from library" Command="{Binding DeleteInstanceCommand}"
-                                                    ToolTip.Tip="Forget this entry — its files stay in storage" />
+                                                    ToolTip.Tip="Forget this entry - its files stay in storage and deployed folders are untouched" />
                                         </StackPanel>
                                     </Border>
                                     <TextBlock Text="Select an entry to see its details."
@@ -212,19 +174,6 @@
                                                Margin="8,12,0,0"
                                                IsVisible="{Binding SelectedInstance, Converter={x:Static ObjectConverters.IsNull}}" />
                                 </Panel>
-                            </Grid>
-
-                            <!-- empty state -->
-                            <StackPanel IsVisible="{Binding !Instances.Count}"
-                                        VerticalAlignment="Center" HorizontalAlignment="Center"
-                                        Spacing="12" MaxWidth="460">
-                                <TextBlock Text="Your library is empty" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                                <TextBlock TextWrapping="Wrap" Opacity="0.7" TextAlignment="Center" FontSize="13"
-                                           Text="Add a game's data folder to store it deduplicated." />
-                                <Button Content="＋ Add your first folder" Classes="Primary"
-                                        Command="{Binding OpenAddInstanceCommand}" HorizontalAlignment="Center" />
-                            </StackPanel>
-                        </Panel>
                             </Grid>
 
                             <!-- empty state with the model diagram -->
@@ -446,58 +395,6 @@
                         BorderBrush="{DynamicResource LLHairline}" BorderThickness="1,0,0,0"
                         BoxShadow="-6 0 24 0 #40000000">
                     <ContentControl Content="{Binding AddInstance}" />
-                </Border>
-            </Panel>
-
-            <!-- ═════ logo picker overlay ═════ -->
-            <Panel IsVisible="{Binding IsLogoPickerOpen}">
-                <Border Background="{DynamicResource LLVeil}" />
-                <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                        Width="420" Height="420"
-                        Background="{DynamicResource LLSurface}"
-                        BorderBrush="{DynamicResource LLHairline}" BorderThickness="1"
-                        CornerRadius="10" BoxShadow="0 0 24 0 #40000000" Padding="14">
-                    <Grid RowDefinitions="Auto,Auto,*,Auto">
-                        <TextBlock Grid.Row="0" Text="Choose a logo" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,8" />
-                        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
-                            <Button Content="Reset to auto" FontSize="11" Padding="6,2"
-                                    Command="{Binding SetCustomLogoCommand}"
-                                    CommandParameter="{x:Null}" />
-                            <Button Content="Add custom image..." FontSize="11" Padding="6,2"
-                                    Command="{Binding SetCustomImageCommand}" />
-                        </StackPanel>
-                        <ScrollViewer Grid.Row="2">
-                            <ItemsControl ItemsSource="{Binding AvailableLogos}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="logos:LogoEntry"
-                                                  xmlns:logos="using:LincleLINK.App.Logos">
-                                        <Border Width="72" Height="72" Margin="4" Padding="4"
-                                                Background="{DynamicResource LLCard}"
-                                                BorderBrush="{DynamicResource LLHairline}" BorderThickness="1"
-                                                CornerRadius="6" Cursor="Hand"
-                                                ToolTip.Tip="{Binding DisplayName}"
-                                                PointerPressed="OnLogoClicked">
-                                            <Image Stretch="Uniform" Source="{Binding AssetPath}" />
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                        <Button Grid.Row="3" Content="Cancel" FontSize="11" Padding="8,3"
-                                HorizontalAlignment="Right" Margin="0,8,0,0"
-                                Command="{Binding SetCustomLogoCommand}"
-                                CommandParameter="{x:Null}">
-                            <Button.IsVisible>False</Button.IsVisible>
-                        </Button>
-                        <Button Grid.Row="3" Content="Close" FontSize="11" Padding="8,3"
-                                HorizontalAlignment="Right" Margin="0,8,0,0"
-                                Click="OnCloseLogoPicker" />
-                    </Grid>
                 </Border>
             </Panel>
         </Panel>

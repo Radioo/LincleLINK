@@ -287,6 +287,10 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         }
 
         _initialized = true;
+        var settings = _settingsStore.Load();
+        if (settings is not null)
+            IsGridView = settings.ViewMode == LibraryViewMode.Grid;
+
         await RefreshAllAsync();
     }
 
@@ -626,9 +630,6 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     public async Task RefreshInstancesAsync()
     {
         var all = await _repository.GetSummariesAsync();
-        var settings = _settingsStore.Load();
-        IsGridView = settings.ViewMode == LibraryViewMode.Grid;
-
         var selectedName = SelectedInstance?.InstanceName;
 
         Instances.Clear();

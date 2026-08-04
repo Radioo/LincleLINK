@@ -276,7 +276,7 @@ public sealed class InstanceService
         var instance = Instance.Create(request.InstanceName, instanceFiles, directories);
 
         var detection = await _detector.DetectAsync(request.DataPath, ct);
-        if (detection.Info is not null)
+        if (detection?.Info is not null)
         {
             instance.DetectedGame = detection.Info;
         }

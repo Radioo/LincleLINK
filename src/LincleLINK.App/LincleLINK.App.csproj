@@ -25,6 +25,7 @@
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" />
+    <PackageReference Include="System.IO.Pipelines" />
     <PackageReference Include="Tmds.DBus.Protocol" />
   </ItemGroup>
 

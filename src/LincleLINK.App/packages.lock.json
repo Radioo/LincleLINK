@@ -90,11 +90,20 @@
           "SQLitePCLRaw.config.e_sqlite3": "3.0.5"
         }
       },
+      "System.IO.Pipelines": {
+        "type": "Direct",
+        "requested": "[10.0.10, )",
+        "resolved": "10.0.10",
+        "contentHash": "7WX0W96y3dpQdYG4sEGdh38g3/0lOD4/dKbn2rRVOVzKhzoZUn2gKNIKaFeKWs8RCbpFfmmEWsRhSy95hMpvqA=="
+      },
       "Tmds.DBus.Protocol": {
         "type": "Direct",
         "requested": "[0.94.1, )",
         "resolved": "0.94.1",
-        "contentHash": "11YMr7FnAbL83bQmVxlhbIKHvSLxjO81D12Ej0QMSGXMDTxNA9MTOa4MQxx43nv5el/efuPHwzyrj6a5ha2gug=="
+        "contentHash": "11YMr7FnAbL83bQmVxlhbIKHvSLxjO81D12Ej0QMSGXMDTxNA9MTOa4MQxx43nv5el/efuPHwzyrj6a5ha2gug==",
+        "dependencies": {
+          "System.IO.Pipelines": "8.0.0"
+        }
       },
       "Avalonia.Angle.Windows.Natives": {
         "type": "Transitive",
