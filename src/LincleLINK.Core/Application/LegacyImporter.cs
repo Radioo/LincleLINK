@@ -64,34 +64,11 @@ public sealed class LegacyImporter
             foreach (var fileInfo in legacy.InstanceFiles)
             {
                 // A nil Location carries no directory info; skip rather than guess.
-                if (fileInfo.Location is null)
+                if (TryBuild(fileInfo, out var file))
                 {
-                    continue;
+                    dirs.Add(file.RelativePath);
+                    files.Add(file);
                 }
-
-                var relativePath = fileInfo.Location;
-                if (relativePath.StartsWith('\\'))
-                {
-                    relativePath = relativePath[1..];
-                }
-
-                // Reject traversal/rooted locations and names that could escape the
-                // instance's own directory when LinkingService later materializes them.
-                if (!PathNormalizer.IsSafeRelativePath(relativePath)
-                    || string.IsNullOrWhiteSpace(fileInfo.OriginalFileName)
-                    || fileInfo.OriginalFileName.Contains(Path.DirectorySeparatorChar)
-                    || fileInfo.OriginalFileName.Contains('/')
-                    || fileInfo.OriginalFileName.Contains('\\'))
-                {
-                    continue;
-                }
-
-                dirs.Add(relativePath);
-                files.Add(new InstanceFile(
-                    fileInfo.OriginalFileName,
-                    relativePath,
-                    fileInfo.SizeBytes,
-                    fileInfo.HashedFileName));
             }
 
             var instance = Instance.Create(legacy.InstanceName, files, dirs);
@@ -100,6 +77,44 @@ public sealed class LegacyImporter
         }
 
         return new LegacyImportResult(imported, skipped);
+    }
+
+    /// <summary>
+    /// Builds an <see cref="InstanceFile"/> from a legacy file entry, returning
+    /// false when the entry carries no directory info (nil location) or a path or
+    /// name that could escape the instance's own directory when LinkingService
+    /// later materializes it. Extracted so each guard is unit-testable.
+    /// </summary>
+    internal static bool TryBuild(InstanceFileInfo fileInfo, out InstanceFile file)
+    {
+        file = default!;
+
+        if (fileInfo.Location is null)
+        {
+            return false;
+        }
+
+        var relativePath = fileInfo.Location;
+        if (relativePath.StartsWith('\\'))
+        {
+            relativePath = relativePath[1..];
+        }
+
+        if (!PathNormalizer.IsSafeRelativePath(relativePath)
+            || string.IsNullOrWhiteSpace(fileInfo.OriginalFileName)
+            || fileInfo.OriginalFileName.Contains(Path.DirectorySeparatorChar)
+            || fileInfo.OriginalFileName.Contains('/')
+            || fileInfo.OriginalFileName.Contains('\\'))
+        {
+            return false;
+        }
+
+        file = new InstanceFile(
+            fileInfo.OriginalFileName,
+            relativePath,
+            fileInfo.SizeBytes,
+            fileInfo.HashedFileName);
+        return true;
     }
 
     [XmlRoot("DBInfo")]

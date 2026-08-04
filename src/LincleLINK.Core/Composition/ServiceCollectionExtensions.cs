@@ -39,39 +39,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IGameVersionDetector, GameVersionDetector>();
 
         services.AddSingleton<IDriveInfoProvider>(_ =>
-        {
-            if (OperatingSystem.IsWindows())
-            {
-                return new DriveInfoProvider();
-            }
-
-            if (OperatingSystem.IsLinux())
-            {
-                return new UnixStatFsDriveInfoProvider();
-            }
-
-            if (OperatingSystem.IsMacOS())
-            {
-                return new MacDriveInfoProvider();
-            }
-
-            throw new PlatformNotSupportedException("LincleLINK supports Windows, Linux and macOS only.");
-        });
+            CreateDriveInfoProvider(OperatingSystem.IsWindows(), OperatingSystem.IsLinux(), OperatingSystem.IsMacOS()));
 
         services.AddSingleton<IHardLinker>(_ =>
-        {
-            if (OperatingSystem.IsWindows())
-            {
-                return new Win32HardLinker();
-            }
-
-            if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
-            {
-                return new UnixHardLinker();
-            }
-
-            throw new PlatformNotSupportedException("LincleLINK supports Windows, Linux and macOS only.");
-        });
+            CreateHardLinker(OperatingSystem.IsWindows(), OperatingSystem.IsLinux() || OperatingSystem.IsMacOS()));
 
         services.AddSingleton<IHardLinkPreflight, HardLinkPreflight>();
 
@@ -98,5 +69,49 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<TorrentService>();
 
         return services;
+    }
+
+    /// <summary>
+    /// Selects the platform drive provider from OS flags, extracted from the DI
+    /// lambda so every platform branch is unit-testable on any host OS.
+    /// </summary>
+    internal static IDriveInfoProvider CreateDriveInfoProvider(bool isWindows, bool isLinux, bool isMacOS)
+    {
+#pragma warning disable CA1416 // selection is explicitly parameterized by the caller's OS flags
+        if (isWindows)
+        {
+            return new DriveInfoProvider();
+        }
+
+        if (isLinux)
+        {
+            return new UnixStatFsDriveInfoProvider();
+        }
+
+        if (isMacOS)
+        {
+            return new MacDriveInfoProvider();
+        }
+#pragma warning restore CA1416
+
+        throw new PlatformNotSupportedException("LincleLINK supports Windows, Linux and macOS only.");
+    }
+
+    /// <summary>Selects the platform hard linker from OS flags (see <see cref="CreateDriveInfoProvider"/>).</summary>
+    internal static IHardLinker CreateHardLinker(bool isWindows, bool isUnix)
+    {
+#pragma warning disable CA1416 // selection is explicitly parameterized by the caller's OS flags
+        if (isWindows)
+        {
+            return new Win32HardLinker();
+        }
+
+        if (isUnix)
+        {
+            return new UnixHardLinker();
+        }
+#pragma warning restore CA1416
+
+        throw new PlatformNotSupportedException("LincleLINK supports Windows, Linux and macOS only.");
     }
 }
