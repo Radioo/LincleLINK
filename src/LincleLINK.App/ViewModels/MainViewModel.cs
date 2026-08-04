@@ -200,6 +200,9 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     }
 
     [RelayCommand]
+    private void CloseLogoPicker() => IsLogoPickerOpen = false;
+
+    [RelayCommand]
     private async Task SetCustomLogo(LogoEntry? logo)
     {
         IsLogoPickerOpen = false;
