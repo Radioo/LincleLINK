@@ -76,9 +76,17 @@ public sealed class GameVersionDetectorTests : IDisposable
     public async Task Unwrapped_sdvx_with_dll_in_modules_is_detected()
     {
         // SDVX II (unwrapped): game root holds prop/ + modules/soundvoltex.dll + data/.
+        // modules/ holds many files and must not be mistaken for the data folder.
         _temp.CreateFile("prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(SdvxIiConfig));
+        for (var i = 0; i < 10; i++)
+        {
+            _temp.CreateFile($"modules/mod{i}.dll", [0x4D, 0x5A, 0, 0]);
+        }
+
         _temp.CreateFile("modules/soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
-        _temp.CreateFile("data/graphics/somefile.bin");
+        _temp.CreateFile("data/graphics/a.bin");
+        _temp.CreateFile("data/sound/b.bin");
+        _temp.CreateFile("data/others/c.bin");
 
         var result = await CreateDetector().DetectAsync(_temp.Root);
 
@@ -96,6 +104,11 @@ public sealed class GameVersionDetectorTests : IDisposable
     public async Task Unwrapped_sdvx_data_folder_is_detected()
     {
         _temp.CreateFile("prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(SdvxIiConfig));
+        for (var i = 0; i < 10; i++)
+        {
+            _temp.CreateFile($"modules/mod{i}.dll", [0x4D, 0x5A, 0, 0]);
+        }
+
         _temp.CreateFile("modules/soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
         _temp.CreateFile("data/graphics/somefile.bin");
 

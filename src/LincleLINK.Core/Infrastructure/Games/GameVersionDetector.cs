@@ -241,6 +241,16 @@ public sealed class GameVersionDetector : IGameVersionDetector
             return true;
         }
 
+        // modules/ holds the game's DLLs; a folder that contains a known game
+        // DLL is support, not the data folder.
+        foreach (var dllName in KnownDlls.Keys)
+        {
+            if (_fileSystem.FileExists(Path.Combine(dir, dllName)))
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 
