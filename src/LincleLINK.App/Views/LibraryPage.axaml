@@ -49,14 +49,14 @@
                                                 Width="44" CanUserSort="False">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <Image Stretch="Uniform"
+                                    <Image Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality"
                                            Source="{Binding LogoUri, Converter={StaticResource LogoSourceConverter}}" />
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
                         <DataGridTextColumn Header="Name" Binding="{Binding InstanceName}" Width="3*" />
                         <DataGridTextColumn Header="Files" Binding="{Binding FileCount}" Width="1*" />
-                        <DataGridTextColumn Header="Size" Binding="{Binding TotalFileSizeString}" Width="1*" />
+                        <DataGridTextColumn Header="Size" Binding="{Binding TotalFileSizeString}" SortMemberPath="TotalFileSize" Width="1*" />
                     </DataGrid.Columns>
                 </DataGrid>
 
@@ -75,7 +75,7 @@
                                         CornerRadius="8" Cursor="Hand"
                                         PointerPressed="OnGridItemClicked">
                                     <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                        <Image Stretch="Uniform"
+                                        <Image Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality"
                                                Source="{Binding LogoUri, Converter={StaticResource LogoSourceConverter}}" />
                                         <TextBlock Text="{Binding InstanceName}" TextAlignment="Center"
                                                    TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
@@ -95,7 +95,7 @@
                             IsVisible="{Binding SelectedInstance, Converter={x:Static ObjectConverters.IsNotNull}}">
                         <StackPanel Spacing="10">
                             <Panel HorizontalAlignment="Stretch">
-                                <Image Stretch="Uniform"
+                                <Image Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality"
                                        Source="{Binding SelectedLogoUri, Converter={StaticResource LogoSourceConverter}}"
                                        IsVisible="{Binding SelectedLogoUri, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                 <Border Height="60" HorizontalAlignment="Stretch"

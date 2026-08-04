@@ -35,7 +35,8 @@
                                         CornerRadius="6" Cursor="Hand"
                                         ToolTip.Tip="{Binding DisplayName}"
                                         PointerPressed="OnLogoClicked">
-                                    <Image Stretch="Uniform" Source="{Binding AssetPath, Converter={StaticResource LogoSourceConverter}}" />
+                                    <Image Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality"
+                                           Source="{Binding AssetPath, Converter={StaticResource LogoSourceConverter}}" />
                                 </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
