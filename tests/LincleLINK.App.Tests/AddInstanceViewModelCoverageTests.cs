@@ -1,5 +1,6 @@
 using FluentAssertions;
 using LincleLINK.App.Abstractions;
+using LincleLINK.App.Tests.TestHelpers;
 using LincleLINK.App.ViewModels;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Disk;
@@ -103,7 +104,7 @@ public sealed class AddInstanceViewModelCoverageTests
         vm.IsReclaimChecked = true;
 
         vm.DataPath = Data;
-        await Task.Delay(100, TestContext.Current.CancellationToken);
+        await AsyncWaits.AwaitUntilAsync(() => !vm.ReclaimAvailable);
 
         vm.ReclaimAvailable.Should().BeFalse();
         vm.CrossVolumeReason.Should().Contain("different drive");
@@ -126,7 +127,7 @@ public sealed class AddInstanceViewModelCoverageTests
         var vm = Create();
 
         vm.DataPath = Data;
-        await Task.Delay(100, TestContext.Current.CancellationToken);
+        await AsyncWaits.AwaitUntilAsync(() => vm.DetectedGameText is not null);
 
         vm.DetectedGameText.Should().Contain("SOUND VOLTEX II");
         vm.IsGameRootDetected.Should().BeTrue();
@@ -208,7 +209,7 @@ public sealed class AddInstanceViewModelCoverageTests
         vm.DataPath = Data;
 
         var run = vm.CreateInstanceCommand.ExecuteAsync(null);
-        await Task.Delay(50, TestContext.Current.CancellationToken);
+        await AsyncWaits.AwaitUntilAsync(() => vm.IsBusy);
         vm.IsBusy.Should().BeTrue();
 
         vm.CancelOperationCommand.Execute(null);

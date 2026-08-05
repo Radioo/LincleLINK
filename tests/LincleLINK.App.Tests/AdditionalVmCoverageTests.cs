@@ -1,5 +1,6 @@
 using FluentAssertions;
 using LincleLINK.App.Abstractions;
+using LincleLINK.App.Tests.TestHelpers;
 using LincleLINK.App.ViewModels;
 using LincleLINK.App.ViewModels.Base;
 using LincleLINK.Core.Abstractions.Dialogs;
@@ -61,7 +62,7 @@ public sealed class AdditionalVmCoverageTests
     }
 
     [Fact]
-    public void AddInstance_analysis_counts_files_across_subdirectories()
+    public async Task AddInstance_analysis_counts_files_across_subdirectories()
     {
         _fs.DirectoryExists(Data).Returns(true);
         _fs.EnumerateFiles(Data, false).Returns([FileA]);
@@ -73,14 +74,14 @@ public sealed class AdditionalVmCoverageTests
         var vm = CreateAddVm();
 
         vm.DataPath = Data;
-        AwaitAnalysis();
+        await AsyncWaits.AwaitUntilAsync(() => !vm.IsCalculatingSize);
 
         vm.EstimatedSizeText.Should().NotBeEmpty();
         vm.IsCalculatingSize.Should().BeFalse();
     }
 
     [Fact]
-    public void AddInstance_analysis_swallows_io_errors_during_estimation()
+    public async Task AddInstance_analysis_swallows_io_errors_during_estimation()
     {
         _fs.DirectoryExists(Data).Returns(true);
         _fs.EnumerateFiles(Data, false).Returns([FileA]);
@@ -89,7 +90,7 @@ public sealed class AdditionalVmCoverageTests
         var vm = CreateAddVm();
 
         vm.DataPath = Data;
-        AwaitAnalysis();
+        await AsyncWaits.AwaitUntilAsync(() => !vm.IsCalculatingSize);
 
         vm.IsCalculatingSize.Should().BeFalse();
     }
@@ -98,24 +99,33 @@ public sealed class AdditionalVmCoverageTests
     public void AddInstance_analysis_cancelled_when_superseded()
     {
         using var gate = new ManualResetEventSlim();
+        using var preflightStarted = new ManualResetEventSlim();
+        using var preflightReleased = new ManualResetEventSlim();
         _fs.DirectoryExists(Data).Returns(true);
         _fs.EnumerateFiles(Data, false).Returns([FileA]);
         _fs.EnumerateDirectories(Data, false).Returns([]);
         _fs.GetFileLength(FileA).Returns(100);
-        _preflight.CheckLinkTo(Data).Returns(_ => { gate.Wait(); return null; });
+        _preflight.CheckLinkTo(Data).Returns(_ => { preflightStarted.Set(); gate.Wait(); preflightReleased.Set(); return null; });
         var vm = CreateAddVm();
 
         vm.DataPath = Data;
+        // Wait until the first analysis's pre-flight is actually running (a
+        // superseded Task.Run whose delegate never started would skip it).
+        preflightStarted.Wait(5000, TestContext.Current.CancellationToken).Should().BeTrue();
+
         // Supersede the analysis before the pre-flight completes.
         vm.DataPath = Path.Combine(Path.GetTempPath(), "other");
         gate.Set();
-        Thread.Sleep(100);
+
+        // The superseded analysis completes (its pre-flight returned after the
+        // gate) without publishing anything; wait for that deterministically.
+        preflightReleased.Wait(5000, TestContext.Current.CancellationToken).Should().BeTrue();
 
         vm.ReclaimAvailable.Should().BeTrue();
     }
 
     [Fact]
-    public void AddInstance_detection_without_display_title_uses_game_title()
+    public async Task AddInstance_detection_without_display_title_uses_game_title()
     {
         _fs.DirectoryExists(Data).Returns(true);
         _fs.EnumerateFiles(Data, false).Returns([FileA]);
@@ -128,24 +138,26 @@ public sealed class AdditionalVmCoverageTests
         var vm = CreateAddVm();
 
         vm.DataPath = Data;
-        AwaitAnalysis();
+        await AsyncWaits.AwaitUntilAsync(() => vm.DetectedGameText is not null);
 
         vm.DetectedGameText.Should().Contain("SOUND VOLTEX · KFC 2013060500");
     }
 
     [Fact]
-    public void AddInstance_detection_cancellation_is_swallowed()
+    public async Task AddInstance_detection_cancellation_is_swallowed()
     {
         _fs.DirectoryExists(Data).Returns(true);
         _fs.EnumerateFiles(Data, false).Returns([FileA]);
         _fs.EnumerateDirectories(Data, false).Returns([]);
         _fs.GetFileLength(FileA).Returns(100);
-        _detector.DetectAsync(Data, Arg.Any<CancellationToken>())
-            .Returns(Task.FromException<DetectionResult>(new OperationCanceledException()));
+        var detection = new TaskCompletionSource<DetectionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _detector.DetectAsync(Data, Arg.Any<CancellationToken>()).Returns(detection.Task);
         var vm = CreateAddVm();
 
         vm.DataPath = Data;
-        AwaitAnalysis();
+        // Let the analysis reach the detection await, then cancel it.
+        await AsyncWaits.AwaitUntilAsync(() => _detector.ReceivedCalls().Any());
+        detection.SetException(new OperationCanceledException());
 
         vm.DetectedGameText.Should().BeNull();
     }
@@ -180,7 +192,7 @@ public sealed class AdditionalVmCoverageTests
         vm.CancelOperationCommand.CanExecute(null).Should().BeFalse();
 
         var run = vm.CreateInstanceCommand.ExecuteAsync(null);
-        await Task.Delay(50, TestContext.Current.CancellationToken);
+        await AsyncWaits.AwaitUntilAsync(() => vm.CancelOperationCommand.CanExecute(null));
 
         vm.CancelOperationCommand.CanExecute(null).Should().BeTrue();
         vm.CancelOperationCommand.Execute(null);
@@ -189,6 +201,4 @@ public sealed class AdditionalVmCoverageTests
         gate.SetResult();
         await run;
     }
-
-    private static void AwaitAnalysis() => Thread.Sleep(150);
 }

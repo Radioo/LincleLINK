@@ -1,6 +1,7 @@
 using FluentAssertions;
 using LincleLINK.App.Abstractions;
 using LincleLINK.App.Logos;
+using LincleLINK.App.Tests.TestHelpers;
 using LincleLINK.App.ViewModels;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Disk;
@@ -170,8 +171,9 @@ public sealed class MainViewModelTests
         vm.OpenAddInstanceCommand.Execute(null);
         vm.AddInstance!.CloseCommand.Execute(null);
 
-        // The refresh runs fire-and-forget; give the failed task a beat to land.
-        await Task.Delay(50, TestContext.Current.CancellationToken);
+        // The refresh runs fire-and-forget; wait for the failed task to land.
+        await AsyncWaits.AwaitUntilAsync(() =>
+            vm.LogLines.Any(m => m.Contains("Could not refresh the library")));
 
         vm.IsAddPanelOpen.Should().BeFalse();
         vm.LogLines.Should().Contain(m => m.Contains("Could not refresh the library"));

@@ -1,5 +1,6 @@
 using FluentAssertions;
 using LincleLINK.App.Abstractions;
+using LincleLINK.App.Tests.TestHelpers;
 using LincleLINK.App.ViewModels;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Disk;
@@ -152,11 +153,8 @@ public sealed class AddInstanceViewModelTests
         var vm = Create();
         vm.DataPath = Data;
 
-        // The analysis runs in the background; poll briefly for its completion.
-        for (var i = 0; i < 100 && vm.ReclaimAvailable; i++)
-        {
-            await Task.Delay(10, TestContext.Current.CancellationToken);
-        }
+        // The analysis runs in the background; wait for its outcome.
+        await AsyncWaits.AwaitUntilAsync(() => !vm.ReclaimAvailable);
 
         vm.ReclaimAvailable.Should().BeFalse();
         vm.CrossVolumeReason.Should().Contain("different drive");

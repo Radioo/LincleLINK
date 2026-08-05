@@ -1,6 +1,7 @@
 using FluentAssertions;
 using LincleLINK.App.Abstractions;
 using LincleLINK.App.Logos;
+using LincleLINK.App.Tests.TestHelpers;
 using LincleLINK.App.ViewModels;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Disk;
@@ -24,7 +25,7 @@ namespace LincleLINK.App.Tests;
 /// Remaining <see cref="MainViewModel"/> branches: activity-bar commands, the
 /// logo picker flow, operation error/cancel handling, and refresh failure paths.
 /// </summary>
-public sealed class MainViewModelCoverageTests
+public sealed class MainViewModelCoverageTests : IDisposable
 {
     private readonly IInstanceRepository _repository = Substitute.For<IInstanceRepository>();
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
@@ -40,6 +41,9 @@ public sealed class MainViewModelCoverageTests
     private readonly IHardLinker _hardLinker = Substitute.For<IHardLinker>();
     private readonly IGameVersionDetector _detector = Substitute.For<IGameVersionDetector>();
     private readonly LogoCatalog _logoCatalog = new();
+    private readonly TempDir _temp = new();
+
+    public void Dispose() => _temp.Dispose();
 
     private MainViewModel CreateViewModel() => new(
         new InstanceService(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, _detector),
@@ -132,7 +136,7 @@ public sealed class MainViewModelCoverageTests
     public async Task SetCustomLogo_resets_to_auto_when_null()
     {
         StubEmptyLibrary();
-        var dataDir = Path.Combine(Path.GetTempPath(), "LincleLINK.Tests", Guid.NewGuid().ToString("N"));
+        var dataDir = _temp.Root;
         _paths.DataDirectory.Returns(dataDir);
         Directory.CreateDirectory(Path.Combine(dataDir, "custom_logos"));
         var customFile = Path.Combine(dataDir, "custom_logos", "x.png");
@@ -164,11 +168,11 @@ public sealed class MainViewModelCoverageTests
     public async Task SetCustomImage_picks_a_file_and_saves_a_custom_logo()
     {
         StubEmptyLibrary();
-        var picked = Path.Combine(Path.GetTempPath(), "LincleLINK.Tests", Guid.NewGuid().ToString("N"), "custom.png");
+        var picked = Path.Combine(_temp.Root, "custom.png");
         Directory.CreateDirectory(Path.GetDirectoryName(picked)!);
         File.WriteAllText(picked, "png");
         _dialogs.PickOpenFileAsync(Arg.Any<string>(), Arg.Any<FileType>()).Returns(picked);
-        var dataDir = Path.Combine(Path.GetTempPath(), "LincleLINK.Tests", Guid.NewGuid().ToString("N"));
+        var dataDir = _temp.Root;
         _paths.DataDirectory.Returns(dataDir);
         var vm = CreateViewModel();
 
@@ -199,9 +203,9 @@ public sealed class MainViewModelCoverageTests
     public async Task SetCustomImage_surfaces_copy_failure_without_throwing()
     {
         StubEmptyLibrary();
-        var missingPicked = Path.Combine(Path.GetTempPath(), "LincleLINK.Tests", Guid.NewGuid().ToString("N"), "missing.png");
+        var missingPicked = Path.Combine(_temp.Root, "missing.png");
         _dialogs.PickOpenFileAsync(Arg.Any<string>(), Arg.Any<FileType>()).Returns(missingPicked);
-        var dataDir = Path.Combine(Path.GetTempPath(), "LincleLINK.Tests", Guid.NewGuid().ToString("N"));
+        var dataDir = _temp.Root;
         _paths.DataDirectory.Returns(dataDir);
         var vm = CreateViewModel();
 
@@ -217,7 +221,7 @@ public sealed class MainViewModelCoverageTests
     public async Task DeleteInstance_removes_the_custom_logo()
     {
         StubEmptyLibrary();
-        var dataDir = Path.Combine(Path.GetTempPath(), "LincleLINK.Tests", Guid.NewGuid().ToString("N"));
+        var dataDir = _temp.Root;
         _paths.DataDirectory.Returns(dataDir);
         Directory.CreateDirectory(Path.Combine(dataDir, "custom_logos"));
         var customFile = Path.Combine(dataDir, "custom_logos", "x.png");
@@ -381,7 +385,7 @@ public sealed class MainViewModelCoverageTests
     public async Task ImportLegacy_logs_imported_and_skipped_names()
     {
         StubEmptyLibrary();
-        var xml = Path.Combine(Path.GetTempPath(), "LincleLINK.Tests", Guid.NewGuid().ToString("N"), "DBInfo.xml");
+        var xml = Path.Combine(_temp.Root, "DBInfo.xml");
         Directory.CreateDirectory(Path.GetDirectoryName(xml)!);
         File.WriteAllText(xml, """
             <?xml version="1.0"?>
@@ -473,7 +477,7 @@ public sealed class MainViewModelCoverageTests
         await vm.InitializeAsync();
 
         vm.SelectedInstance = vm.Instances[0];
-        await Task.Delay(20, TestContext.Current.CancellationToken);
+        await AsyncWaits.AwaitUntilAsync(() => vm.SelectedUniqueSizeText == "42 B");
 
         vm.SelectedUniqueSizeText.Should().Be("42 B");
     }
@@ -481,7 +485,7 @@ public sealed class MainViewModelCoverageTests
     [Fact]
     public async Task Effective_logo_and_resolution_for_custom_entries()
     {
-        var dataDir = Path.Combine(Path.GetTempPath(), "LincleLINK.Tests", Guid.NewGuid().ToString("N"));
+        var dataDir = _temp.Root;
         Directory.CreateDirectory(Path.Combine(dataDir, "custom_logos"));
         File.WriteAllText(Path.Combine(dataDir, "custom_logos", "x.png"), "png");
         _paths.DataDirectory.Returns(dataDir);
@@ -503,7 +507,7 @@ public sealed class MainViewModelCoverageTests
     [Fact]
     public async Task Custom_logo_with_missing_file_resolves_to_null()
     {
-        _paths.DataDirectory.Returns(Path.Combine(Path.GetTempPath(), "LincleLINK.Tests", Guid.NewGuid().ToString("N")));
+        _paths.DataDirectory.Returns(_temp.Root);
         _repository.GetSummariesAsync(Arg.Any<CancellationToken>()).Returns([
             new InstanceListEntry("X", 0, 0, "0 B") { CustomLogoSource = "custom" },
         ]);
@@ -525,7 +529,7 @@ public sealed class MainViewModelCoverageTests
         await vm.InitializeAsync();
 
         vm.SelectedInstance = vm.Instances[0];
-        await Task.Delay(20, TestContext.Current.CancellationToken);
+        await AsyncWaits.AwaitUntilAsync(() => vm.SelectedUniqueSizeText == "-");
 
         vm.SelectedUniqueSizeText.Should().Be("-");
     }
@@ -601,7 +605,7 @@ public sealed class MainViewModelCoverageTests
     public async Task ImportLegacy_logs_existing_entries_as_skipped()
     {
         StubEmptyLibrary();
-        var xml = Path.Combine(Path.GetTempPath(), "LincleLINK.Tests", Guid.NewGuid().ToString("N"), "DBInfo.xml");
+        var xml = Path.Combine(_temp.Root, "DBInfo.xml");
         Directory.CreateDirectory(Path.GetDirectoryName(xml)!);
         File.WriteAllText(xml, """
             <?xml version="1.0"?>
@@ -630,7 +634,7 @@ public sealed class MainViewModelCoverageTests
         var gate = new TaskCompletionSource();
         var vm = CreateViewModel();
         var run = vm.RunOperationAsync(_ => gate.Task);
-        await Task.Delay(20, TestContext.Current.CancellationToken);
+        await AsyncWaits.AwaitUntilAsync(() => vm.CancelOperationCommand.CanExecute(null));
 
         vm.CancelOperationCommand.Execute(null);
         vm.StatusLine.Should().Be("Cancelling...");
