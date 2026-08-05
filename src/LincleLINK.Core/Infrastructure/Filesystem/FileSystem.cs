@@ -33,4 +33,6 @@ public sealed class FileSystem : IFileSystem
         => Directory.GetDirectories(root, "*", recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly);
 
     public Stream OpenRead(string path) => File.OpenRead(path);
+
+    public string ReadAllText(string path) => File.ReadAllText(path);
 }

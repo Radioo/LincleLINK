@@ -7,8 +7,17 @@ public sealed record InstanceListEntry(
     string InstanceName,
     int FileCount,
     long TotalFileSize,
-    string TotalFileSizeString)
+    string TotalFileSizeString,
+    string? NameKey = null)
 {
+    public GameVersionInfo? DetectedGame { get; init; }
+    public string? CustomLogoSource { get; init; }
+    public string? LogoUri { get; init; }
+
     public static InstanceListEntry From(Instance instance) =>
-        new(instance.InstanceName, instance.FileList.Count, instance.TotalFileSize, instance.TotalFileSizeString);
+        new(instance.InstanceName, instance.FileList.Count, instance.TotalFileSize, instance.TotalFileSizeString)
+        {
+            DetectedGame = instance.DetectedGame,
+            CustomLogoSource = instance.CustomLogoSource,
+        };
 }

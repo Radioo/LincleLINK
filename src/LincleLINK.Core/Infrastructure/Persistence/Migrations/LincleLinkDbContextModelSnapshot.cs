@@ -46,9 +46,33 @@ namespace LincleLINK.Core.Infrastructure.Persistence.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("Confidence")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CustomLogoSource")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DateCode")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DisplayTitle")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GameCode")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GameTitle")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LogoKey")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("NameKey")
                         .IsRequired()
                         .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PeIdentifier")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("TotalFileCount")

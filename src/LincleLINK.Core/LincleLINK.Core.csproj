@@ -16,4 +16,8 @@
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="LincleLINK.Core.Tests" />
+  </ItemGroup>
+
 </Project>

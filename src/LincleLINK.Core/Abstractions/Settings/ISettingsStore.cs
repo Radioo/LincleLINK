@@ -13,7 +13,13 @@ public enum AppTheme
 /// <c>DataDirectory</c> null means "current working directory".
 /// <c>HashThreadCount</c> bounds the parallel hashing workers used by add-instance.
 /// </summary>
-public sealed record AppSettings(AppTheme Theme, string? DataDirectory, int HashThreadCount);
+public sealed record AppSettings(AppTheme Theme, string? DataDirectory, int HashThreadCount, LibraryViewMode ViewMode = LibraryViewMode.List);
+
+public enum LibraryViewMode
+{
+    List,
+    Grid,
+}
 
 public interface ISettingsStore
 {

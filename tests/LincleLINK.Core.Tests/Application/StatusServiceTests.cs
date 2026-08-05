@@ -29,7 +29,7 @@ public sealed class StatusServiceTests
         var paths = Substitute.For<IAppPaths>();
         paths.DataDirectory.Returns("C:\\data");
 
-        var summary = await new StatusService(store, repository, driveInfo, paths).GetSummaryAsync();
+        var summary = await new StatusService(store, repository, driveInfo, paths).GetSummaryAsync(TestContext.Current.CancellationToken);
 
         summary.DbSize.Should().Be(10);
         summary.InstancesTotalSize.Should().Be(40);
@@ -55,7 +55,7 @@ public sealed class StatusServiceTests
         var paths = Substitute.For<IAppPaths>();
         paths.DataDirectory.Returns("C:\\data");
 
-        var summary = await new StatusService(store, repository, driveInfo, paths).GetSummaryAsync();
+        var summary = await new StatusService(store, repository, driveInfo, paths).GetSummaryAsync(TestContext.Current.CancellationToken);
 
         // db/ (100) exceeds the instance total (40): orphaned files, savings clamped.
         summary.Savings.Should().Be(0);

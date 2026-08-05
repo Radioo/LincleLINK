@@ -32,4 +32,9 @@
     <ProjectReference Include="..\LincleLINK.Core\LincleLINK.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="LincleLINK.App.Tests" />
+    <InternalsVisibleTo Include="LincleLINK.App.Views.Tests" />
+  </ItemGroup>
+
 </Project>

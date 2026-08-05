@@ -1,9 +1,12 @@
 using FluentAssertions;
 using LincleLINK.App.Abstractions;
+using LincleLINK.App.Logos;
+using LincleLINK.App.Tests.TestHelpers;
 using LincleLINK.App.ViewModels;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Disk;
 using LincleLINK.Core.Abstractions.Filesystem;
+using LincleLINK.Core.Abstractions.Games;
 using LincleLINK.Core.Abstractions.Hashing;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Linking;
@@ -32,9 +35,11 @@ public sealed class MainViewModelTests
     private readonly ITaskbarProgress _taskbarProgress = Substitute.For<ITaskbarProgress>();
 
     private readonly IHardLinkPreflight _preflight = Substitute.For<IHardLinkPreflight>();
+    private readonly IGameVersionDetector _detector = Substitute.For<IGameVersionDetector>();
+    private readonly LogoCatalog _logoCatalog = new();
 
     private MainViewModel CreateViewModel() => new(
-        new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _driveInfo, _dialogs),
+        new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _driveInfo, _dialogs, _detector),
         new LinkingService(_fs, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _dialogs),
         new UnusedFilesService(_store, _repository, _dialogs),
         new LegacyImporter(_repository),
@@ -47,8 +52,9 @@ public sealed class MainViewModelTests
         _taskbarProgress,
         _preflight,
         () => new AddInstanceViewModel(
-            new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _driveInfo, _dialogs),
-            _dialogs, _taskbarProgress, _fs, _preflight));
+            new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _driveInfo, _dialogs, _detector),
+            _dialogs, _taskbarProgress, _fs, _preflight, _detector),
+        _logoCatalog, _paths);
 
     private void StubStatus(long dbSize = 0, long free = 1)
     {
@@ -80,6 +86,36 @@ public sealed class MainViewModelTests
         vm.FreeSpace.Should().Be("500 B");
         vm.LogLines.Should().Contain(LogMessages.LibraryRefreshed);
     }
+
+    [Fact]
+    public async Task RefreshInstances_orders_by_supported_list_not_by_name()
+    {
+        StubStatus();
+        _repository.GetSummariesAsync(Arg.Any<CancellationToken>()).Returns([
+            Entry("SDVX EXCEED GEAR", "SDVX/SDVX_EXCEED_GEAR_logo"),
+            Entry("beatmania IIDX 9th style", "IIDX/AC_9th_style_logo"),
+            Entry("SDVX NABLA", "SDVX/SDVX_NABLA_logo"),
+            Entry("SDVX BOOTH", "SDVX/SDVX_BOOTH_logo"),
+            Entry("ZZZ unknown", null),
+        ]);
+
+        var vm = CreateViewModel();
+        await vm.InitializeAsync();
+
+        vm.Instances.Select(i => i.InstanceName).Should().Equal(
+            "beatmania IIDX 9th style", // catalog index 0
+            "SDVX BOOTH",               // first SDVX entry
+            "SDVX EXCEED GEAR",         // second-to-last SDVX entry
+            "SDVX NABLA",               // last SDVX entry
+            "ZZZ unknown");             // no known logo sorts after, by name
+    }
+
+    private static InstanceListEntry Entry(string name, string? logoKey) =>
+        new(name, 1, 10, "10 B")
+        {
+            DetectedGame = logoKey is null ? null : new GameVersionInfo(
+                "KFC", "SOUND VOLTEX", null, null, name, logoKey, DetectionConfidence.Xml),
+        };
 
     [Fact]
     public void OpenAddInstance_opens_panel_and_forwards_thread_count()
@@ -135,8 +171,9 @@ public sealed class MainViewModelTests
         vm.OpenAddInstanceCommand.Execute(null);
         vm.AddInstance!.CloseCommand.Execute(null);
 
-        // The refresh runs fire-and-forget; give the failed task a beat to land.
-        await Task.Delay(50);
+        // The refresh runs fire-and-forget; wait for the failed task to land.
+        await AsyncWaits.AwaitUntilAsync(() =>
+            vm.LogLines.Any(m => m.Contains("Could not refresh the library")));
 
         vm.IsAddPanelOpen.Should().BeFalse();
         vm.LogLines.Should().Contain(m => m.Contains("Could not refresh the library"));

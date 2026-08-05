@@ -1,0 +1,71 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LincleLINK.App.ViewModels"
+             x:Class="LincleLINK.App.Views.Sidebar"
+             x:DataType="vm:MainViewModel">
+    <Border Background="{DynamicResource LLSidebar}"
+            BorderBrush="{DynamicResource LLHairline}" BorderThickness="0,0,1,0">
+        <Grid RowDefinitions="Auto,*,Auto" Margin="10,12,10,12">
+
+            <ListBox Grid.Row="0"
+                     SelectedIndex="{Binding SelectedNavIndex, Mode=TwoWay}"
+                     Background="Transparent" BorderThickness="0">
+                <ListBox.Styles>
+                    <Style Selector="ListBoxItem">
+                        <Setter Property="CornerRadius" Value="7" />
+                        <Setter Property="Padding" Value="10,7" />
+                        <Setter Property="Margin" Value="0,1" />
+                    </Style>
+                </ListBox.Styles>
+                <ListBoxItem>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="▤" Width="16" TextAlignment="Center" />
+                        <TextBlock Text="Library" />
+                    </StackPanel>
+                </ListBoxItem>
+                <ListBoxItem>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="⇣" Width="16" TextAlignment="Center" />
+                        <TextBlock Text="Torrent pre-fill" />
+                    </StackPanel>
+                </ListBoxItem>
+                <ListBoxItem>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="⚙" Width="16" TextAlignment="Center" />
+                        <TextBlock Text="Settings" />
+                    </StackPanel>
+                </ListBoxItem>
+            </ListBox>
+
+            <!-- storage card: the product's brag, visible on every page -->
+            <Border Grid.Row="2"
+                    Background="{DynamicResource LLSurface}"
+                    BorderBrush="{DynamicResource LLHairline}" BorderThickness="1"
+                    CornerRadius="8" Padding="11,10">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="{Binding Savings, StringFormat=Saving {0}}"
+                               FontWeight="Bold" FontSize="14"
+                               Foreground="{DynamicResource LLAccentText}" />
+                    <!-- MinWidth=0 is load-bearing: the themed ProgressBar template has a
+                         default MinWidth wider than the sidebar card and overflows it. -->
+                    <ProgressBar Value="{Binding StorageSharePercent}" Maximum="100"
+                                 Height="6" MinHeight="6" MinWidth="0" Margin="0,2,0,2"
+                                 HorizontalAlignment="Stretch"
+                                 ToolTip.Tip="Storage size as a share of what the library would occupy un-deduplicated" />
+                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="2">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Storage" Opacity="0.6" FontSize="11.5" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DbSize}" FontSize="11.5" />
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Library" Opacity="0.6" FontSize="11.5" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding LibrarySize}" FontSize="11.5" />
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Free space" Opacity="0.6" FontSize="11.5" />
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding FreeSpace}" FontSize="11.5" />
+                    </Grid>
+                    <Button Content="Clean up storage..." FontSize="11.5" Padding="8,4"
+                            HorizontalAlignment="Stretch" Margin="0,4,0,0"
+                            Command="{Binding CheckUnusedCommand}"
+                            ToolTip.Tip="Find and delete storage files that no longer belong to any library entry" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

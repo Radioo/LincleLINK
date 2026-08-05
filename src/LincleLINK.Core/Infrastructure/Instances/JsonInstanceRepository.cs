@@ -3,6 +3,7 @@ using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Paths;
 using LincleLINK.Core.Domain;
 using LincleLINK.Core.Domain.Validation;
+using LincleLINK.Core.Infrastructure.Collections;
 using LincleLINK.Core.Infrastructure.Serialization;
 
 namespace LincleLINK.Core.Infrastructure.Instances;
@@ -29,7 +30,7 @@ public sealed class JsonInstanceRepository : IInstanceRepository
             // path, impossible here since every element comes from Directory.GetFiles.
             return Directory.GetFiles(_paths.InstanceDirectory, "*.json", SearchOption.TopDirectoryOnly)
                 .Select(f => Path.GetFileNameWithoutExtension(f)!)
-                .Order(StringComparer.Ordinal)
+                .Order(NaturalStringComparer.Instance)
                 .ToArray();
         }, ct);
 
@@ -228,6 +229,12 @@ public sealed class JsonInstanceRepository : IInstanceRepository
         {
             await SaveAsync(instance, ct);
         }
+    }
+
+    public Task SetCustomLogoAsync(string name, string? logoSource, CancellationToken ct = default)
+    {
+        // JSON repository is superseded by SQLite; logo customization is SQLite-only.
+        return Task.CompletedTask;
     }
 
     private string PathFor(string name) => Path.Combine(_paths.InstanceDirectory, name + ".json");

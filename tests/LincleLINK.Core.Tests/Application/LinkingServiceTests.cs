@@ -37,7 +37,7 @@ public sealed class LinkingServiceTests
     {
         _dialogs.PickFolderAsync(Arg.Any<string>()).Returns((string?)null);
 
-        var result = await CreateService().LinkInstanceAsync("inst");
+        var result = await CreateService().LinkInstanceAsync("inst", ct: TestContext.Current.CancellationToken);
 
         result.Cancelled.Should().BeTrue();
         await _repository.DidNotReceive().GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -49,7 +49,7 @@ public sealed class LinkingServiceTests
         _dialogs.PickFolderAsync(Arg.Any<string>()).Returns("C:\\target");
         _repository.GetAsync("nope", Arg.Any<CancellationToken>()).Returns((Instance?)null);
 
-        var result = await CreateService().LinkInstanceAsync("nope");
+        var result = await CreateService().LinkInstanceAsync("nope", ct: TestContext.Current.CancellationToken);
 
         result.Cancelled.Should().BeFalse();
         result.Error.Should().NotBeNullOrEmpty();
@@ -67,7 +67,7 @@ public sealed class LinkingServiceTests
             return true;
         });
 
-        var result = await CreateService().LinkInstanceAsync("inst");
+        var result = await CreateService().LinkInstanceAsync("inst", ct: TestContext.Current.CancellationToken);
 
         var expectedDir = PathNormalizer.ToPlatformSeparators(Path.Combine("C:\\target", "sub"));
         _fs.Received(1).CreateDirectory(expectedDir);
@@ -82,7 +82,7 @@ public sealed class LinkingServiceTests
         _dialogs.PickFolderAsync(Arg.Any<string>()).Returns("D:\\target");
         _preflight.CheckLinkTo("D:\\target").Returns("The folder is on a different drive than storage.");
 
-        var result = await CreateService().LinkInstanceAsync("inst");
+        var result = await CreateService().LinkInstanceAsync("inst", ct: TestContext.Current.CancellationToken);
 
         result.Cancelled.Should().BeTrue();
         await _dialogs.Received(1).ErrorAsync(
@@ -99,7 +99,7 @@ public sealed class LinkingServiceTests
         _fs.FileExists(Arg.Any<string>()).Returns(true); // dupes exist
         _dialogs.AskConflictAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(ConflictChoice.Cancel);
 
-        var result = await CreateService().LinkInstanceAsync("inst");
+        var result = await CreateService().LinkInstanceAsync("inst", ct: TestContext.Current.CancellationToken);
 
         result.Cancelled.Should().BeTrue();
         _hardLinker.DidNotReceiveWithAnyArgs().TryCreateLink(default!, default!, out _);
@@ -118,7 +118,7 @@ public sealed class LinkingServiceTests
             return true;
         });
 
-        var result = await CreateService().LinkInstanceAsync("inst");
+        var result = await CreateService().LinkInstanceAsync("inst", ct: TestContext.Current.CancellationToken);
 
         result.Cancelled.Should().BeFalse();
         _fs.Received().DeleteFile(Arg.Any<string>());
@@ -140,7 +140,7 @@ public sealed class LinkingServiceTests
             return true;
         });
 
-        var result = await CreateService().LinkInstanceAsync("inst");
+        var result = await CreateService().LinkInstanceAsync("inst", ct: TestContext.Current.CancellationToken);
 
         result.Cancelled.Should().BeFalse();
         result.Linked.Should().Be(1);
@@ -164,7 +164,7 @@ public sealed class LinkingServiceTests
                 return false;
             });
 
-        var result = await CreateService().LinkInstanceAsync("inst");
+        var result = await CreateService().LinkInstanceAsync("inst", ct: TestContext.Current.CancellationToken);
 
         // Every file was attempted and failed; the loop did not abort.
         result.Cancelled.Should().BeFalse();
@@ -181,7 +181,7 @@ public sealed class LinkingServiceTests
         _dialogs.PickFolderAsync(Arg.Any<string>()).Returns("C:\\target");
         _repository.GetAsync("inst", Arg.Any<CancellationToken>()).Returns(instance);
 
-        var result = await CreateService().LinkInstanceAsync("inst");
+        var result = await CreateService().LinkInstanceAsync("inst", ct: TestContext.Current.CancellationToken);
 
         _fs.DidNotReceiveWithAnyArgs().CreateDirectory(default!);
         result.Errors.Should().Contain(e => e.Contains("unsafe"));
@@ -207,7 +207,7 @@ public sealed class LinkingServiceTests
             return true;
         });
 
-        var result = await CreateService().LinkInstanceAsync("inst");
+        var result = await CreateService().LinkInstanceAsync("inst", ct: TestContext.Current.CancellationToken);
 
         // The '..' and rooted relative paths are rejected; only the safe one links.
         var receivedTargets = _hardLinker.ReceivedCalls()
@@ -232,7 +232,7 @@ public sealed class LinkingServiceTests
         _fs.FileExists(Path.Combine("C:\\dest", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin")).Returns(true);
         _fs.FileExists(Path.Combine("C:\\dest", "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.bin")).Returns(false);
 
-        var result = await CreateService().CopyHashedFilesAsync("inst");
+        var result = await CreateService().CopyHashedFilesAsync("inst", ct: TestContext.Current.CancellationToken);
 
         result.Cancelled.Should().BeFalse();
         result.AlreadyExisted.Should().Be(1);
@@ -248,7 +248,7 @@ public sealed class LinkingServiceTests
     {
         _dialogs.PickFolderAsync(Arg.Any<string>()).Returns((string?)null);
 
-        var result = await CreateService().CopyHashedFilesAsync("inst");
+        var result = await CreateService().CopyHashedFilesAsync("inst", ct: TestContext.Current.CancellationToken);
 
         result.Cancelled.Should().BeTrue();
     }

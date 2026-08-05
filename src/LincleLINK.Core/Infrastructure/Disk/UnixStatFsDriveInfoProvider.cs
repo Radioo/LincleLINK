@@ -11,13 +11,25 @@ namespace LincleLINK.Core.Infrastructure.Disk;
 [SupportedOSPlatform("linux")]
 public sealed class UnixStatFsDriveInfoProvider : IDriveInfoProvider
 {
+    private readonly Func<string, StatVfs> _statvfs;
+
+    public UnixStatFsDriveInfoProvider() : this(StatvfsNative)
+    {
+    }
+
+    /// <summary>Test seam: injects the native statvfs call so the P/Invoke is not required on a non-Linux host.</summary>
+    internal UnixStatFsDriveInfoProvider(Func<string, StatVfs> statvfs)
+    {
+        _statvfs = statvfs;
+    }
+
     public long GetAvailableFreeSpace(string path)
     {
-        var info = Statvfs(path);
+        var info = _statvfs(path);
         return checked((long)(info.f_bavail * info.f_frsize));
     }
 
-    private static StatVfs Statvfs(string path)
+    private static StatVfs StatvfsNative(string path)
     {
         if (statvfs(path, out var info) != 0)
         {
@@ -28,7 +40,7 @@ public sealed class UnixStatFsDriveInfoProvider : IDriveInfoProvider
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct StatVfs
+    internal struct StatVfs
     {
         public ulong f_bsize;
         public ulong f_frsize;

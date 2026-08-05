@@ -1,0 +1,540 @@
+using FluentAssertions;
+using LincleLINK.Core.Domain;
+using LincleLINK.Core.Infrastructure.Filesystem;
+using LincleLINK.Core.Infrastructure.Games;
+using LincleLINK.Core.Tests.TestHelpers;
+using Xunit;
+
+namespace LincleLINK.Core.Tests.Games;
+
+/// <summary>
+/// Real-filesystem checks for <see cref="GameVersionDetector"/> (no mocked IO).
+/// Regression: the walk-up from a game's <c>data</c> folder used to throw a
+/// NullReferenceException because <c>TryReadEa3Config</c> returns <c>default</c>
+/// for a folder without a config, and the caller dereferenced
+/// <c>xmlInfo.GameCode.Length</c> on the null value.
+/// </summary>
+public sealed class GameVersionDetectorTests : IDisposable
+{
+    private readonly TempDir _temp = new();
+
+    public void Dispose() => _temp.Dispose();
+
+    private static GameVersionDetector CreateDetector() => new(new FileSystem());
+
+    // Real EA3 configs express the soft fields as child elements, not attributes.
+    private const string IidxConfig =
+        """
+        <?xml version="1.0" encoding="utf-8"?>
+        <ea3>
+          <id><pcbid>0123</pcbid></id>
+          <soft>
+            <model>LDJ</model>
+            <dest>J</dest>
+            <spec>A</spec>
+            <rev>A</rev>
+            <ext>2022101900</ext>
+          </soft>
+        </ea3>
+        """;
+
+    private const string SdvxIiConfig =
+        """
+        <?xml version="1.0" encoding="utf-8"?>
+        <ea3>
+          <soft>
+            <model>KFC</model>
+            <dest>J</dest>
+            <spec>A</spec>
+            <rev>A</rev>
+            <ext>2014102201</ext>
+          </soft>
+        </ea3>
+        """;
+
+    [Fact]
+    public async Task Data_folder_walks_up_to_game_root()
+    {
+        // IIDX layout: game root holds prop/ + bm2dx.dll; instance is root\data.
+        _temp.CreateFile("prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(IidxConfig));
+        _temp.CreateFile("bm2dx.dll", [0x4D, 0x5A, 0, 0]); // MZ header
+        var dataFolder = _temp.CreateFile("data/graphics/somefile.bin");
+
+        var result = await CreateDetector().DetectAsync(Path.GetDirectoryName(Path.GetDirectoryName(dataFolder))!, TestContext.Current.CancellationToken);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("LDJ");
+        result.Info.GameTitle.Should().Be("beatmania IIDX");
+        result.Info.DateCode.Should().Be("2022101900");
+        result.Info.DisplayTitle.Should().Be("beatmania IIDX 30 RESIDENT");
+        result.GameRootPath.Should().Be(_temp.Root);
+        result.IsGameRoot.Should().BeFalse(); // the selected folder is data/, not the root
+        result.DataFolderName.Should().Be("data");
+    }
+
+    [Fact]
+    public async Task Unwrapped_sdvx_with_dll_in_modules_is_detected()
+    {
+        // SDVX II (unwrapped): game root holds prop/ + modules/soundvoltex.dll + data/.
+        // modules/ holds many files and must not be mistaken for the data folder.
+        _temp.CreateFile("prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(SdvxIiConfig));
+        for (var i = 0; i < 10; i++)
+        {
+            _temp.CreateFile($"modules/mod{i}.dll", [0x4D, 0x5A, 0, 0]);
+        }
+
+        _temp.CreateFile("modules/soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("data/graphics/a.bin");
+        _temp.CreateFile("data/sound/b.bin");
+        _temp.CreateFile("data/others/c.bin");
+
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("KFC");
+        result.Info.GameTitle.Should().Be("SOUND VOLTEX");
+        result.Info.DateCode.Should().Be("2014102201");
+        result.Info.DisplayTitle.Should().Be("SOUND VOLTEX II -infinite infection-");
+        result.Info.LogoKey.Should().Be("SDVX/SDVX_II_logo");
+        result.IsGameRoot.Should().BeTrue();
+        result.DataFolderName.Should().Be("data");
+    }
+
+    [Fact]
+    public async Task Unwrapped_sdvx_data_folder_is_detected()
+    {
+        _temp.CreateFile("prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(SdvxIiConfig));
+        for (var i = 0; i < 10; i++)
+        {
+            _temp.CreateFile($"modules/mod{i}.dll", [0x4D, 0x5A, 0, 0]);
+        }
+
+        _temp.CreateFile("modules/soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("data/graphics/somefile.bin");
+
+        var result = await CreateDetector().DetectAsync(Path.Combine(_temp.Root, "data"), TestContext.Current.CancellationToken);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("KFC");
+        result.Info.DisplayTitle.Should().Be("SOUND VOLTEX II -infinite infection-");
+        result.IsGameRoot.Should().BeFalse();
+        result.DataFolderName.Should().Be("data");
+    }
+
+    [Fact]
+    public async Task Wrapped_sdvx_inside_contents_is_detected_from_data()
+    {
+        // Wrapped layout: everything lives under contents/ (prop + modules + data).
+        _temp.CreateFile("contents/prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(SdvxIiConfig));
+        _temp.CreateFile("contents/modules/soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("contents/data/graphics/somefile.bin");
+
+        var result = await CreateDetector().DetectAsync(Path.Combine(_temp.Root, "contents", "data"), TestContext.Current.CancellationToken);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("KFC");
+        result.Info.DisplayTitle.Should().Be("SOUND VOLTEX II -infinite infection-");
+        result.GameRootPath.Should().Be(Path.Combine(_temp.Root, "contents"));
+        result.DataFolderName.Should().Be("data");
+    }
+
+    [Fact]
+    public async Task Wrapped_sdvx_selected_at_game_root_is_game_root()
+    {
+        _temp.CreateFile("contents/prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(SdvxIiConfig));
+        _temp.CreateFile("contents/modules/soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("contents/data/graphics/somefile.bin");
+
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("KFC");
+        result.IsGameRoot.Should().BeTrue(); // user selected the folder containing the identity level
+        result.DataFolderName.Should().Be("data");
+    }
+
+    [Fact]
+    public async Task Bootstrap_release_code_overrides_older_ext()
+    {
+        _temp.CreateFile("prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(IidxConfig));
+        _temp.CreateFile(
+            "prop/bootstrap.xml",
+            System.Text.Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="utf-8"?>
+                <param>
+                  <config><release_code>2023101800</release_code></config>
+                </param>
+                """));
+        _temp.CreateFile("bm2dx.dll", [0x4D, 0x5A, 0, 0]);
+
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.DateCode.Should().Be("2023101800"); // newer bootstrap wins
+    }
+
+    [Fact]
+    public async Task Folder_without_game_files_returns_null_info()
+    {
+        _temp.CreateFile("some/file.txt");
+
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
+
+        result.Info.Should().BeNull();
+        result.GameRootPath.Should().BeNull();
+        result.IsGameRoot.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Unparseable_config_falls_back_to_dll_detection()
+    {
+        // A config that is present but unreadable XML must not abort detection;
+        // the DLL scan still identifies the family and a model logo.
+        _temp.CreateFile("prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes("<broken"));
+        _temp.CreateFile("modules/soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("KFC"); // model hint from the DLL scan
+        result.Info.GameTitle.Should().Be("SOUND VOLTEX");
+        result.Info.LogoKey.Should().Be("SDVX/SDVX_BOOTH_logo"); // model fallback logo
+        result.Info.DisplayTitle.Should().BeNull(); // no release name; VM falls back to GameTitle
+        result.Info.Confidence.Should().Be(DetectionConfidence.DllOnly); // no config corroboration
+    }
+
+    [Fact]
+    public async Task Param_wrapped_config_is_parsed()
+    {
+        // Attribute-style soft under <param><ea3> must still parse.
+        _temp.CreateFile(
+            "prop/ea3-config.xml",
+            System.Text.Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="utf-8"?>
+                <param>
+                  <ea3>
+                    <soft model="KFC" dest="J" spec="A" rev="1" ext="2013060500" />
+                  </ea3>
+                </param>
+                """));
+        _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("KFC");
+        result.Info.DateCode.Should().Be("2013060500");
+        result.Info.LogoKey.Should().Be("SDVX/SDVX_II_logo"); // SDVX II datecode range
+        result.Info.DisplayTitle.Should().Be("SOUND VOLTEX II -infinite infection-");
+    }
+
+    [Fact]
+    public async Task Unknown_datecode_still_resolves_model_logo()
+    {
+        // A datecode that matches no release range must not leave the entry
+        // without an icon; the model fallback logo is used instead.
+        _temp.CreateFile(
+            "prop/ea3-config.xml",
+            System.Text.Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="utf-8"?>
+                <param>
+                  <ea3>
+                    <soft model="KFC" dest="J" spec="A" rev="1" ext="2999010100" />
+                  </ea3>
+                </param>
+                """));
+        _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("KFC");
+        result.Info.LogoKey.Should().Be("SDVX/SDVX_BOOTH_logo"); // fallback, not a specific release
+    }
+
+    [Fact]
+    public async Task Config_under_prop_defaults_with_config_root_bootstrap()
+    {
+        // IIDX dumps keep the template ea3-config under prop/defaults and put the
+        // authoritative release_code in a <config>-rooted bootstrap.xml.
+        _temp.CreateFile(
+            "contents/prop/defaults/ea3-config.xml",
+            System.Text.Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="utf-8"?>
+                <ea3>
+                  <soft>
+                    <model>LDJ</model>
+                    <dest>J</dest>
+                    <spec>A</spec>
+                    <rev>A</rev>
+                    <ext>2010042100</ext>
+                  </soft>
+                </ea3>
+                """));
+        _temp.CreateFile(
+            "contents/prop/bootstrap.xml",
+            System.Text.Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="shift_jis"?>
+                <config>
+                  <release_code>2014071600</release_code>
+                </config>
+                """));
+        for (var i = 0; i < 5; i++)
+        {
+            _temp.CreateFile($"contents/modules/m{i}.dll", [0x4D, 0x5A, 0, 0]);
+        }
+
+        _temp.CreateFile("contents/modules/bm2dx.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("contents/data/graphics/a.bin");
+
+        var result = await CreateDetector().DetectAsync(Path.Combine(_temp.Root, "contents", "data"), TestContext.Current.CancellationToken);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("LDJ");
+        result.Info.DateCode.Should().Be("2014071600"); // bootstrap release_code wins over config ext
+        result.Info.DisplayTitle.Should().Be("beatmania IIDX 21 SPADA");
+        result.Info.LogoKey.Should().Be("IIDX/AC_SPADA_logo");
+        result.DataFolderName.Should().Be("data");
+    }
+
+    [Fact]
+    public async Task Sdvx_2016121200_maps_to_gravity_wars()
+    {
+        // Regression: a real SDVX build dated 2016-12-12 sat in the gap between
+        // III GRAVITY WARS (ended 2016-12-01) and IV HEAVENLY HAVEN (2016-12-15),
+        // so it resolved no title. Ranges are now contiguous.
+        _temp.CreateFile(
+            "prop/ea3-config.xml",
+            System.Text.Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="utf-8"?>
+                <ea3>
+                  <soft>
+                    <model>KFC</model>
+                    <dest>J</dest>
+                    <spec>A</spec>
+                    <rev>A</rev>
+                    <ext>2016121200</ext>
+                  </soft>
+                </ea3>
+                """));
+        _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("data/graphics/a.bin");
+
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("KFC");
+        result.Info.DateCode.Should().Be("2016121200");
+        result.Info.DisplayTitle.Should().Be("SOUND VOLTEX III GRAVITY WARS");
+        result.Info.LogoKey.Should().Be("SDVX/SDVX_III_logo");
+    }
+
+    [Fact]
+    public async Task Sdvx_2025120900_maps_to_exceed_gear()
+    {
+        // Regression: a real KFC build dated 2025-12-09 (KFC-008-2025120900) used to
+        // fall past the EXCEED GEAR cap (2024-06-13), so it resolved no title.
+        // NABLA (UFC) did not launch until 2025-12-24, so this is still EXCEED GEAR.
+        _temp.CreateFile(
+            "prop/ea3-config.xml",
+            System.Text.Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="utf-8"?>
+                <ea3>
+                  <soft>
+                    <model>KFC</model>
+                    <dest>J</dest>
+                    <spec>A</spec>
+                    <rev>A</rev>
+                    <ext>2025120900</ext>
+                  </soft>
+                </ea3>
+                """));
+        _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("data/graphics/a.bin");
+
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("KFC");
+        result.Info.DateCode.Should().Be("2025120900");
+        result.Info.DisplayTitle.Should().Be("SOUND VOLTEX EXCEED GEAR");
+        result.Info.LogoKey.Should().Be("SDVX/SDVX_EXCEED_GEAR_logo");
+    }
+
+    [Fact]
+    public async Task Sdvx_2025122400_maps_to_nabla()
+    {
+        // NABLA (UFC model) launched 2025-12-24; a build on or after that date is
+        // NABLA, not EXCEED GEAR.
+        _temp.CreateFile(
+            "prop/ea3-config.xml",
+            System.Text.Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="utf-8"?>
+                <ea3>
+                  <soft>
+                    <model>UFC</model>
+                    <dest>J</dest>
+                    <spec>A</spec>
+                    <rev>A</rev>
+                    <ext>2025122400</ext>
+                  </soft>
+                </ea3>
+                """));
+        _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("data/graphics/a.bin");
+
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("UFC");
+        result.Info.DateCode.Should().Be("2025122400");
+        result.Info.DisplayTitle.Should().Be("SOUND VOLTEX ∁ENABLA");
+        result.Info.LogoKey.Should().Be("SDVX/SDVX_NABLA_logo");
+    }
+
+    [Fact]
+    public async Task Missing_directory_returns_null_info()
+    {
+        var missing = Path.Combine(_temp.Root, "does-not-exist");
+
+        var result = await CreateDetector().DetectAsync(missing, TestContext.Current.CancellationToken);
+
+        result.Info.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Case_variant_config_and_module_folders_are_found()
+    {
+        // Probes used to be lower-case-exact, which silently missed configs and
+        // DLLs on case-sensitive filesystems (Linux/macOS are in composition).
+        _temp.CreateFile("PROP/EA3-CONFIG.XML", System.Text.Encoding.UTF8.GetBytes(SdvxIiConfig));
+        _temp.CreateFile("MODULES/SOUNDVOLTEX.DLL", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("DATA/graphics/a.bin");
+
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("KFC");
+        result.Info.DisplayTitle.Should().Be("SOUND VOLTEX II -infinite infection-");
+    }
+
+    [Fact]
+    public async Task Bootstrap_release_code_applies_when_config_has_no_ext()
+    {
+        // Regression: the bootstrap override was gated on the config's <ext>
+        // parsing, so a config without <ext> ignored the authoritative
+        // release_code entirely.
+        _temp.CreateFile(
+            "prop/ea3-config.xml",
+            System.Text.Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="utf-8"?>
+                <ea3>
+                  <soft>
+                    <model>KFC</model>
+                  </soft>
+                </ea3>
+                """));
+        _temp.CreateFile(
+            "prop/bootstrap.xml",
+            System.Text.Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="utf-8"?>
+                <param>
+                  <config>
+                    <release_code>2014102201</release_code>
+                  </config>
+                </param>
+                """));
+        _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("data/graphics/a.bin");
+
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.DateCode.Should().Be("2014102201");
+        result.Info.DisplayTitle.Should().Be("SOUND VOLTEX II -infinite infection-");
+    }
+
+    [Fact]
+    public async Task Neighboring_game_sibling_is_not_attached()
+    {
+        // Regression (High 5): the walk-up used to probe every ancestor's
+        // immediate subdirectories, so a sibling folder that looks like a game was
+        // tagged with the wrong identity (and a GameRootPath outside the
+        // selection). Only the originally selected folder's subdirectories - the
+        // contents-wrapper case - are probed.
+        _temp.CreateFile("IIDX31/prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(ConfigFor("LDJ", "2023101800")));
+        _temp.CreateFile("IIDX31/bm2dx.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("SongPacks/prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(ConfigFor("LDJ", "2013111300")));
+        _temp.CreateFile("SongPacks/bm2dx.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("Selected/data/placeholder.bin");
+
+        var result = await CreateDetector().DetectAsync(Path.Combine(_temp.Root, "Selected"), TestContext.Current.CancellationToken);
+
+        result.Info.Should().BeNull();
+        result.GameRootPath.Should().BeNull();
+    }
+
+    private string ConfigFor(string model, string ext) => $$"""
+        <?xml version="1.0" encoding="utf-8"?>
+        <ea3>
+          <soft>
+            <model>{{model}}</model>
+            <dest>J</dest>
+            <spec>A</spec>
+            <rev>A</rev>
+            <ext>{{ext}}</ext>
+          </soft>
+        </ea3>
+        """;
+
+    private async Task<DetectionResult> DetectWithConfigAsync(string model, string ext, string dllName = "bm2dx.dll")
+    {
+        _temp.CreateFile("prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(ConfigFor(model, ext)));
+        _temp.CreateFile(dllName, [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("data/graphics/a.bin");
+        return await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
+    }
+
+    [Theory]
+    [InlineData("JDZ", "2005071200", "beatmania IIDX 11 IIDX RED", "IIDX/AC_IIDX_RED_logo")]
+    [InlineData("JDZ", "2005071300", "beatmania IIDX 12 HAPPY SKY", "IIDX/AC_HAPPY_SKY_logo")]
+    [InlineData("JDZ", "2006031400", "beatmania IIDX 12 HAPPY SKY", "IIDX/AC_HAPPY_SKY_logo")]
+    [InlineData("KDZ", "2006031500", "beatmania IIDX 13 DistorteD", "IIDX/AC_DistorteD_logo")]
+    [InlineData("KDZ", "2007022100", "beatmania IIDX 14 GOLD", "IIDX/AC_GOLD_logo")]
+    [InlineData("KDZ", "2007121800", "beatmania IIDX 14 GOLD", "IIDX/AC_GOLD_logo")]
+    [InlineData("LDJ", "2007121900", "beatmania IIDX 15 DJ TROOPERS", "IIDX/AC_DJ_TROOPERS_logo")]
+    [InlineData("LDJ", "2008111900", "beatmania IIDX 16 EMPRESS", "IIDX/AC_EMPRESS_logo")]
+    [InlineData("LDJ", "2009102100", "beatmania IIDX 17 SIRIUS", "IIDX/AC_SIRIUS_logo")]
+    [InlineData("LDJ", "2010091500", "beatmania IIDX 18 Resort Anthem", "IIDX/AC_Resort_Anthem_logo")]
+    [InlineData("LDJ", "2011091500", "beatmania IIDX 19 Lincle", "IIDX/AC_Lincle_logo")]
+    public async Task Iidx_release_datecodes_resolve_title_and_logo(string model, string ext, string displayTitle, string logoKey)
+    {
+        // Regression: the JDZ/KDZ windows were misaligned with real releases
+        // (RED launched 2004-10-28, before HAPPY SKY; the old KDZ windows were
+        // shifted a full release). LDJ rows for 15-18 fill the gap to 19 Lincle.
+        var result = await DetectWithConfigAsync(model, ext);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be(model);
+        result.Info.DateCode.Should().Be(ext);
+        result.Info.DisplayTitle.Should().Be(displayTitle);
+        result.Info.LogoKey.Should().Be(logoKey);
+    }
+
+    [Theory]
+    [InlineData("JDX", "2010070699", "DanceDanceRevolution X", "DDR/AC_DDR_X_logo")]
+    [InlineData("KDX", "2010070700", "DanceDanceRevolution X2", "DDR/AC_DDR_X2_logo")]
+    [InlineData("KDX", "2011111599", "DanceDanceRevolution X2", "DDR/AC_DDR_X2_logo")]
+    public async Task Ddr_release_datecodes_resolve_title_and_logo(string model, string ext, string displayTitle, string logoKey)
+    {
+        // Regression: the JDX/KDX windows ended in mid-2009/2011 instead of at
+        // the next release, leaving a gap (and non-…99 end values).
+        var result = await DetectWithConfigAsync(model, ext, "gamemdx.dll");
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be(model);
+        result.Info.DateCode.Should().Be(ext);
+        result.Info.DisplayTitle.Should().Be(displayTitle);
+        result.Info.LogoKey.Should().Be(logoKey);
+    }
+}

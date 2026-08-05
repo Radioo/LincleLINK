@@ -27,7 +27,8 @@ public sealed class JsonSettingsStore : ISettingsStore
         AppTheme? Theme,
         bool? IsDarkTheme,
         string? DataDirectory,
-        int? HashThreadCount);
+        int? HashThreadCount,
+        LibraryViewMode? ViewMode);
 
     public JsonSettingsStore(string settingsFile)
     {
@@ -62,7 +63,8 @@ public sealed class JsonSettingsStore : ISettingsStore
                     null => AppTheme.System,
                 },
                 persisted.DataDirectory,
-                persisted.HashThreadCount ?? Environment.ProcessorCount));
+                persisted.HashThreadCount ?? Environment.ProcessorCount,
+                persisted.ViewMode ?? LibraryViewMode.List));
         }
         catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException)
         {

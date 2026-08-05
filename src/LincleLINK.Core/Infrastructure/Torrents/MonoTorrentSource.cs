@@ -16,15 +16,13 @@ public sealed class MonoTorrentSource : ITorrentSource
 {
     public async Task<TorrentData> LoadAsync(string torrentFilePath, CancellationToken ct = default)
     {
-        var torrent = await Torrent.LoadAsync(torrentFilePath);
-
-        if (torrent.InfoHashes.V2 is not null)
-        {
-            throw new TorrentNotSupportedException(
-                "This torrent uses the v2 format (BEP 52), which is not supported yet.");
-        }
-
+        // Pre-parse the info dictionary before delegating to MonoTorrent: for v2,
+        // missing-info or missing-pieces torrents MonoTorrent throws its own generic
+        // exceptions, so without this the clear TorrentNotSupportedException below
+        // would never be reached (the UI depends on that typed message).
         var hashes = ReadV1PieceHashes(torrentFilePath);
+
+        var torrent = await Torrent.LoadAsync(torrentFilePath);
 
         var files = new List<TorrentFileData>(torrent.Files.Count);
         foreach (var file in torrent.Files)
@@ -45,6 +43,14 @@ public sealed class MonoTorrentSource : ITorrentSource
         if (!root.TryGetValue(new BEncodedString("info"), out var infoValue) || infoValue is not BEncodedDictionary info)
         {
             throw new TorrentNotSupportedException("Torrent has no info dictionary.");
+        }
+
+        if (info.TryGetValue(new BEncodedString("meta version"), out var metaValue)
+            && metaValue is BEncodedNumber metaVersion
+            && metaVersion.Number == 2)
+        {
+            throw new TorrentNotSupportedException(
+                "This torrent uses the v2 format (BEP 52), which is not supported yet.");
         }
 
         if (!info.TryGetValue(new BEncodedString("pieces"), out var piecesValue) || piecesValue is not BEncodedString pieces)

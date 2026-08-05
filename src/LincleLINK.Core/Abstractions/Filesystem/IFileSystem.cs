@@ -28,4 +28,7 @@ public interface IFileSystem
 
     /// <summary>Opens a read stream (used by streaming piece verification). Blocks.</summary>
     Stream OpenRead(string path);
+
+    /// <summary>Reads all text from a file. Blocks.</summary>
+    string ReadAllText(string path);
 }
