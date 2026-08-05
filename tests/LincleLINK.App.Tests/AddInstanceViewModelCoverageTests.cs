@@ -138,6 +138,49 @@ public sealed class AddInstanceViewModelCoverageTests
     }
 
     [Fact]
+    public async Task Superseded_detection_does_not_overwrite_a_newer_analysis()
+    {
+        StubDataPath();
+        var other = Path.Combine(Path.GetTempPath(), "other");
+        _fs.DirectoryExists(other).Returns(true);
+        _fs.EnumerateFiles(other, true).Returns([FileA]);
+        _fs.EnumerateFiles(other, false).Returns([FileA]);
+        _fs.EnumerateDirectories(other, false).Returns([]);
+
+        // The first analysis blocks on a stale detection; the superseding one
+        // resolves to SOUND VOLTEX II immediately.
+        var stale = new TaskCompletionSource<DetectionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _detector.DetectAsync(Data, Arg.Any<CancellationToken>()).Returns(stale.Task);
+        _detector.DetectAsync(other, Arg.Any<CancellationToken>()).Returns(new DetectionResult(
+            new GameVersionInfo("KFC", "SOUND VOLTEX", "2013060500",
+                null, "SOUND VOLTEX II", "SDVX/SDVX_II_logo", DetectionConfidence.Xml),
+            other, "data", true));
+        var vm = Create();
+
+        vm.DataPath = Data;
+        // Let the first analysis reach the detection await (blocked on `stale`).
+        await AsyncWaits.AwaitUntilAsync(() => _detector.ReceivedCalls().Count() >= 1);
+
+        // Supersede; the newer analysis applies its result.
+        vm.DataPath = other;
+        await AsyncWaits.AwaitUntilAsync(() => vm.DetectedGameText is not null);
+        vm.DetectedGameText.Should().Contain("SOUND VOLTEX II");
+
+        // Completing the stale detection with a different game must be discarded
+        // by the staleness re-check, never overwriting the newer result.
+        stale.SetResult(new DetectionResult(
+            new GameVersionInfo("LDJ", "beatmania IIDX", "2023101800",
+                null, "beatmania IIDX 31 EPOLIS", "IIDX/AC_EPOLIS_logo", DetectionConfidence.Xml),
+            Data, "data", true));
+
+        for (var i = 0; i < 30; i++)
+        {
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+            vm.DetectedGameText.Should().NotContain("EPOLIS");
+        }
+    }
+
+    [Fact]
     public async Task CreateInstance_service_error_shows_dialog()
     {
         _fs.DirectoryExists(Data).Returns(true);

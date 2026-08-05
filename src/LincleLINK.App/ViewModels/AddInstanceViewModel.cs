@@ -257,7 +257,18 @@ public partial class AddInstanceViewModel : ViewModelBase
 
         try
         {
-            var detection = await _detector.DetectAsync(path, cts.Token);
+            // DetectAsync does its directory walking and PE reads synchronously on
+            // the caller's thread, so run it on the pool like the size estimate
+            // above - a network share must not freeze the window.
+            var detection = await Task.Run(() => _detector.DetectAsync(path, cts.Token), cts.Token);
+
+            // A superseded analysis must not overwrite a newer one (same staleness
+            // re-check the size-estimate path does).
+            if (cts.Token.IsCancellationRequested)
+            {
+                return;
+            }
+
             if (detection.Info is not null)
             {
                 var code = detection.Info.GameCode;
