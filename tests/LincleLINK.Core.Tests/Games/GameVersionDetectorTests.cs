@@ -400,4 +400,68 @@ public sealed class GameVersionDetectorTests : IDisposable
 
         result.Info.Should().BeNull();
     }
+
+    private string ConfigFor(string model, string ext) => $$"""
+        <?xml version="1.0" encoding="utf-8"?>
+        <ea3>
+          <soft>
+            <model>{{model}}</model>
+            <dest>J</dest>
+            <spec>A</spec>
+            <rev>A</rev>
+            <ext>{{ext}}</ext>
+          </soft>
+        </ea3>
+        """;
+
+    private async Task<DetectionResult> DetectWithConfigAsync(string model, string ext, string dllName = "bm2dx.dll")
+    {
+        _temp.CreateFile("prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(ConfigFor(model, ext)));
+        _temp.CreateFile(dllName, [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("data/graphics/a.bin");
+        return await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
+    }
+
+    [Theory]
+    [InlineData("JDZ", "2005071200", "beatmania IIDX 11 IIDX RED", "IIDX/AC_IIDX_RED_logo")]
+    [InlineData("JDZ", "2005071300", "beatmania IIDX 12 HAPPY SKY", "IIDX/AC_HAPPY_SKY_logo")]
+    [InlineData("JDZ", "2006031400", "beatmania IIDX 12 HAPPY SKY", "IIDX/AC_HAPPY_SKY_logo")]
+    [InlineData("KDZ", "2006031500", "beatmania IIDX 13 DistorteD", "IIDX/AC_DistorteD_logo")]
+    [InlineData("KDZ", "2007022100", "beatmania IIDX 14 GOLD", "IIDX/AC_GOLD_logo")]
+    [InlineData("KDZ", "2007121800", "beatmania IIDX 14 GOLD", "IIDX/AC_GOLD_logo")]
+    [InlineData("LDJ", "2007121900", "beatmania IIDX 15 DJ TROOPERS", "IIDX/AC_DJ_TROOPERS_logo")]
+    [InlineData("LDJ", "2008111900", "beatmania IIDX 16 EMPRESS", "IIDX/AC_EMPRESS_logo")]
+    [InlineData("LDJ", "2009102100", "beatmania IIDX 17 SIRIUS", "IIDX/AC_SIRIUS_logo")]
+    [InlineData("LDJ", "2010091500", "beatmania IIDX 18 Resort Anthem", "IIDX/AC_Resort_Anthem_logo")]
+    [InlineData("LDJ", "2011091500", "beatmania IIDX 19 Lincle", "IIDX/AC_Lincle_logo")]
+    public async Task Iidx_release_datecodes_resolve_title_and_logo(string model, string ext, string displayTitle, string logoKey)
+    {
+        // Regression: the JDZ/KDZ windows were misaligned with real releases
+        // (RED launched 2004-10-28, before HAPPY SKY; the old KDZ windows were
+        // shifted a full release). LDJ rows for 15-18 fill the gap to 19 Lincle.
+        var result = await DetectWithConfigAsync(model, ext);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be(model);
+        result.Info.DateCode.Should().Be(ext);
+        result.Info.DisplayTitle.Should().Be(displayTitle);
+        result.Info.LogoKey.Should().Be(logoKey);
+    }
+
+    [Theory]
+    [InlineData("JDX", "2010070699", "DanceDanceRevolution X", "DDR/AC_DDR_X_logo")]
+    [InlineData("KDX", "2010070700", "DanceDanceRevolution X2", "DDR/AC_DDR_X2_logo")]
+    [InlineData("KDX", "2011111599", "DanceDanceRevolution X2", "DDR/AC_DDR_X2_logo")]
+    public async Task Ddr_release_datecodes_resolve_title_and_logo(string model, string ext, string displayTitle, string logoKey)
+    {
+        // Regression: the JDX/KDX windows ended in mid-2009/2011 instead of at
+        // the next release, leaving a gap (and non-…99 end values).
+        var result = await DetectWithConfigAsync(model, ext, "gamemdx.dll");
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be(model);
+        result.Info.DateCode.Should().Be(ext);
+        result.Info.DisplayTitle.Should().Be(displayTitle);
+        result.Info.LogoKey.Should().Be(logoKey);
+    }
 }

@@ -79,11 +79,16 @@ public sealed class GameVersionDetector : IGameVersionDetector
         new("LDJ", "beatmania IIDX", "IIDX/AC_Pinky_Crush_logo",          2024100900, 2025040999, "32 Pinky Crush"),
         new("LDJ", "beatmania IIDX", "IIDX/AC_Sparkle_Shower_logo",       2025041000, 2026021899, "33 Sparkle Shower"),
         new("LDJ", "beatmania IIDX", "IIDX/AC_ZINRAI_logo",               2026021900, 2999999999, "34 ZINRAI"),
-        // older IIDX models (JDZ/KDZ)
-        new("JDZ", "beatmania IIDX", "IIDX/AC_IIDX_RED_logo",             2006052400, 2007070100, "11 IIDX RED"),
-        new("JDZ", "beatmania IIDX", "IIDX/AC_HAPPY_SKY_logo",            2005121400, 2006052300, "12 HAPPY SKY"),
-        new("KDZ", "beatmania IIDX", "IIDX/AC_DistorteD_logo",            2007032800, 2008110100, "13 DistorteD"),
-        new("KDZ", "beatmania IIDX", "IIDX/AC_GOLD_logo",                 2008111900, 2009120100, "14 GOLD"),
+        // older IIDX models (JDZ/KDZ) - release dates verified against RemyWiki;
+        // each release spans its launch date to the day before the next launches.
+        new("JDZ", "beatmania IIDX", "IIDX/AC_IIDX_RED_logo",             2004102800, 2005071299, "11 IIDX RED"),
+        new("JDZ", "beatmania IIDX", "IIDX/AC_HAPPY_SKY_logo",            2005071300, 2006031499, "12 HAPPY SKY"),
+        new("KDZ", "beatmania IIDX", "IIDX/AC_DistorteD_logo",            2006031500, 2007022099, "13 DistorteD"),
+        new("KDZ", "beatmania IIDX", "IIDX/AC_GOLD_logo",                 2007022100, 2007121899, "14 GOLD"),
+        new("LDJ", "beatmania IIDX", "IIDX/AC_DJ_TROOPERS_logo",          2007121900, 2008111899, "15 DJ TROOPERS"),
+        new("LDJ", "beatmania IIDX", "IIDX/AC_EMPRESS_logo",              2008111900, 2009102099, "16 EMPRESS"),
+        new("LDJ", "beatmania IIDX", "IIDX/AC_SIRIUS_logo",               2009102100, 2010091499, "17 SIRIUS"),
+        new("LDJ", "beatmania IIDX", "IIDX/AC_Resort_Anthem_logo",        2010091500, 2011091499, "18 Resort Anthem"),
         // SDVX - KFC model (contiguous: each release ends the day before the next launches)
         new("KFC", "SOUND VOLTEX",    "SDVX/SDVX_BOOTH_logo",             2012011800, 2013060499, "BOOTH"),
         new("KFC", "SOUND VOLTEX",    "SDVX/SDVX_II_logo",                2013060500, 2014111999, "II -infinite infection-"),
@@ -97,9 +102,10 @@ public sealed class GameVersionDetector : IGameVersionDetector
         new("MDX", "DanceDanceRevolution", "DDR/AC_DDR_A20_logo",        2019032000, 2022031699, "A20"),
         new("MDX", "DanceDanceRevolution", "DDR/AC_DDR_A3_logo-gold",    2022031700, 2024061199, "A3"),
         new("TDX", "DanceDanceRevolution", "DDR/AC_DDR_WORLD_logo",      2024061200, 2999999999, "WORLD"),
-        // DDR - JDX/KDX models (older)
-        new("JDX", "DanceDanceRevolution", "DDR/AC_DDR_X_logo",          2008122400, 2009120100, "X"),
-        new("KDX", "DanceDanceRevolution", "DDR/AC_DDR_X2_logo",         2010070700, 2011110100, "X2"),
+        // DDR - JDX/KDX models (older); X ran until X2 launched (2010-07-07),
+        // X2 until X3 VS 2ndMIX (2011-11-16).
+        new("JDX", "DanceDanceRevolution", "DDR/AC_DDR_X_logo",          2008122400, 2010070699, "X"),
+        new("KDX", "DanceDanceRevolution", "DDR/AC_DDR_X2_logo",         2010070700, 2011111599, "X2"),
     ];
 
     // ── config file names (checked in order) ───────────────────────────
