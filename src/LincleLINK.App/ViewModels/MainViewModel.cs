@@ -213,20 +213,30 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
 
         if (SelectedInstance is null) return;
 
-        var name = SelectedInstance.InstanceName;
-
-        if (logo is null)
+        try
         {
-            // reset to auto
-            LogoCatalog.DeleteCustomLogo(_paths.DataDirectory, name.ToLowerInvariant());
-            await _repository.SetCustomLogoAsync(name, null);
-        }
-        else
-        {
-            await _repository.SetCustomLogoAsync(name, logo.LogoKey);
-        }
+            var name = SelectedInstance.InstanceName;
 
-        await RefreshInstancesAsync();
+            if (logo is null)
+            {
+                // reset to auto
+                LogoCatalog.DeleteCustomLogo(_paths.DataDirectory, name.ToLowerInvariant());
+                await _repository.SetCustomLogoAsync(name, null);
+            }
+            else
+            {
+                await _repository.SetCustomLogoAsync(name, logo.LogoKey);
+            }
+
+            await RefreshInstancesAsync();
+        }
+        catch (Exception ex)
+        {
+            // A locked custom-logo file or a failed DB write must not take the
+            // process down on the UI context; degrade and log instead.
+            LogLines.Add($"Could not change the logo: {ex.Message}");
+            ReportOutcome($"⚠ Could not change the logo", isWarning: true);
+        }
     }
 
     [RelayCommand]
@@ -236,14 +246,22 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
 
         if (SelectedInstance is null) return;
 
-        var name = SelectedInstance.InstanceName;
-        var picked = await _dialogs.PickOpenFileAsync("Select image", new Core.Abstractions.Dialogs.FileType("Images", ["*.png", "*.jpg", "*.jpeg"]));
-        if (picked is null) return;
+        try
+        {
+            var name = SelectedInstance.InstanceName;
+            var picked = await _dialogs.PickOpenFileAsync("Select image", new Core.Abstractions.Dialogs.FileType("Images", ["*.png", "*.jpg", "*.jpeg"]));
+            if (picked is null) return;
 
-        LogoCatalog.SaveCustomLogo(_paths.DataDirectory, name.ToLowerInvariant(), picked);
-        await _repository.SetCustomLogoAsync(name, "custom");
+            LogoCatalog.SaveCustomLogo(_paths.DataDirectory, name.ToLowerInvariant(), picked);
+            await _repository.SetCustomLogoAsync(name, "custom");
 
-        await RefreshInstancesAsync();
+            await RefreshInstancesAsync();
+        }
+        catch (Exception ex)
+        {
+            LogLines.Add($"Could not set the custom image: {ex.Message}");
+            ReportOutcome($"⚠ Could not set the custom image", isWarning: true);
+        }
     }
 
     private CancellationTokenSource? _operationCts;
@@ -369,6 +387,17 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         var result = await _instanceService.DeleteInstanceAsync(instanceName);
         if (result.Deleted)
         {
+            // A removed instance must not orphan its custom logo, or a future
+            // same-named instance would inherit the wrong image.
+            try
+            {
+                LogoCatalog.DeleteCustomLogo(_paths.DataDirectory, instanceName.ToLowerInvariant());
+            }
+            catch (Exception ex)
+            {
+                LogLines.Add($"Could not remove the custom logo for {instanceName}: {ex.Message}");
+            }
+
             LogLines.Add($"Removed {instanceName} from the library (its files stay in storage).");
             ReportOutcome($"✓ Removed {instanceName} from the library");
         }

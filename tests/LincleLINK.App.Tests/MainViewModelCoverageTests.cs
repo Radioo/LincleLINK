@@ -180,6 +180,59 @@ public sealed class MainViewModelCoverageTests
     }
 
     [Fact]
+    public async Task SetCustomLogo_surfaces_repository_failure_without_throwing()
+    {
+        StubEmptyLibrary();
+        _repository.SetCustomLogoAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(_ => throw new IOException("locked"));
+        var vm = CreateViewModel();
+
+        vm.SelectedInstance = new InstanceListEntry("X", 0, 0, "0 B");
+        var act = async () => await vm.SetCustomLogoCommand.ExecuteAsync(new LogoEntry("k", "avares://x.png", "x"));
+
+        await act.Should().NotThrowAsync();
+        vm.LastOutcomeIsWarning.Should().BeTrue();
+        vm.LogLines.Should().Contain(l => l.StartsWith("Could not change the logo"));
+    }
+
+    [Fact]
+    public async Task SetCustomImage_surfaces_copy_failure_without_throwing()
+    {
+        StubEmptyLibrary();
+        var missingPicked = Path.Combine(Path.GetTempPath(), "LincleLINK.Tests", Guid.NewGuid().ToString("N"), "missing.png");
+        _dialogs.PickOpenFileAsync(Arg.Any<string>(), Arg.Any<FileType>()).Returns(missingPicked);
+        var dataDir = Path.Combine(Path.GetTempPath(), "LincleLINK.Tests", Guid.NewGuid().ToString("N"));
+        _paths.DataDirectory.Returns(dataDir);
+        var vm = CreateViewModel();
+
+        vm.SelectedInstance = new InstanceListEntry("X", 0, 0, "0 B");
+        var act = async () => await vm.SetCustomImageCommand.ExecuteAsync(null);
+
+        await act.Should().NotThrowAsync();
+        vm.LastOutcomeIsWarning.Should().BeTrue();
+        vm.LogLines.Should().Contain(l => l.StartsWith("Could not set the custom image"));
+    }
+
+    [Fact]
+    public async Task DeleteInstance_removes_the_custom_logo()
+    {
+        StubEmptyLibrary();
+        var dataDir = Path.Combine(Path.GetTempPath(), "LincleLINK.Tests", Guid.NewGuid().ToString("N"));
+        _paths.DataDirectory.Returns(dataDir);
+        Directory.CreateDirectory(Path.Combine(dataDir, "custom_logos"));
+        var customFile = Path.Combine(dataDir, "custom_logos", "x.png");
+        File.WriteAllText(customFile, "png");
+        _dialogs.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        _repository.DeleteAsync("X", Arg.Any<CancellationToken>()).Returns(true);
+        var vm = CreateViewModel();
+
+        vm.SelectedInstance = new InstanceListEntry("X", 0, 0, "0 B");
+        await vm.DeleteInstanceCommand.ExecuteAsync(null);
+
+        File.Exists(customFile).Should().BeFalse();
+    }
+
+    [Fact]
     public async Task InitializeAsync_is_idempotent()
     {
         StubEmptyLibrary();
