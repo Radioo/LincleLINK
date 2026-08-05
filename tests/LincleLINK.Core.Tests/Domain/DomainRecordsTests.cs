@@ -35,13 +35,10 @@ public sealed class DomainRecordsTests
     public void GameVersionInfo_holds_all_fields()
     {
         var info = new GameVersionInfo(
-            "KFC", "SOUND VOLTEX", "J", "A", "1", "2013060500",
+            "KFC", "SOUND VOLTEX", "2013060500",
             "kfc-5a01c0a8_1000", "SOUND VOLTEX II -infinite infection-",
             "SDVX/SDVX_II_logo", DetectionConfidence.XmlAndPe);
 
-        info.Dest.Should().Be("J");
-        info.Spec.Should().Be("A");
-        info.Rev.Should().Be("1");
         info.DateCode.Should().Be("2013060500");
         info.PeIdentifier.Should().Be("kfc-5a01c0a8_1000");
         info.DisplayTitle.Should().Be("SOUND VOLTEX II -infinite infection-");

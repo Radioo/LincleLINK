@@ -77,12 +77,11 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
                 DetectedGame = x.GameCode != null || x.GameTitle != null ? new GameVersionInfo(
                     x.GameCode ?? string.Empty,
                     x.GameTitle ?? string.Empty,
-                    null, null, null,
                     x.DateCode,
                     x.PeIdentifier,
                     x.DisplayTitle,
                     x.LogoKey,
-                    string.IsNullOrEmpty(x.PeIdentifier) ? DetectionConfidence.Xml : DetectionConfidence.XmlAndPe) : null,
+                    ReadConfidence(x)) : null,
                 CustomLogoSource = x.CustomLogoSource,
             })
             .ToListAsync(ct);
@@ -262,18 +261,28 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
         Instance instance,
         CancellationToken ct)
     {
+        var info = instance.DetectedGame;
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
             INSERT INTO "Instances" ("InstanceName", "NameKey", "TotalFileSize", "TotalFileCount", "TotalFileSizeString",
-            "GameCode", "GameTitle", "DateCode", "PeIdentifier", "DisplayTitle", "LogoKey", "CustomLogoSource")
-            VALUES ($name, $key, $size, $count, $sizeString, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+            "GameCode", "GameTitle", "DateCode", "PeIdentifier", "DisplayTitle", "LogoKey", "Confidence", "CustomLogoSource")
+            VALUES ($name, $key, $size, $count, $sizeString,
+            $gameCode, $gameTitle, $dateCode, $peId, $displayTitle, $logoKey, $confidence, $customLogo)
             """;
         command.Parameters.Add(new SqliteParameter("$name", instance.InstanceName));
         command.Parameters.Add(new SqliteParameter("$key", LincleLinkPersistence.NameKeyOf(instance.InstanceName)));
         command.Parameters.Add(new SqliteParameter("$size", instance.TotalFileSize));
         command.Parameters.Add(new SqliteParameter("$count", instance.TotalFileCount));
         command.Parameters.Add(new SqliteParameter("$sizeString", instance.TotalFileSizeString));
+        command.Parameters.Add(new SqliteParameter("$gameCode", (object?)info?.GameCode ?? DBNull.Value));
+        command.Parameters.Add(new SqliteParameter("$gameTitle", (object?)info?.GameTitle ?? DBNull.Value));
+        command.Parameters.Add(new SqliteParameter("$dateCode", (object?)info?.DateCode ?? DBNull.Value));
+        command.Parameters.Add(new SqliteParameter("$peId", (object?)info?.PeIdentifier ?? DBNull.Value));
+        command.Parameters.Add(new SqliteParameter("$displayTitle", (object?)info?.DisplayTitle ?? DBNull.Value));
+        command.Parameters.Add(new SqliteParameter("$logoKey", (object?)info?.LogoKey ?? DBNull.Value));
+        command.Parameters.Add(new SqliteParameter("$confidence", info is null ? DBNull.Value : (object)(int)info.Confidence));
+        command.Parameters.Add(new SqliteParameter("$customLogo", (object?)instance.CustomLogoSource ?? DBNull.Value));
         await command.ExecuteNonQueryAsync(ct);
     }
 
@@ -387,12 +396,29 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
         return new GameVersionInfo(
             entity.GameCode ?? string.Empty,
             entity.GameTitle ?? string.Empty,
-            null, null, null,
             entity.DateCode,
             entity.PeIdentifier,
             entity.DisplayTitle,
             entity.LogoKey,
-            string.IsNullOrEmpty(entity.PeIdentifier) ? DetectionConfidence.Xml : DetectionConfidence.XmlAndPe);
+            ReadConfidence(entity));
+    }
+
+    /// <summary>
+    /// Reads the persisted confidence, falling back to the pre-column derivation
+    /// (PE identifier presence) for rows written before the column existed.
+    /// </summary>
+    private static DetectionConfidence ReadConfidence(InstanceEntity entity)
+    {
+        if (entity.Confidence is { } value &&
+            value >= (int)DetectionConfidence.None &&
+            value <= (int)DetectionConfidence.XmlAndPe)
+        {
+            return (DetectionConfidence)value;
+        }
+
+        return string.IsNullOrEmpty(entity.PeIdentifier)
+            ? DetectionConfidence.Xml
+            : DetectionConfidence.XmlAndPe;
     }
 
     private static void ApplyGameInfo(InstanceEntity entity, GameVersionInfo? info)
@@ -403,6 +429,7 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
         entity.PeIdentifier = info?.PeIdentifier;
         entity.DisplayTitle = info?.DisplayTitle;
         entity.LogoKey = info?.LogoKey;
+        entity.Confidence = info is null ? null : (int)info.Confidence;
     }
 
     private static List<InstanceFileEntity> MapFiles(Instance instance, string instanceName)

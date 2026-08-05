@@ -212,12 +212,19 @@ public sealed class GameVersionDetector : IGameVersionDetector
             : null;
         var peId = dllInfo.DllPath is not null ? TryReadPeIdentifier(dllInfo.DllPath, gameCode) : null;
 
-        var confidence = DetectionConfidence.Xml;
-        if (peId is not null) confidence = DetectionConfidence.XmlAndPe;
+        // Confidence is honest about the source of the identification: XML config
+        // matched, or a known DLL alone. A PE identifier upgrades a config hit but
+        // cannot promote a DLL-only match (there is no config to corroborate it).
+        var confidence = !string.IsNullOrEmpty(xmlInfo.GameCode)
+            ? DetectionConfidence.Xml
+            : DetectionConfidence.DllOnly;
+        if (peId is not null && !string.IsNullOrEmpty(xmlInfo.GameCode))
+        {
+            confidence = DetectionConfidence.XmlAndPe;
+        }
 
         var info = new GameVersionInfo(
             gameCode, gameTitle,
-            xmlInfo.Dest, xmlInfo.Spec, xmlInfo.Rev,
             xmlInfo.Ext, peId,
             displayTitle, logoKey,
             confidence);
@@ -421,9 +428,6 @@ public sealed class GameVersionDetector : IGameVersionDetector
                 var model = ReadSoftField(soft, "model");
                 if (string.IsNullOrWhiteSpace(model)) continue;
 
-                var dest   = ReadSoftField(soft, "dest");
-                var spec   = ReadSoftField(soft, "spec");
-                var rev    = ReadSoftField(soft, "rev");
                 var ext    = ReadSoftField(soft, "ext");
 
                 // bootstrap.xml override (release_code)
@@ -451,7 +455,7 @@ public sealed class GameVersionDetector : IGameVersionDetector
                     }
                 }
 
-                return new Ea3SoftInfo(model, dest ?? string.Empty, spec ?? string.Empty, rev ?? string.Empty, ext ?? string.Empty);
+                return new Ea3SoftInfo(model, ext);
             }
             catch
             {
@@ -550,7 +554,7 @@ public sealed class GameVersionDetector : IGameVersionDetector
     // ── internal data types ────────────────────────────────────────────
 
     private readonly record struct Ea3SoftInfo(
-        string? GameCode, string? Dest, string? Spec, string? Rev, string? Ext);
+        string? GameCode, string? Ext);
 
     private readonly record struct DllScanInfo(
         string? Title, string? ModelHint, string? DllPath);

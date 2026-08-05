@@ -19,6 +19,7 @@ public sealed class InstanceEntity
     public string? PeIdentifier { get; set; }
     public string? DisplayTitle { get; set; }
     public string? LogoKey { get; set; }
+    public int? Confidence { get; set; }
     public string? CustomLogoSource { get; set; }
     public List<InstanceFileEntity> Files { get; set; } = [];
     public List<InstanceDirectoryEntity> Directories { get; set; } = [];

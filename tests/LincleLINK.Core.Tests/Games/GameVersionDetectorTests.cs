@@ -200,6 +200,7 @@ public sealed class GameVersionDetectorTests : IDisposable
         result.Info.GameTitle.Should().Be("SOUND VOLTEX");
         result.Info.LogoKey.Should().Be("SDVX/SDVX_BOOTH_logo"); // model fallback logo
         result.Info.DisplayTitle.Should().BeNull(); // no release name; VM falls back to GameTitle
+        result.Info.Confidence.Should().Be(DetectionConfidence.DllOnly); // no config corroboration
     }
 
     [Fact]

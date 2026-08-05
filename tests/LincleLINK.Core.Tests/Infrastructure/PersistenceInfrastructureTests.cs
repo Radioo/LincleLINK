@@ -88,6 +88,7 @@ public sealed class PersistenceInfrastructureTests
 
         RunDown(new InitialCreate(), builder);
         RunDown(new AddGameDetection(), builder);
+        RunDown(new AddDetectionConfidence(), builder);
     }
 
     private static void RunDown(Migration migration, MigrationBuilder builder)

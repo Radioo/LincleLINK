@@ -71,7 +71,7 @@ public sealed class SqliteInstanceRepositoryCoverageTests : IDisposable
     {
         var instance = Instance.Create("game", [], []);
         instance.DetectedGame = new GameVersionInfo(
-            "KFC", "SOUND VOLTEX", "J", "A", "1", "2013060500",
+            "KFC", "SOUND VOLTEX", "2013060500",
             "kfc-5a01c0a8_1000", null, "SDVX/SDVX_II_logo", DetectionConfidence.XmlAndPe);
 
         await _repo.SaveAsync(instance, TestContext.Current.CancellationToken);
@@ -96,13 +96,32 @@ public sealed class SqliteInstanceRepositoryCoverageTests : IDisposable
     {
         var instance = Instance.Create("game", [], []);
         instance.DetectedGame = new GameVersionInfo(
-            "LDJ", "beatmania IIDX", null, null, null, "2022101900",
+            "LDJ", "beatmania IIDX", "2022101900",
             null, "beatmania IIDX 30 RESIDENT", "IIDX/AC_RESIDENT_logo", DetectionConfidence.Xml);
 
         await _repo.SaveAsync(instance, TestContext.Current.CancellationToken);
         var loaded = await _repo.GetAsync("game", TestContext.Current.CancellationToken);
 
         loaded!.DetectedGame!.Confidence.Should().Be(DetectionConfidence.Xml);
+    }
+
+    [Fact]
+    public async Task DllOnly_confidence_survives_the_roundtrip()
+    {
+        // Regression: confidence used to initialize to Xml unconditionally, and
+        // the persistence layer re-derived it from PeIdentifier presence, so a
+        // DLL-only detection was reported as config-verified after reload.
+        var instance = Instance.Create("game", [], []);
+        instance.DetectedGame = new GameVersionInfo(
+            "KFC", "SOUND VOLTEX", null, null, null, "SDVX/SDVX_BOOTH_logo", DetectionConfidence.DllOnly);
+
+        await _repo.SaveAsync(instance, TestContext.Current.CancellationToken);
+        var loaded = await _repo.GetAsync("game", TestContext.Current.CancellationToken);
+
+        loaded!.DetectedGame!.Confidence.Should().Be(DetectionConfidence.DllOnly);
+
+        var summary = (await _repo.GetSummariesAsync(TestContext.Current.CancellationToken)).Single();
+        summary.DetectedGame!.Confidence.Should().Be(DetectionConfidence.DllOnly);
     }
 
     [Fact]

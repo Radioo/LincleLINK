@@ -54,7 +54,7 @@ public sealed class InstanceServiceCoverageTests
     {
         StubDataPath();
         var info = new GameVersionInfo(
-            "KFC", "SOUND VOLTEX", "J", "A", "1", "2013060500",
+            "KFC", "SOUND VOLTEX", "2013060500",
             "kfc-5a01c0a8_1000", null, "SDVX/SDVX_II_logo", DetectionConfidence.XmlAndPe);
         _detector.DetectAsync(Data, Arg.Any<CancellationToken>())
             .Returns(new DetectionResult(info, Data, "data", true));

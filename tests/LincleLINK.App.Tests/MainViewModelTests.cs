@@ -113,7 +113,7 @@ public sealed class MainViewModelTests
         new(name, 1, 10, "10 B")
         {
             DetectedGame = logoKey is null ? null : new GameVersionInfo(
-                "KFC", "SOUND VOLTEX", null, null, null, null, null, name, logoKey, DetectionConfidence.Xml),
+                "KFC", "SOUND VOLTEX", null, null, name, logoKey, DetectionConfidence.Xml),
         };
 
     [Fact]

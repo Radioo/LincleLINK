@@ -122,7 +122,7 @@ public sealed class AdditionalVmCoverageTests
         _fs.EnumerateDirectories(Data, false).Returns([]);
         _fs.GetFileLength(FileA).Returns(100);
         _detector.DetectAsync(Data, Arg.Any<CancellationToken>()).Returns(new DetectionResult(
-            new GameVersionInfo("KFC", "SOUND VOLTEX", null, null, null, "2013060500",
+            new GameVersionInfo("KFC", "SOUND VOLTEX", "2013060500",
                 null, null, "SDVX/SDVX_II_logo", DetectionConfidence.Xml),
             Data, "data", false));
         var vm = CreateAddVm();
