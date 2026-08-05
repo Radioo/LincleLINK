@@ -80,9 +80,6 @@ public partial class AddInstanceViewModel : ViewModelBase
     private string? _detectedGameText;
 
     [ObservableProperty]
-    private string? _detectedLogoPath;
-
-    [ObservableProperty]
     private bool _isGameRootDetected;
 
     [ObservableProperty]
