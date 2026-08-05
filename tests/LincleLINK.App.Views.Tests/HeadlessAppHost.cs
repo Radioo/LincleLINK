@@ -114,7 +114,14 @@ public static class HeadlessAppHost
             }
         });
 
-        completed.Task.Wait();
+        if (!completed.Task.Wait(TimeSpan.FromSeconds(30)))
+        {
+            // If the pump thread died after the fatal-check above, surface that
+            // instead of hanging the whole test run with no diagnostics.
+            ThrowIfFatal();
+            throw new TimeoutException("Timed out waiting for the headless UI thread to run the action.");
+        }
+
         if (failure is not null)
         {
             throw failure;

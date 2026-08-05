@@ -180,6 +180,7 @@ public sealed class InteractionTests
     public void LogoPicker_click_executes_the_main_view_models_logo_command()
     {
         var vm = BuildMainViewModel();
+        vm.IsLogoPickerOpen = true;
 
         HeadlessAppHost.RunOnUiThread(() =>
         {
@@ -190,21 +191,27 @@ public sealed class InteractionTests
 
             handler.Invoke(picker, [sender, null]);
 
-            picker.Should().NotBeNull();
+            // The click runs the picker's SetCustomLogoCommand, which closes it.
+            vm.IsLogoPickerOpen.Should().BeFalse();
         });
     }
 
     [Fact]
     public void LibraryPage_row_click_selects_the_instance()
     {
+        var vm = BuildMainViewModel();
+
         HeadlessAppHost.RunOnUiThread(() =>
         {
-            var page = new LibraryPage();
+            var page = new LibraryPage { DataContext = vm };
             var gridClicked = typeof(LibraryPage).GetMethod("OnGridItemClicked",
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
 
             var sender = new TextBlock { DataContext = new InstanceListEntry("X", 0, 0, "0 B") };
             gridClicked.Invoke(page, [sender, null]);
+
+            vm.SelectedInstance.Should().NotBeNull();
+            vm.SelectedInstance!.InstanceName.Should().Be("X");
         });
     }
 
