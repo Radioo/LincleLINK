@@ -402,6 +402,58 @@ public sealed class GameVersionDetectorTests : IDisposable
         result.Info.Should().BeNull();
     }
 
+    [Fact]
+    public async Task Case_variant_config_and_module_folders_are_found()
+    {
+        // Probes used to be lower-case-exact, which silently missed configs and
+        // DLLs on case-sensitive filesystems (Linux/macOS are in composition).
+        _temp.CreateFile("PROP/EA3-CONFIG.XML", System.Text.Encoding.UTF8.GetBytes(SdvxIiConfig));
+        _temp.CreateFile("MODULES/SOUNDVOLTEX.DLL", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("DATA/graphics/a.bin");
+
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.GameCode.Should().Be("KFC");
+        result.Info.DisplayTitle.Should().Be("SOUND VOLTEX II -infinite infection-");
+    }
+
+    [Fact]
+    public async Task Bootstrap_release_code_applies_when_config_has_no_ext()
+    {
+        // Regression: the bootstrap override was gated on the config's <ext>
+        // parsing, so a config without <ext> ignored the authoritative
+        // release_code entirely.
+        _temp.CreateFile(
+            "prop/ea3-config.xml",
+            System.Text.Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="utf-8"?>
+                <ea3>
+                  <soft>
+                    <model>KFC</model>
+                  </soft>
+                </ea3>
+                """));
+        _temp.CreateFile(
+            "prop/bootstrap.xml",
+            System.Text.Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="utf-8"?>
+                <param>
+                  <config>
+                    <release_code>2014102201</release_code>
+                  </config>
+                </param>
+                """));
+        _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("data/graphics/a.bin");
+
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
+
+        result.Info.Should().NotBeNull();
+        result.Info!.DateCode.Should().Be("2014102201");
+        result.Info.DisplayTitle.Should().Be("SOUND VOLTEX II -infinite infection-");
+    }
+
     private string ConfigFor(string model, string ext) => $$"""
         <?xml version="1.0" encoding="utf-8"?>
         <ea3>

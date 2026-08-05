@@ -61,8 +61,9 @@ public sealed class GameVersionDetectorIoFaultTests
     {
         var fs = StubBase();
         fs.FileExists(Arg.Is<string>(p => p != null && p.EndsWith("soundvoltex.dll", StringComparison.Ordinal))).Returns(true);
-        // HasMzHeader passes (MZ magic) but the real file does not exist on disk,
-        // so TryReadPeIdentifier's direct File.OpenRead throws and is swallowed.
+        // HasMzHeader passes (MZ magic) but the injected stream is too short to
+        // carry a DOS header, so TryReadPeIdentifier (which now reads through the
+        // injected IFileSystem) throws and is swallowed.
         fs.OpenRead(Arg.Is<string>(p => p != null && p.EndsWith("soundvoltex.dll", StringComparison.Ordinal)))
             .Returns(_ => new MemoryStream([0x4D, 0x5A, 0, 0]));
 

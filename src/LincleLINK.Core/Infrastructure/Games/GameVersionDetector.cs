@@ -269,7 +269,7 @@ public sealed class GameVersionDetector : IGameVersionDetector
             return true;
         }
 
-        if (_fileSystem.DirectoryExists(Path.Combine(dir, "nvram")))
+        if (HasDirectory(dir, "nvram"))
         {
             return true;
         }
@@ -278,7 +278,7 @@ public sealed class GameVersionDetector : IGameVersionDetector
         // DLL is support, not the data folder.
         foreach (var dllName in KnownDlls.Keys)
         {
-            if (_fileSystem.FileExists(Path.Combine(dir, dllName)))
+            if (HasFile(dir, dllName))
             {
                 return true;
             }
@@ -302,7 +302,7 @@ public sealed class GameVersionDetector : IGameVersionDetector
             {
                 foreach (var fileName in fileNames)
                 {
-                    if (_fileSystem.FileExists(Path.Combine(folder, fileName)))
+                    if (HasFile(folder, fileName))
                     {
                         return true;
                     }
@@ -319,6 +319,94 @@ public sealed class GameVersionDetector : IGameVersionDetector
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Case-insensitive file probe: exact path first (fast), then a scan of the
+    /// directory entries so configs are found on case-sensitive filesystems
+    /// (Linux/macOS are registered in composition).
+    /// </summary>
+    private bool HasFile(string dir, string fileName)
+    {
+        if (_fileSystem.FileExists(Path.Combine(dir, fileName)))
+        {
+            return true;
+        }
+
+        return TryEnumerateFiles(dir)
+            .Any(f => string.Equals(Path.GetFileName(f), fileName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private bool HasDirectory(string dir, string dirName)
+    {
+        if (_fileSystem.DirectoryExists(Path.Combine(dir, dirName)))
+        {
+            return true;
+        }
+
+        return TryEnumerateDirectories(dir)
+            .Any(d => string.Equals(Path.GetFileName(d), dirName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Resolves a slash-separated relative path under <paramref name="baseDir"/>,
+    /// matching each segment case-insensitively against the real directory/file
+    /// entries. Returns the exact on-disk path, or null when no segment matches.
+    /// </summary>
+    private string? ResolvePathCaseInsensitive(string baseDir, string relativePath)
+    {
+        var current = baseDir;
+        var segments = relativePath.Split('/');
+
+        for (var i = 0; i < segments.Length; i++)
+        {
+            var isFile = i == segments.Length - 1;
+            var exact = Path.Combine(current, segments[i]);
+            if ((isFile && _fileSystem.FileExists(exact)) || (!isFile && _fileSystem.DirectoryExists(exact)))
+            {
+                current = exact;
+                continue;
+            }
+
+            var candidates = isFile ? TryEnumerateFiles(current) : TryEnumerateDirectories(current);
+            var matched = candidates.FirstOrDefault(entry =>
+                string.Equals(Path.GetFileName(entry), segments[i], StringComparison.OrdinalIgnoreCase));
+            if (matched is null)
+            {
+                return null;
+            }
+
+            current = matched;
+        }
+
+        return current;
+    }
+
+    // Detection is best-effort: an unreadable folder (ACL-restricted, a missing
+    // volume, an odd tree node) must never abort it. Non-recursive enumerations
+    // used by the probes degrade to empty instead of throwing.
+    private IReadOnlyList<string> TryEnumerateFiles(string dir)
+    {
+        try
+        {
+            return _fileSystem.EnumerateFiles(dir, recursive: false);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return [];
+        }
+    }
+
+    private IReadOnlyList<string> TryEnumerateDirectories(string dir)
+    {
+        try
+        {
+            return _fileSystem.EnumerateDirectories(dir, recursive: false);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return [];
+        }
     }
 
     private int CountEntries(string dir)
@@ -414,8 +502,8 @@ public sealed class GameVersionDetector : IGameVersionDetector
     {
         foreach (var name in Ea3ConfigNames)
         {
-            var fullPath = Path.Combine(candidatePath, name);
-            if (!_fileSystem.FileExists(fullPath)) continue;
+            var fullPath = ResolvePathCaseInsensitive(candidatePath, name);
+            if (fullPath is null) continue;
 
             try
             {
@@ -431,8 +519,8 @@ public sealed class GameVersionDetector : IGameVersionDetector
                 var ext    = ReadSoftField(soft, "ext");
 
                 // bootstrap.xml override (release_code)
-                var bootstrapPath = Path.Combine(candidatePath, "prop", "bootstrap.xml");
-                if (_fileSystem.FileExists(bootstrapPath))
+                var bootstrapPath = ResolvePathCaseInsensitive(candidatePath, "prop/bootstrap.xml");
+                if (bootstrapPath is not null)
                 {
                     try
                     {
@@ -443,8 +531,7 @@ public sealed class GameVersionDetector : IGameVersionDetector
                         var releaseCode = bDoc.Root?.Descendants("release_code").FirstOrDefault()?.Value;
                         if (releaseCode is not null &&
                             long.TryParse(releaseCode, CultureInfo.InvariantCulture, out var rc) &&
-                            long.TryParse(ext, CultureInfo.InvariantCulture, out var extVal) &&
-                            rc > extVal)
+                            (!long.TryParse(ext, CultureInfo.InvariantCulture, out var extVal) || rc > extVal))
                         {
                             ext = releaseCode;
                         }
@@ -471,15 +558,18 @@ public sealed class GameVersionDetector : IGameVersionDetector
     private DllScanInfo TryScanDlls(string candidatePath)
     {
         // Game DLLs live at the root or under modules/; probe both by content.
-        var probes = new[] { candidatePath, Path.Combine(candidatePath, "modules") };
+        var probes = new List<string> { candidatePath };
+        if (ResolvePathCaseInsensitive(candidatePath, "modules") is { } modulesDir)
+        {
+            probes.Add(modulesDir);
+        }
 
         foreach (var (dllName, (title, modelHint)) in KnownDlls)
         {
             foreach (var probe in probes)
             {
-                var fullPath = Path.Combine(probe, dllName);
-                if (!_fileSystem.FileExists(fullPath)) continue;
-                if (!HasMzHeader(fullPath)) continue;
+                var fullPath = ResolvePathCaseInsensitive(probe, dllName);
+                if (fullPath is null || !HasMzHeader(fullPath)) continue;
 
                 return new DllScanInfo(title, modelHint, fullPath);
             }
@@ -504,13 +594,13 @@ public sealed class GameVersionDetector : IGameVersionDetector
 
     // ── PE identifier ──────────────────────────────────────────────────
 
-    private static string? TryReadPeIdentifier(string dllPath, string gameCode)
+    private string? TryReadPeIdentifier(string dllPath, string gameCode)
     {
         if (gameCode.Length == 0) return null;
 
         try
         {
-            using var stream = File.OpenRead(dllPath);
+            using var stream = _fileSystem.OpenRead(dllPath);
             using var reader = new BinaryReader(stream);
 
             // DOS header
