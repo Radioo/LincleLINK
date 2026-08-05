@@ -71,6 +71,28 @@ public sealed class InstanceServiceCoverageTests
     }
 
     [Fact]
+    public async Task Detection_failure_does_not_abort_the_save()
+    {
+        // Regression (High 1): an unreadable folder inside the dump made the
+        // detector throw after all files were already hashed and stored, so
+        // CreateInstanceAsync faulted and left gigabytes in storage with no
+        // library entry - in Move mode the originals were already hard links.
+        StubDataPath();
+        _detector.DetectAsync(Data, Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<DetectionResult>(new UnauthorizedAccessException("ACL restricted")));
+
+        Instance? saved = null;
+        _repository.SaveAsync(Arg.Do<Instance>(i => saved = i), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        var result = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Copy), ct: TestContext.Current.CancellationToken);
+
+        result.Success.Should().BeTrue();
+        saved.Should().NotBeNull();
+        saved!.DetectedGame.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Move_file_failure_after_link_deletes_temp_link_and_rethrows()
     {
         StubDataPath();

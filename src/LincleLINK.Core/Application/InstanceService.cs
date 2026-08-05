@@ -275,10 +275,25 @@ public sealed class InstanceService
 
         var instance = Instance.Create(request.InstanceName, instanceFiles, directories);
 
-        var detection = await _detector.DetectAsync(request.DataPath, ct);
-        if (detection?.Info is not null)
+        // Detection is best-effort and must never sink the save: by this point the
+        // files are already hashed and in storage (in Move mode the originals are
+        // hard links), so a detection failure has to leave the entry saved rather
+        // than orphan gigabytes with no manifest.
+        try
         {
-            instance.DetectedGame = detection.Info;
+            var detection = await _detector.DetectAsync(request.DataPath, ct);
+            if (detection?.Info is not null)
+            {
+                instance.DetectedGame = detection.Info;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            log?.Report($"Game detection failed for {request.DataPath}: {ex.Message}");
         }
 
         await _repository.SaveAsync(instance, ct);
