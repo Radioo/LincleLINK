@@ -41,6 +41,26 @@ public sealed class JsonSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void ViewMode_roundtrips_through_save_and_load()
+    {
+        var store = new JsonSettingsStore(SettingsPath);
+        store.Save(new AppSettings(AppTheme.System, null, 2, LibraryViewMode.Grid));
+
+        new JsonSettingsStore(SettingsPath).Load().ViewMode.Should().Be(LibraryViewMode.Grid);
+    }
+
+    [Fact]
+    public void Missing_ViewMode_defaults_to_list()
+    {
+        // A settings file written before the ViewMode field existed (or with it
+        // absent) must come back as List, never as Grid.
+        Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
+        File.WriteAllText(SettingsPath, """{"IsDarkTheme": false, "DataDirectory": null, "HashThreadCount": 2}""");
+
+        new JsonSettingsStore(SettingsPath).Load().ViewMode.Should().Be(LibraryViewMode.List);
+    }
+
+    [Fact]
     public void Save_creates_missing_directories()
     {
         var store = new JsonSettingsStore(SettingsPath);
