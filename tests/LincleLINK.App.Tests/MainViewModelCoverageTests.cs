@@ -125,7 +125,7 @@ public sealed class MainViewModelCoverageTests
 
         await vm.SetCustomLogoCommand.ExecuteAsync(new LogoEntry("k", "avares://x.png", "x"));
 
-        await _repository.DidNotReceiveWithAnyArgs().SetCustomLogoAsync(default!, default!, TestContext.Current.CancellationToken);
+        await _repository.DidNotReceiveWithAnyArgs().SetCustomLogoAsync(default!, default!, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public sealed class MainViewModelCoverageTests
         vm.SelectedInstance = new InstanceListEntry("X", 0, 0, "0 B");
         await vm.SetCustomLogoCommand.ExecuteAsync(null);
 
-        await _repository.Received(1).SetCustomLogoAsync("X", null, TestContext.Current.CancellationToken);
+        await _repository.Received(1).SetCustomLogoAsync("X", null, Arg.Any<CancellationToken>());
         File.Exists(customFile).Should().BeFalse();
     }
 
@@ -157,7 +157,7 @@ public sealed class MainViewModelCoverageTests
         vm.SelectedInstance = new InstanceListEntry("X", 0, 0, "0 B");
         await vm.SetCustomLogoCommand.ExecuteAsync(new LogoEntry("IIDX/AC_Lincle_logo", "avares://LincleLINK/Assets/IIDX/AC_Lincle_logo.png", "Lincle"));
 
-        await _repository.Received(1).SetCustomLogoAsync("X", "IIDX/AC_Lincle_logo", TestContext.Current.CancellationToken);
+        await _repository.Received(1).SetCustomLogoAsync("X", "IIDX/AC_Lincle_logo", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public sealed class MainViewModelCoverageTests
         vm.SelectedInstance = new InstanceListEntry("X", 0, 0, "0 B");
         await vm.SetCustomImageCommand.ExecuteAsync(null);
 
-        await _repository.Received(1).SetCustomLogoAsync("X", "custom", TestContext.Current.CancellationToken);
+        await _repository.Received(1).SetCustomLogoAsync("X", "custom", Arg.Any<CancellationToken>());
         File.Exists(Path.Combine(dataDir, "custom_logos", "x.png")).Should().BeTrue();
     }
 
