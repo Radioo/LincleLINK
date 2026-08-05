@@ -28,7 +28,7 @@ public sealed class TorrentPieceVerifierShortFileTests : IDisposable
         var dbPath = _temp.CreateFile("a.bin", new byte[] { 1, 2 });
         var map = new Dictionary<string, string>(StringComparer.Ordinal) { ["data/a.bin"] = dbPath };
 
-        var result = await new TorrentPieceVerifier(torrent, map).VerifyAsync(_fs);
+        var result = await new TorrentPieceVerifier(torrent, map).VerifyAsync(_fs, ct: TestContext.Current.CancellationToken);
 
         result.PieceCountMismatch.Should().BeFalse();
         // {1,2,0,0} does not match the recorded hash of {1,2,3,4}.
@@ -46,7 +46,7 @@ public sealed class TorrentPieceVerifierShortFileTests : IDisposable
         var dbPath = _temp.CreateFile("a.bin", new byte[] { 1, 2, 3, 4, 5 });
         var map = new Dictionary<string, string>(StringComparer.Ordinal) { ["data/a.bin"] = dbPath };
 
-        var result = await new TorrentPieceVerifier(torrent, map).VerifyAsync(_fs);
+        var result = await new TorrentPieceVerifier(torrent, map).VerifyAsync(_fs, ct: TestContext.Current.CancellationToken);
 
         result.BadPieceIndices.Should().Contain(1); // piece {5,0,0,0} != {5,6}
         result.BadPieceIndices.Should().NotContain(0);

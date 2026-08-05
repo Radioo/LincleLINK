@@ -125,7 +125,7 @@ public sealed class MainViewModelCoverageTests
 
         await vm.SetCustomLogoCommand.ExecuteAsync(new LogoEntry("k", "avares://x.png", "x"));
 
-        await _repository.DidNotReceiveWithAnyArgs().SetCustomLogoAsync(default!, default!);
+        await _repository.DidNotReceiveWithAnyArgs().SetCustomLogoAsync(default!, default!, TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public sealed class MainViewModelCoverageTests
         vm.SelectedInstance = new InstanceListEntry("X", 0, 0, "0 B");
         await vm.SetCustomLogoCommand.ExecuteAsync(null);
 
-        await _repository.Received(1).SetCustomLogoAsync("X", null);
+        await _repository.Received(1).SetCustomLogoAsync("X", null, TestContext.Current.CancellationToken);
         File.Exists(customFile).Should().BeFalse();
     }
 
@@ -157,7 +157,7 @@ public sealed class MainViewModelCoverageTests
         vm.SelectedInstance = new InstanceListEntry("X", 0, 0, "0 B");
         await vm.SetCustomLogoCommand.ExecuteAsync(new LogoEntry("IIDX/AC_Lincle_logo", "avares://LincleLINK/Assets/IIDX/AC_Lincle_logo.png", "Lincle"));
 
-        await _repository.Received(1).SetCustomLogoAsync("X", "IIDX/AC_Lincle_logo");
+        await _repository.Received(1).SetCustomLogoAsync("X", "IIDX/AC_Lincle_logo", TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public sealed class MainViewModelCoverageTests
         vm.SelectedInstance = new InstanceListEntry("X", 0, 0, "0 B");
         await vm.SetCustomImageCommand.ExecuteAsync(null);
 
-        await _repository.Received(1).SetCustomLogoAsync("X", "custom");
+        await _repository.Received(1).SetCustomLogoAsync("X", "custom", TestContext.Current.CancellationToken);
         File.Exists(Path.Combine(dataDir, "custom_logos", "x.png")).Should().BeTrue();
     }
 
@@ -420,7 +420,7 @@ public sealed class MainViewModelCoverageTests
         await vm.InitializeAsync();
 
         vm.SelectedInstance = vm.Instances[0];
-        await Task.Delay(20);
+        await Task.Delay(20, TestContext.Current.CancellationToken);
 
         vm.SelectedUniqueSizeText.Should().Be("42 B");
     }
@@ -472,7 +472,7 @@ public sealed class MainViewModelCoverageTests
         await vm.InitializeAsync();
 
         vm.SelectedInstance = vm.Instances[0];
-        await Task.Delay(20);
+        await Task.Delay(20, TestContext.Current.CancellationToken);
 
         vm.SelectedUniqueSizeText.Should().Be("-");
     }
@@ -577,7 +577,7 @@ public sealed class MainViewModelCoverageTests
         var gate = new TaskCompletionSource();
         var vm = CreateViewModel();
         var run = vm.RunOperationAsync(_ => gate.Task);
-        await Task.Delay(20);
+        await Task.Delay(20, TestContext.Current.CancellationToken);
 
         vm.CancelOperationCommand.Execute(null);
         vm.StatusLine.Should().Be("Cancelling...");

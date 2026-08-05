@@ -49,7 +49,7 @@ public sealed class GameVersionDetectorIoFaultTests
         fs.OpenRead(Arg.Is<string>(p => p != null && p.EndsWith("soundvoltex.dll", StringComparison.Ordinal)))
             .Returns(_ => throw new IOException("locked"));
 
-        var result = await new GameVersionDetector(fs).DetectAsync("C:\\game");
+        var result = await new GameVersionDetector(fs).DetectAsync("C:\\game", TestContext.Current.CancellationToken);
 
         // Detection falls back to the config; the unreadable dll is simply skipped.
         result.Info.Should().NotBeNull();
@@ -66,7 +66,7 @@ public sealed class GameVersionDetectorIoFaultTests
         fs.OpenRead(Arg.Is<string>(p => p != null && p.EndsWith("soundvoltex.dll", StringComparison.Ordinal)))
             .Returns(_ => new MemoryStream([0x4D, 0x5A, 0, 0]));
 
-        var result = await new GameVersionDetector(fs).DetectAsync("C:\\game");
+        var result = await new GameVersionDetector(fs).DetectAsync("C:\\game", TestContext.Current.CancellationToken);
 
         result.Info.Should().NotBeNull();
         result.Info!.PeIdentifier.Should().BeNull();

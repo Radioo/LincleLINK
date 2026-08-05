@@ -56,7 +56,7 @@ public sealed class StorageMigrationCoverageTests : IDisposable
         Directory.CreateDirectory(_paths.InstanceDirectory);
         var service = CreateService();
 
-        var result = await service.MigrateAsync();
+        var result = await service.MigrateAsync(ct: TestContext.Current.CancellationToken);
 
         result.Migrated.Should().Be(0);
         result.Skipped.Should().Be(0);
@@ -77,7 +77,7 @@ public sealed class StorageMigrationCoverageTests : IDisposable
         var logs = new List<string>();
         var service = CreateService(repository);
 
-        var result = await service.MigrateAsync(new SynchronousProgress<string>(logs.Add));
+        var result = await service.MigrateAsync(new SynchronousProgress<string>(logs.Add), ct: TestContext.Current.CancellationToken);
 
         result.Quarantined.Should().Be(1);
         result.Errors.Should().ContainSingle().Which.Should().Contain("bad name");
@@ -95,7 +95,7 @@ public sealed class StorageMigrationCoverageTests : IDisposable
         var logs = new List<string>();
         var service = CreateService();
 
-        var result = await service.MigrateAsync(new SynchronousProgress<string>(logs.Add));
+        var result = await service.MigrateAsync(new SynchronousProgress<string>(logs.Add), ct: TestContext.Current.CancellationToken);
 
         result.Quarantined.Should().Be(1);
         logs.Should().Contain(m => m.Contains("Could not quarantine"));
@@ -116,7 +116,7 @@ public sealed class StorageMigrationCoverageTests : IDisposable
 
         try
         {
-            var result = await service.MigrateAsync(new SynchronousProgress<string>(logs.Add));
+            var result = await service.MigrateAsync(new SynchronousProgress<string>(logs.Add), ct: TestContext.Current.CancellationToken);
 
             result.Migrated.Should().Be(1);
             logs.Should().Contain(m => m.Contains("Could not delete"));

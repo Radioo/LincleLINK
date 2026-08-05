@@ -49,7 +49,7 @@ public sealed class TorrentPieceVerifierTests : IDisposable
         var torrent = TorrentTestFactory.BuildTorrentData(4, Files);
         var verifier = new TorrentPieceVerifier(torrent, WriteLocalFiles());
 
-        var result = await verifier.VerifyAsync(_fs);
+        var result = await verifier.VerifyAsync(_fs, ct: TestContext.Current.CancellationToken);
 
         result.PieceCountMismatch.Should().BeFalse();
         result.BadPieceIndices.Should().BeEmpty();
@@ -63,9 +63,9 @@ public sealed class TorrentPieceVerifierTests : IDisposable
         var torrent = TorrentTestFactory.BuildTorrentData(4, Files);
         var map = WriteLocalFiles();
         // Corrupt the db bytes for data/a.bin (piece 0) only.
-        await File.WriteAllBytesAsync(map["data/a.bin"], new byte[] { 0xFF, 0xFF, 0xFF, 0xFF });
+        await File.WriteAllBytesAsync(map["data/a.bin"], new byte[] { 0xFF, 0xFF, 0xFF, 0xFF }, TestContext.Current.CancellationToken);
 
-        var result = await new TorrentPieceVerifier(torrent, map).VerifyAsync(_fs);
+        var result = await new TorrentPieceVerifier(torrent, map).VerifyAsync(_fs, ct: TestContext.Current.CancellationToken);
 
         result.BadPieceIndices.Should().Contain(0);
     }
@@ -77,7 +77,7 @@ public sealed class TorrentPieceVerifierTests : IDisposable
         var map = WriteLocalFiles();
         map.Remove("data/b.bin"); // treat b as missing → zeros
 
-        var result = await new TorrentPieceVerifier(torrent, map).VerifyAsync(_fs);
+        var result = await new TorrentPieceVerifier(torrent, map).VerifyAsync(_fs, ct: TestContext.Current.CancellationToken);
 
         // b.bin occupies pieces 1..2 (bytes 4..8). All its pieces must be bad.
         result.BadPieceIndices.Should().Contain(new[] { 1L, 2L });
@@ -90,7 +90,7 @@ public sealed class TorrentPieceVerifierTests : IDisposable
         var files = Files.Select(f => (f.Item1, f.Item2)).ToArray();
         var torrent = TorrentTestFactory.BuildTorrentData(4, files) with { PieceHashes = [.. TorrentTestFactory.ComputePieceHashes(files, 4).Take(1)] };
 
-        var result = await new TorrentPieceVerifier(torrent, WriteLocalFiles()).VerifyAsync(_fs);
+        var result = await new TorrentPieceVerifier(torrent, WriteLocalFiles()).VerifyAsync(_fs, ct: TestContext.Current.CancellationToken);
 
         result.PieceCountMismatch.Should().BeTrue();
         result.BadPieceIndices.Should().BeEmpty();
@@ -102,7 +102,7 @@ public sealed class TorrentPieceVerifierTests : IDisposable
         var files = Files.Select(f => (f.Item1, f.Item2)).ToArray();
         var torrent = TorrentTestFactory.BuildTorrentData(4, files) with { PieceLength = 0 };
 
-        var result = await new TorrentPieceVerifier(torrent, WriteLocalFiles()).VerifyAsync(_fs);
+        var result = await new TorrentPieceVerifier(torrent, WriteLocalFiles()).VerifyAsync(_fs, ct: TestContext.Current.CancellationToken);
 
         result.PieceCountMismatch.Should().BeTrue();
         result.BadPieceIndices.Should().BeEmpty();

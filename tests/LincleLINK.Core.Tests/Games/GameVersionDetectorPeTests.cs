@@ -73,7 +73,7 @@ public sealed class GameVersionDetectorPeTests : IDisposable
         _temp.CreateFile("prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(Config));
         _temp.CreateFile("soundvoltex.dll", BuildPe(0x5A01C0A8, 0x1000));
 
-        var result = await new GameVersionDetector(new FileSystem()).DetectAsync(_temp.Root);
+        var result = await new GameVersionDetector(new FileSystem()).DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
 
         result.Info.Should().NotBeNull();
         result.Info!.PeIdentifier.Should().Be("kfc-5a01c0a8_1000");
@@ -86,7 +86,7 @@ public sealed class GameVersionDetectorPeTests : IDisposable
         _temp.CreateFile("prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(Config));
         _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
 
-        var result = await new GameVersionDetector(new FileSystem()).DetectAsync(_temp.Root);
+        var result = await new GameVersionDetector(new FileSystem()).DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
 
         result.Info.Should().NotBeNull();
         result.Info!.PeIdentifier.Should().BeNull();
@@ -102,7 +102,7 @@ public sealed class GameVersionDetectorPeTests : IDisposable
         WriteUInt32(buf, 0x80, 0xDEADBEEF);
         _temp.CreateFile("soundvoltex.dll", buf);
 
-        var result = await new GameVersionDetector(new FileSystem()).DetectAsync(_temp.Root);
+        var result = await new GameVersionDetector(new FileSystem()).DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
 
         result.Info!.PeIdentifier.Should().BeNull();
         result.Info.Confidence.Should().Be(DetectionConfidence.Xml);
@@ -114,7 +114,7 @@ public sealed class GameVersionDetectorPeTests : IDisposable
         _temp.CreateFile("prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(Config));
         _temp.CreateFile("soundvoltex.dll", BuildPe(0x5A01C0A8, 0x1000, sizeOfOptionalHeader: 10));
 
-        var result = await new GameVersionDetector(new FileSystem()).DetectAsync(_temp.Root);
+        var result = await new GameVersionDetector(new FileSystem()).DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
 
         result.Info!.PeIdentifier.Should().BeNull();
     }
@@ -128,7 +128,7 @@ public sealed class GameVersionDetectorPeTests : IDisposable
         _temp.CreateFile("data/graphics/a.bin");
         _temp.CreateFile("app/nvram/config.bin");
 
-        var result = await new GameVersionDetector(new FileSystem()).DetectAsync(_temp.Root);
+        var result = await new GameVersionDetector(new FileSystem()).DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
 
         result.DataFolderName.Should().Be("data");
     }
@@ -148,7 +148,7 @@ public sealed class GameVersionDetectorPeTests : IDisposable
                 </ea3>
                 """));
 
-        var result = await new GameVersionDetector(new FileSystem()).DetectAsync(_temp.Root);
+        var result = await new GameVersionDetector(new FileSystem()).DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
 
         result.Info.Should().BeNull();
     }
@@ -161,7 +161,7 @@ public sealed class GameVersionDetectorPeTests : IDisposable
         _temp.CreateFile("prop/bootstrap.xml", System.Text.Encoding.UTF8.GetBytes("<broken"));
         _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
 
-        var result = await new GameVersionDetector(new FileSystem()).DetectAsync(_temp.Root);
+        var result = await new GameVersionDetector(new FileSystem()).DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
 
         result.Info.Should().NotBeNull();
         result.Info!.GameCode.Should().Be("KFC");

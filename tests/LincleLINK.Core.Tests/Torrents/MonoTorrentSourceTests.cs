@@ -18,7 +18,7 @@ public sealed class MonoTorrentSourceTests : IDisposable
         var files = new[] { ("data/a.bin", new byte[] { 1, 2, 3, 4 }), ("data/b.bin", new byte[] { 5, 6 }) };
         var torrentPath = TorrentTestFactory.CreateTorrentFile(Path.Combine(_temp.Root, "x.torrent"), 4, files);
 
-        var data = await new MonoTorrentSource().LoadAsync(torrentPath);
+        var data = await new MonoTorrentSource().LoadAsync(torrentPath, TestContext.Current.CancellationToken);
 
         data.Name.Should().Be("fixture");
         data.TotalSize.Should().Be(6);

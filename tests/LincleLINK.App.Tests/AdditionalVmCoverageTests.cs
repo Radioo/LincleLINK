@@ -180,7 +180,7 @@ public sealed class AdditionalVmCoverageTests
         vm.CancelOperationCommand.CanExecute(null).Should().BeFalse();
 
         var run = vm.CreateInstanceCommand.ExecuteAsync(null);
-        await Task.Delay(50);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
 
         vm.CancelOperationCommand.CanExecute(null).Should().BeTrue();
         vm.CancelOperationCommand.Execute(null);

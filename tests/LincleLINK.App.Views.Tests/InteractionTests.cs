@@ -44,7 +44,7 @@ public sealed class InteractionTests
             show.ContinueWith(_ => completed.SetResult(), TaskScheduler.Default);
         });
 
-        await completed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
     }
 
     [Fact]

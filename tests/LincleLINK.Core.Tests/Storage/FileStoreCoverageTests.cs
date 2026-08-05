@@ -36,7 +36,7 @@ public sealed class FileStoreCoverageTests : IDisposable
     [Fact]
     public async Task GetSize_returns_length_for_stored_files()
     {
-        await _store.CopyToStoreAsync(_temp.CreateFile("src.2dx", new byte[7]), HashA);
+        await _store.CopyToStoreAsync(_temp.CreateFile("src.2dx", new byte[7]), HashA, TestContext.Current.CancellationToken);
 
         _store.GetSize(HashA).Should().Be(7);
     }
@@ -44,7 +44,7 @@ public sealed class FileStoreCoverageTests : IDisposable
     [Fact]
     public async Task Delete_missing_file_is_a_noop()
     {
-        await _store.DeleteAsync(HashA);
+        await _store.DeleteAsync(HashA, TestContext.Current.CancellationToken);
 
         _store.Exists(HashA).Should().BeFalse();
     }
@@ -54,14 +54,14 @@ public sealed class FileStoreCoverageTests : IDisposable
     {
         Directory.CreateDirectory(_paths.DbDirectory);
 
-        (await _store.GetAllHashedFileNamesAsync()).Should().BeEmpty();
-        (await _store.GetTotalSizeAsync()).Should().Be(0);
+        (await _store.GetAllHashedFileNamesAsync(TestContext.Current.CancellationToken)).Should().BeEmpty();
+        (await _store.GetTotalSizeAsync(TestContext.Current.CancellationToken)).Should().Be(0);
     }
 
     [Fact]
     public async Task Missing_db_directory_lists_nothing_and_sums_zero()
     {
-        (await _store.GetAllHashedFileNamesAsync()).Should().BeEmpty();
-        (await _store.GetTotalSizeAsync()).Should().Be(0);
+        (await _store.GetAllHashedFileNamesAsync(TestContext.Current.CancellationToken)).Should().BeEmpty();
+        (await _store.GetTotalSizeAsync(TestContext.Current.CancellationToken)).Should().Be(0);
     }
 }

@@ -171,7 +171,7 @@ public sealed class MainViewModelTests
         vm.AddInstance!.CloseCommand.Execute(null);
 
         // The refresh runs fire-and-forget; give the failed task a beat to land.
-        await Task.Delay(50);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
 
         vm.IsAddPanelOpen.Should().BeFalse();
         vm.LogLines.Should().Contain(m => m.Contains("Could not refresh the library"));

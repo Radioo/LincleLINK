@@ -61,7 +61,7 @@ public sealed class TorrentServiceCoverageTests
             .Returns(TorrentTestFactory.BuildTorrentData(4, Files));
         _repository.GetAsync("nope", Arg.Any<CancellationToken>()).Returns((Instance?)null);
 
-        var result = await CreateService().CheckFilesAsync(new TorrentCheckRequest("nope", "x.torrent", "data"));
+        var result = await CreateService().CheckFilesAsync(new TorrentCheckRequest("nope", "x.torrent", "data"), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeFalse();
         result.Error.Should().NotBeNullOrEmpty();
@@ -73,7 +73,7 @@ public sealed class TorrentServiceCoverageTests
         _source.LoadAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns<TorrentData>(_ => throw new TorrentNotSupportedException("no v2"));
 
-        var result = await CreateService().CheckPiecesAsync(new TorrentCheckRequest("inst", "x.torrent", "data"));
+        var result = await CreateService().CheckPiecesAsync(new TorrentCheckRequest("inst", "x.torrent", "data"), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("v2");
@@ -86,7 +86,7 @@ public sealed class TorrentServiceCoverageTests
             .Returns(TorrentTestFactory.BuildTorrentData(4, Files));
         _repository.GetAsync("nope", Arg.Any<CancellationToken>()).Returns((Instance?)null);
 
-        var result = await CreateService().CheckPiecesAsync(new TorrentCheckRequest("nope", "x.torrent", "data"));
+        var result = await CreateService().CheckPiecesAsync(new TorrentCheckRequest("nope", "x.torrent", "data"), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeFalse();
         result.Error.Should().NotBeNullOrEmpty();
@@ -102,7 +102,7 @@ public sealed class TorrentServiceCoverageTests
         _source.LoadAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(torrent);
         _repository.GetAsync("inst", Arg.Any<CancellationToken>()).Returns(SampleInstance());
 
-        var result = await CreateService().CheckPiecesAsync(new TorrentCheckRequest("inst", "x.torrent", "data"));
+        var result = await CreateService().CheckPiecesAsync(new TorrentCheckRequest("inst", "x.torrent", "data"), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeFalse();
         result.PieceCountMismatch.Should().BeTrue();
@@ -122,7 +122,7 @@ public sealed class TorrentServiceCoverageTests
         _repository.GetAsync("inst", Arg.Any<CancellationToken>()).Returns(SampleInstance());
         _store.GetPath(Arg.Any<string>()).Returns(x => "C:\\db\\" + x[0]);
 
-        var result = await CreateService().CheckPiecesAsync(new TorrentCheckRequest("inst", "x.torrent", "data"));
+        var result = await CreateService().CheckPiecesAsync(new TorrentCheckRequest("inst", "x.torrent", "data"), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeTrue();
         // Only the in-prefix file is mapped; "other/c.bin" is skipped by the map.
@@ -140,7 +140,8 @@ public sealed class TorrentServiceCoverageTests
 
         var result = await CreateService().LinkToTorrentAsync(
             new LinkToTorrentRequest("C:\\dl", files, []),
-            new SynchronousProgress<string>(logs.Add));
+            new SynchronousProgress<string>(logs.Add),
+            ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeTrue();
         result.Skipped.Should().Be(1);
@@ -156,7 +157,7 @@ public sealed class TorrentServiceCoverageTests
         };
         _fs.FileExists(Arg.Any<string>()).Returns(true);
 
-        var result = await CreateService().LinkToTorrentAsync(new LinkToTorrentRequest("C:\\dl", files, []));
+        var result = await CreateService().LinkToTorrentAsync(new LinkToTorrentRequest("C:\\dl", files, []), ct: TestContext.Current.CancellationToken);
 
         result.Linked.Should().Be(0);
         result.Skipped.Should().Be(1);
@@ -180,7 +181,8 @@ public sealed class TorrentServiceCoverageTests
 
         var result = await CreateService().LinkToTorrentAsync(
             new LinkToTorrentRequest("C:\\dl", files, []),
-            new SynchronousProgress<string>(logs.Add));
+            new SynchronousProgress<string>(logs.Add),
+            ct: TestContext.Current.CancellationToken);
 
         result.Linked.Should().Be(0);
         result.Skipped.Should().Be(1);

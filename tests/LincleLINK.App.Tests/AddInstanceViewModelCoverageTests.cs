@@ -103,7 +103,7 @@ public sealed class AddInstanceViewModelCoverageTests
         vm.IsReclaimChecked = true;
 
         vm.DataPath = Data;
-        await Task.Delay(100);
+        await Task.Delay(100, TestContext.Current.CancellationToken);
 
         vm.ReclaimAvailable.Should().BeFalse();
         vm.CrossVolumeReason.Should().Contain("different drive");
@@ -126,7 +126,7 @@ public sealed class AddInstanceViewModelCoverageTests
         var vm = Create();
 
         vm.DataPath = Data;
-        await Task.Delay(100);
+        await Task.Delay(100, TestContext.Current.CancellationToken);
 
         vm.DetectedGameText.Should().Contain("SOUND VOLTEX II");
         vm.IsGameRootDetected.Should().BeTrue();
@@ -208,7 +208,7 @@ public sealed class AddInstanceViewModelCoverageTests
         vm.DataPath = Data;
 
         var run = vm.CreateInstanceCommand.ExecuteAsync(null);
-        await Task.Delay(50);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
         vm.IsBusy.Should().BeTrue();
 
         vm.CancelOperationCommand.Execute(null);

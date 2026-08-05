@@ -155,7 +155,7 @@ public sealed class AddInstanceViewModelTests
         // The analysis runs in the background; poll briefly for its completion.
         for (var i = 0; i < 100 && vm.ReclaimAvailable; i++)
         {
-            await Task.Delay(10);
+            await Task.Delay(10, TestContext.Current.CancellationToken);
         }
 
         vm.ReclaimAvailable.Should().BeFalse();

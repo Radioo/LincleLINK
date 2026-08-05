@@ -30,10 +30,10 @@ public sealed class FileStoreTests : IDisposable
     {
         var source = _temp.CreateFile("src.2dx", "hello"u8.ToArray());
 
-        await _store.CopyToStoreAsync(source, HashA);
+        await _store.CopyToStoreAsync(source, HashA, TestContext.Current.CancellationToken);
         _store.Exists(HashA).Should().BeTrue();
 
-        await _store.CopyToStoreAsync(source, HashA);
+        await _store.CopyToStoreAsync(source, HashA, TestContext.Current.CancellationToken);
         _store.GetPath(HashA).Should().Be(Path.Combine(_paths.DbDirectory, HashA));
         Directory.GetFiles(_paths.DbDirectory).Should().ContainSingle();
     }
@@ -41,10 +41,10 @@ public sealed class FileStoreTests : IDisposable
     [Fact]
     public async Task CopyOut_never_overwrites_existing_destination()
     {
-        await _store.CopyToStoreAsync(_temp.CreateFile("src.2dx", "new"u8.ToArray()), HashA);
+        await _store.CopyToStoreAsync(_temp.CreateFile("src.2dx", "new"u8.ToArray()), HashA, TestContext.Current.CancellationToken);
         var dest = _temp.CreateFile("dest.bin", "old"u8.ToArray());
 
-        await _store.CopyFromStoreAsync(HashA, dest);
+        await _store.CopyFromStoreAsync(HashA, dest, TestContext.Current.CancellationToken);
 
         File.ReadAllBytes(dest).Should().Equal("old"u8.ToArray());
     }
@@ -52,10 +52,10 @@ public sealed class FileStoreTests : IDisposable
     [Fact]
     public async Task CopyOut_copies_when_destination_missing()
     {
-        await _store.CopyToStoreAsync(_temp.CreateFile("src.2dx", "hello"u8.ToArray()), HashA);
+        await _store.CopyToStoreAsync(_temp.CreateFile("src.2dx", "hello"u8.ToArray()), HashA, TestContext.Current.CancellationToken);
         var dest = Path.Combine(_temp.Root, "out.bin");
 
-        await _store.CopyFromStoreAsync(HashA, dest);
+        await _store.CopyFromStoreAsync(HashA, dest, TestContext.Current.CancellationToken);
 
         File.ReadAllBytes(dest).Should().Equal("hello"u8.ToArray());
     }
@@ -63,9 +63,9 @@ public sealed class FileStoreTests : IDisposable
     [Fact]
     public async Task Delete_removes_stored_file()
     {
-        await _store.CopyToStoreAsync(_temp.CreateFile("src.2dx", "hello"u8.ToArray()), HashA);
+        await _store.CopyToStoreAsync(_temp.CreateFile("src.2dx", "hello"u8.ToArray()), HashA, TestContext.Current.CancellationToken);
 
-        await _store.DeleteAsync(HashA);
+        await _store.DeleteAsync(HashA, TestContext.Current.CancellationToken);
 
         _store.Exists(HashA).Should().BeFalse();
     }
@@ -73,10 +73,10 @@ public sealed class FileStoreTests : IDisposable
     [Fact]
     public async Task GetAllHashedFileNames_returns_stored_names()
     {
-        await _store.CopyToStoreAsync(_temp.CreateFile("a.2dx", "a"u8.ToArray()), HashA);
-        await _store.CopyToStoreAsync(_temp.CreateFile("b.2dx", "b"u8.ToArray()), HashB);
+        await _store.CopyToStoreAsync(_temp.CreateFile("a.2dx", "a"u8.ToArray()), HashA, TestContext.Current.CancellationToken);
+        await _store.CopyToStoreAsync(_temp.CreateFile("b.2dx", "b"u8.ToArray()), HashB, TestContext.Current.CancellationToken);
 
-        var names = await _store.GetAllHashedFileNamesAsync();
+        var names = await _store.GetAllHashedFileNamesAsync(TestContext.Current.CancellationToken);
 
         names.Should().BeEquivalentTo(HashA, HashB);
     }
@@ -84,10 +84,10 @@ public sealed class FileStoreTests : IDisposable
     [Fact]
     public async Task GetTotalSize_sums_stored_files()
     {
-        await _store.CopyToStoreAsync(_temp.CreateFile("a.2dx", new byte[3]), HashA);
-        await _store.CopyToStoreAsync(_temp.CreateFile("b.2dx", new byte[7]), HashB);
+        await _store.CopyToStoreAsync(_temp.CreateFile("a.2dx", new byte[3]), HashA, TestContext.Current.CancellationToken);
+        await _store.CopyToStoreAsync(_temp.CreateFile("b.2dx", new byte[7]), HashB, TestContext.Current.CancellationToken);
 
-        (await _store.GetTotalSizeAsync()).Should().Be(10);
+        (await _store.GetTotalSizeAsync(TestContext.Current.CancellationToken)).Should().Be(10);
     }
 
     [Theory]

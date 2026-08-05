@@ -63,7 +63,7 @@ public sealed class InstanceServiceCoverageTests
         _repository.SaveAsync(Arg.Do<Instance>(i => saved = i), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
 
-        var result = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Copy));
+        var result = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Copy), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeTrue();
         saved.Should().NotBeNull();

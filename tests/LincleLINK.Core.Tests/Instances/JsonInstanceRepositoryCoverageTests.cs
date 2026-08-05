@@ -31,7 +31,7 @@ public sealed class JsonInstanceRepositoryCoverageTests : IDisposable
     {
         var (paths, _) = NewPaths();
 
-        var names = await new JsonInstanceRepository(paths).GetNamesAsync();
+        var names = await new JsonInstanceRepository(paths).GetNamesAsync(TestContext.Current.CancellationToken);
 
         names.Should().BeEmpty();
     }
@@ -41,7 +41,7 @@ public sealed class JsonInstanceRepositoryCoverageTests : IDisposable
     {
         var (paths, instanceDir) = NewPaths();
         var repo = new JsonInstanceRepository(paths);
-        await repo.SaveAsync(Instance.Create("X", [], []));
+        await repo.SaveAsync(Instance.Create("X", [], []), TestContext.Current.CancellationToken);
 
         // Occupy the temp path with a directory so the atomic-write FileStream fails.
         Directory.CreateDirectory(Path.Combine(instanceDir, "X.json.tmp"));
@@ -61,7 +61,7 @@ public sealed class JsonInstanceRepositoryCoverageTests : IDisposable
 
         var (paths, instanceDir) = NewPaths();
         var repo = new JsonInstanceRepository(paths);
-        await repo.SaveAsync(Instance.Create("X", [], []));
+        await repo.SaveAsync(Instance.Create("X", [], []), TestContext.Current.CancellationToken);
         var jsonPath = Path.Combine(instanceDir, "X.json");
         File.SetAttributes(jsonPath, FileAttributes.ReadOnly);
 
@@ -81,7 +81,7 @@ public sealed class JsonInstanceRepositoryCoverageTests : IDisposable
     {
         var (paths, _) = NewPaths();
 
-        await new JsonInstanceRepository(paths).SetCustomLogoAsync("X", "custom");
+        await new JsonInstanceRepository(paths).SetCustomLogoAsync("X", "custom", TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public sealed class JsonInstanceRepositoryCoverageTests : IDisposable
     {
         var (paths, instanceDir) = NewPaths();
         Directory.CreateDirectory(instanceDir);
-        await File.WriteAllTextAsync(Path.Combine(instanceDir, "nil.json"), "null");
+        await File.WriteAllTextAsync(Path.Combine(instanceDir, "nil.json"), "null", TestContext.Current.CancellationToken);
         var repo = new JsonInstanceRepository(paths);
 
         var act = () => repo.GetAsync("nil");

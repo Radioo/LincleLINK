@@ -46,15 +46,15 @@ public sealed class SqliteInstanceRepositoryTests : InstanceRepositoryContractTe
         await repo.SaveAsync(Instance.Create(
             "IIDX28",
             [new InstanceFile("f.bin", "", 1, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin")],
-            ["dir"]));
+            ["dir"]), TestContext.Current.CancellationToken);
 
         await repo.SaveAsync(Instance.Create(
             "iidx28",
             [new InstanceFile("g.bin", "", 2, "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.bin")],
-            ["other"]));
+            ["other"]), TestContext.Current.CancellationToken);
 
-        (await repo.GetNamesAsync()).Should().Equal("IIDX28");
-        var loaded = await repo.GetAsync("IIDX28");
+        (await repo.GetNamesAsync(TestContext.Current.CancellationToken)).Should().Equal("IIDX28");
+        var loaded = await repo.GetAsync("IIDX28", TestContext.Current.CancellationToken);
         loaded.Should().NotBeNull();
         loaded!.FileList.Should().ContainSingle().Which.FileName.Should().Be("g.bin");
         loaded.DirectoryList.Should().Equal("other");
@@ -68,16 +68,16 @@ public sealed class SqliteInstanceRepositoryTests : InstanceRepositoryContractTe
             o => o.UseSqlite(LincleLinkPersistence.ConnectionStringFor(Temp.Root)));
         var factory = services.BuildServiceProvider().GetRequiredService<IDbContextFactory<LincleLinkDbContext>>();
 
-        await using (var context = await factory.CreateDbContextAsync())
+        await using (var context = await factory.CreateDbContextAsync(TestContext.Current.CancellationToken))
         {
-            await context.Database.MigrateAsync();
+            await context.Database.MigrateAsync(TestContext.Current.CancellationToken);
         }
 
         var repo = new SqliteInstanceRepository(factory);
         await repo.SaveAsync(Instance.Create(
             "persisted",
             [new InstanceFile("f.bin", "", 5, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin")],
-            ["x"]));
+            ["x"]), TestContext.Current.CancellationToken);
 
         File.Exists(Path.Combine(Temp.Root, LincleLinkPersistence.DatabaseFileName)).Should().BeTrue();
 
@@ -88,7 +88,7 @@ public sealed class SqliteInstanceRepositoryTests : InstanceRepositoryContractTe
         var factory2 = services2.BuildServiceProvider().GetRequiredService<IDbContextFactory<LincleLinkDbContext>>();
         var repo2 = new SqliteInstanceRepository(factory2);
 
-        var loaded = await repo2.GetAsync("persisted");
+        var loaded = await repo2.GetAsync("persisted", TestContext.Current.CancellationToken);
         loaded.Should().NotBeNull();
         loaded!.FileList.Should().ContainSingle().Which.FileSize.Should().Be(5);
     }

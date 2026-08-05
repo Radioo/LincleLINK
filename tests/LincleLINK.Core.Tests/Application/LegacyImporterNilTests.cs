@@ -34,7 +34,7 @@ public sealed class LegacyImporterNilTests : IDisposable
         var xmlPath = _temp.CreateFile("DBInfo.xml", Encoding.UTF8.GetBytes(
             """<?xml version="1.0"?><DBInfo xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="true" />"""));
 
-        var result = await _importer.ImportAsync(xmlPath);
+        var result = await _importer.ImportAsync(xmlPath, TestContext.Current.CancellationToken);
 
         result.Imported.Should().BeEmpty();
         result.SkippedExisting.Should().BeEmpty();

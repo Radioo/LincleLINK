@@ -41,9 +41,9 @@ public sealed class SqliteInstanceRepositoryCoverageTests : IDisposable
     [Fact]
     public async Task BulkInsert_with_no_instances_is_a_noop()
     {
-        await _repo.BulkInsertAsync([]);
+        await _repo.BulkInsertAsync([], TestContext.Current.CancellationToken);
 
-        (await _repo.GetNamesAsync()).Should().BeEmpty();
+        (await _repo.GetNamesAsync(TestContext.Current.CancellationToken)).Should().BeEmpty();
     }
 
     [Fact]
@@ -58,9 +58,9 @@ public sealed class SqliteInstanceRepositoryCoverageTests : IDisposable
             ],
             ["z", "a", "m"]);
 
-        await _repo.BulkInsertAsync([instance]);
+        await _repo.BulkInsertAsync([instance], TestContext.Current.CancellationToken);
 
-        var loaded = await _repo.GetAsync("multi");
+        var loaded = await _repo.GetAsync("multi", TestContext.Current.CancellationToken);
         loaded.Should().NotBeNull();
         loaded!.FileList.Select(f => f.FileName).Should().Equal("b.bin", "a.bin", "c.bin");
         loaded.DirectoryList.Should().Equal("z", "a", "m");
@@ -74,8 +74,8 @@ public sealed class SqliteInstanceRepositoryCoverageTests : IDisposable
             "KFC", "SOUND VOLTEX", "J", "A", "1", "2013060500",
             "kfc-5a01c0a8_1000", null, "SDVX/SDVX_II_logo", DetectionConfidence.XmlAndPe);
 
-        await _repo.SaveAsync(instance);
-        var loaded = await _repo.GetAsync("game");
+        await _repo.SaveAsync(instance, TestContext.Current.CancellationToken);
+        var loaded = await _repo.GetAsync("game", TestContext.Current.CancellationToken);
 
         loaded.Should().NotBeNull();
         loaded!.DetectedGame.Should().NotBeNull();
@@ -86,7 +86,7 @@ public sealed class SqliteInstanceRepositoryCoverageTests : IDisposable
         loaded.DetectedGame.LogoKey.Should().Be("SDVX/SDVX_II_logo");
         loaded.DetectedGame.Confidence.Should().Be(DetectionConfidence.XmlAndPe);
 
-        var summary = (await _repo.GetSummariesAsync()).Single();
+        var summary = (await _repo.GetSummariesAsync(TestContext.Current.CancellationToken)).Single();
         summary.DetectedGame.Should().NotBeNull();
         summary.DetectedGame!.Confidence.Should().Be(DetectionConfidence.XmlAndPe);
     }
@@ -99,8 +99,8 @@ public sealed class SqliteInstanceRepositoryCoverageTests : IDisposable
             "LDJ", "beatmania IIDX", null, null, null, "2022101900",
             null, "beatmania IIDX 30 RESIDENT", "IIDX/AC_RESIDENT_logo", DetectionConfidence.Xml);
 
-        await _repo.SaveAsync(instance);
-        var loaded = await _repo.GetAsync("game");
+        await _repo.SaveAsync(instance, TestContext.Current.CancellationToken);
+        var loaded = await _repo.GetAsync("game", TestContext.Current.CancellationToken);
 
         loaded!.DetectedGame!.Confidence.Should().Be(DetectionConfidence.Xml);
     }
@@ -108,16 +108,16 @@ public sealed class SqliteInstanceRepositoryCoverageTests : IDisposable
     [Fact]
     public async Task SetCustomLogo_updates_only_when_the_instance_exists()
     {
-        await _repo.SaveAsync(Instance.Create("A", [], []));
+        await _repo.SaveAsync(Instance.Create("A", [], []), TestContext.Current.CancellationToken);
 
-        await _repo.SetCustomLogoAsync("A", "custom");
+        await _repo.SetCustomLogoAsync("A", "custom", TestContext.Current.CancellationToken);
 
-        var summary = (await _repo.GetSummariesAsync()).Single();
+        var summary = (await _repo.GetSummariesAsync(TestContext.Current.CancellationToken)).Single();
         summary.CustomLogoSource.Should().Be("custom");
 
-        await _repo.SetCustomLogoAsync("missing", "custom");
+        await _repo.SetCustomLogoAsync("missing", "custom", TestContext.Current.CancellationToken);
 
-        var loaded = await _repo.GetAsync("A");
+        var loaded = await _repo.GetAsync("A", TestContext.Current.CancellationToken);
         loaded!.CustomLogoSource.Should().Be("custom");
     }
 

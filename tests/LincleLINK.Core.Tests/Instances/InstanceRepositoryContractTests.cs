@@ -37,8 +37,8 @@ public abstract class InstanceRepositoryContractTests : IDisposable
             [new InstanceFile("25063_pre.2dx", @"sound\25063", 463806, "7AFE6AC1B80128D44BA5357D4349B21A.2dx")],
             [@"sound\25063"]);
 
-        await repo.SaveAsync(instance);
-        var loaded = await repo.GetAsync("IIDX28");
+        await repo.SaveAsync(instance, TestContext.Current.CancellationToken);
+        var loaded = await repo.GetAsync("IIDX28", TestContext.Current.CancellationToken);
 
         loaded.Should().NotBeNull();
         loaded!.InstanceName.Should().Be("IIDX28");
@@ -61,8 +61,8 @@ public abstract class InstanceRepositoryContractTests : IDisposable
         };
         var directories = new List<string> { "z", "a", "m" };
 
-        await repo.SaveAsync(Instance.Create("order", files, directories));
-        var loaded = await repo.GetAsync("order");
+        await repo.SaveAsync(Instance.Create("order", files, directories), TestContext.Current.CancellationToken);
+        var loaded = await repo.GetAsync("order", TestContext.Current.CancellationToken);
 
         loaded!.FileList.Select(f => f.FileName).Should().Equal("b.bin", "a.bin", "c.bin");
         loaded.DirectoryList.Should().Equal("z", "a", "m");
@@ -72,7 +72,7 @@ public abstract class InstanceRepositoryContractTests : IDisposable
     public async Task Get_missing_returns_null()
     {
         var repo = CreateRepository();
-        (await repo.GetAsync("nope")).Should().BeNull();
+        (await repo.GetAsync("nope", TestContext.Current.CancellationToken)).Should().BeNull();
     }
 
     [Fact]
@@ -90,36 +90,36 @@ public abstract class InstanceRepositoryContractTests : IDisposable
                 new InstanceFile("duped1.bin", "", 7, "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC.bin"),
                 new InstanceFile("duped2.bin", "sub", 7, "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC.bin"),
             ],
-            [""]));
+            [""]), TestContext.Current.CancellationToken);
         await repo.SaveAsync(Instance.Create(
             "B",
             [
                 new InstanceFile("shared.bin", "", 100, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin"),
                 new InstanceFile("b-only.bin", "", 9, "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD.bin"),
             ],
-            [""]));
+            [""]), TestContext.Current.CancellationToken);
 
-        (await repo.GetUniqueSizeAsync("A")).Should().Be(40 + 7);
-        (await repo.GetUniqueSizeAsync("B")).Should().Be(9);
-        (await repo.GetUniqueSizeAsync("a")).Should().Be(47, "lookup is case-insensitive");
+        (await repo.GetUniqueSizeAsync("A", TestContext.Current.CancellationToken)).Should().Be(40 + 7);
+        (await repo.GetUniqueSizeAsync("B", TestContext.Current.CancellationToken)).Should().Be(9);
+        (await repo.GetUniqueSizeAsync("a", TestContext.Current.CancellationToken)).Should().Be(47, "lookup is case-insensitive");
     }
 
     [Fact]
     public async Task GetUniqueSize_unknown_entry_returns_zero()
     {
         var repo = CreateRepository();
-        (await repo.GetUniqueSizeAsync("nope")).Should().Be(0);
+        (await repo.GetUniqueSizeAsync("nope", TestContext.Current.CancellationToken)).Should().Be(0);
     }
 
     [Fact]
     public async Task GetNames_returns_sorted_names()
     {
         var repo = CreateRepository();
-        await repo.SaveAsync(Instance.Create("beta", [], []));
-        await repo.SaveAsync(Instance.Create("Alpha", [], []));
-        await repo.SaveAsync(Instance.Create("charlie", [], []));
+        await repo.SaveAsync(Instance.Create("beta", [], []), TestContext.Current.CancellationToken);
+        await repo.SaveAsync(Instance.Create("Alpha", [], []), TestContext.Current.CancellationToken);
+        await repo.SaveAsync(Instance.Create("charlie", [], []), TestContext.Current.CancellationToken);
 
-        var names = await repo.GetNamesAsync();
+        var names = await repo.GetNamesAsync(TestContext.Current.CancellationToken);
         names.Should().Equal("Alpha", "beta", "charlie");
     }
 
@@ -127,11 +127,11 @@ public abstract class InstanceRepositoryContractTests : IDisposable
     public async Task GetNames_sorts_embedded_numbers_naturally()
     {
         var repo = CreateRepository();
-        await repo.SaveAsync(Instance.Create("IIDX 10th style", [], []));
-        await repo.SaveAsync(Instance.Create("IIDX 9th style", [], []));
-        await repo.SaveAsync(Instance.Create("IIDX 28 BISTROVER", [], []));
+        await repo.SaveAsync(Instance.Create("IIDX 10th style", [], []), TestContext.Current.CancellationToken);
+        await repo.SaveAsync(Instance.Create("IIDX 9th style", [], []), TestContext.Current.CancellationToken);
+        await repo.SaveAsync(Instance.Create("IIDX 28 BISTROVER", [], []), TestContext.Current.CancellationToken);
 
-        var names = await repo.GetNamesAsync();
+        var names = await repo.GetNamesAsync(TestContext.Current.CancellationToken);
         names.Should().Equal("IIDX 9th style", "IIDX 10th style", "IIDX 28 BISTROVER");
     }
 
@@ -139,10 +139,10 @@ public abstract class InstanceRepositoryContractTests : IDisposable
     public async Task GetAll_returns_all_instances_sorted()
     {
         var repo = CreateRepository();
-        await repo.SaveAsync(Instance.Create("beta", [], []));
-        await repo.SaveAsync(Instance.Create("Alpha", [], []));
+        await repo.SaveAsync(Instance.Create("beta", [], []), TestContext.Current.CancellationToken);
+        await repo.SaveAsync(Instance.Create("Alpha", [], []), TestContext.Current.CancellationToken);
 
-        var all = await repo.GetAllAsync();
+        var all = await repo.GetAllAsync(TestContext.Current.CancellationToken);
         all.Select(i => i.InstanceName).Should().Equal("Alpha", "beta");
     }
 
@@ -153,10 +153,10 @@ public abstract class InstanceRepositoryContractTests : IDisposable
         await repo.SaveAsync(Instance.Create(
             "beta",
             [new InstanceFile("f.bin", "", 100, "F".PadRight(32, 'F') + ".bin")],
-            ["dir"]));
-        await repo.SaveAsync(Instance.Create("Alpha", [], []));
+            ["dir"]), TestContext.Current.CancellationToken);
+        await repo.SaveAsync(Instance.Create("Alpha", [], []), TestContext.Current.CancellationToken);
 
-        var summaries = await repo.GetSummariesAsync();
+        var summaries = await repo.GetSummariesAsync(TestContext.Current.CancellationToken);
         summaries.Select(s => s.InstanceName).Should().Equal("Alpha", "beta");
         summaries[1].FileCount.Should().Be(1);
         summaries[1].TotalFileSize.Should().Be(100);
@@ -166,10 +166,10 @@ public abstract class InstanceRepositoryContractTests : IDisposable
     public async Task GetSummaries_orders_embedded_numbers_naturally()
     {
         var repo = CreateRepository();
-        await repo.SaveAsync(Instance.Create("IIDX 10th style", [], []));
-        await repo.SaveAsync(Instance.Create("IIDX 9th style", [], []));
+        await repo.SaveAsync(Instance.Create("IIDX 10th style", [], []), TestContext.Current.CancellationToken);
+        await repo.SaveAsync(Instance.Create("IIDX 9th style", [], []), TestContext.Current.CancellationToken);
 
-        var summaries = await repo.GetSummariesAsync();
+        var summaries = await repo.GetSummariesAsync(TestContext.Current.CancellationToken);
         summaries.Select(s => s.InstanceName).Should().Equal("IIDX 9th style", "IIDX 10th style");
     }
 
@@ -180,16 +180,16 @@ public abstract class InstanceRepositoryContractTests : IDisposable
         await repo.BulkInsertAsync([
             Instance.Create("beta", [new InstanceFile("b.bin", "dir", 2, "B".PadRight(32, 'B') + ".bin")], ["dir"]),
             Instance.Create("Alpha", [], []),
-        ]);
+        ], TestContext.Current.CancellationToken);
 
-        (await repo.GetNamesAsync()).Should().Equal("Alpha", "beta");
+        (await repo.GetNamesAsync(TestContext.Current.CancellationToken)).Should().Equal("Alpha", "beta");
 
-        var loaded = await repo.GetAsync("beta");
+        var loaded = await repo.GetAsync("beta", TestContext.Current.CancellationToken);
         loaded.Should().NotBeNull();
         loaded!.FileList.Should().ContainSingle().Which.HashedFileName.Should().Be("B".PadRight(32, 'B') + ".bin");
         loaded.DirectoryList.Should().Equal("dir");
 
-        var summaries = await repo.GetSummariesAsync();
+        var summaries = await repo.GetSummariesAsync(TestContext.Current.CancellationToken);
         summaries.Single(s => s.InstanceName == "beta").TotalFileSize.Should().Be(2);
     }
 
@@ -202,10 +202,10 @@ public abstract class InstanceRepositoryContractTests : IDisposable
         await repo.SaveAsync(Instance.Create(
             "a",
             [new InstanceFile("x.bin", "", 1, sharedHash), new InstanceFile("y.bin", "", 2, otherHash)],
-            []));
-        await repo.SaveAsync(Instance.Create("b", [new InstanceFile("z.bin", "", 3, sharedHash)], []));
+            []), TestContext.Current.CancellationToken);
+        await repo.SaveAsync(Instance.Create("b", [new InstanceFile("z.bin", "", 3, sharedHash)], []), TestContext.Current.CancellationToken);
 
-        var hashes = await repo.GetAllHashedFileNamesAsync();
+        var hashes = await repo.GetAllHashedFileNamesAsync(TestContext.Current.CancellationToken);
         hashes.Should().Equal(sharedHash, otherHash);
     }
 
@@ -213,36 +213,36 @@ public abstract class InstanceRepositoryContractTests : IDisposable
     public async Task Exists_is_case_insensitive()
     {
         var repo = CreateRepository();
-        await repo.SaveAsync(Instance.Create("IIDX28", [], []));
+        await repo.SaveAsync(Instance.Create("IIDX28", [], []), TestContext.Current.CancellationToken);
 
-        (await repo.ExistsAsync("iidx28")).Should().BeTrue();
-        (await repo.ExistsAsync("IIDX28")).Should().BeTrue();
-        (await repo.ExistsAsync("other")).Should().BeFalse();
+        (await repo.ExistsAsync("iidx28", TestContext.Current.CancellationToken)).Should().BeTrue();
+        (await repo.ExistsAsync("IIDX28", TestContext.Current.CancellationToken)).Should().BeTrue();
+        (await repo.ExistsAsync("other", TestContext.Current.CancellationToken)).Should().BeFalse();
     }
 
     [Fact]
     public async Task Get_and_Delete_resolve_case_insensitively()
     {
         var repo = CreateRepository();
-        await repo.SaveAsync(Instance.Create("IIDX28", [], []));
+        await repo.SaveAsync(Instance.Create("IIDX28", [], []), TestContext.Current.CancellationToken);
 
-        var loaded = await repo.GetAsync("iidx28");
+        var loaded = await repo.GetAsync("iidx28", TestContext.Current.CancellationToken);
         loaded.Should().NotBeNull();
         loaded!.InstanceName.Should().Be("IIDX28");
 
-        (await repo.DeleteAsync("iidx28")).Should().BeTrue();
-        (await repo.ExistsAsync("IIDX28")).Should().BeFalse();
+        (await repo.DeleteAsync("iidx28", TestContext.Current.CancellationToken)).Should().BeTrue();
+        (await repo.ExistsAsync("IIDX28", TestContext.Current.CancellationToken)).Should().BeFalse();
     }
 
     [Fact]
     public async Task Delete_removes_manifest_and_reports_result()
     {
         var repo = CreateRepository();
-        await repo.SaveAsync(Instance.Create("IIDX28", [], []));
+        await repo.SaveAsync(Instance.Create("IIDX28", [], []), TestContext.Current.CancellationToken);
 
-        (await repo.DeleteAsync("IIDX28")).Should().BeTrue();
-        (await repo.ExistsAsync("IIDX28")).Should().BeFalse();
-        (await repo.DeleteAsync("IIDX28")).Should().BeFalse();
+        (await repo.DeleteAsync("IIDX28", TestContext.Current.CancellationToken)).Should().BeTrue();
+        (await repo.ExistsAsync("IIDX28", TestContext.Current.CancellationToken)).Should().BeFalse();
+        (await repo.DeleteAsync("IIDX28", TestContext.Current.CancellationToken)).Should().BeFalse();
     }
 
     [Fact]
@@ -252,8 +252,8 @@ public abstract class InstanceRepositoryContractTests : IDisposable
         var instance = Instance.Create("X", [new InstanceFile("f.bin", "", 1024, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin")], []);
         instance.TotalFileSizeString = "999 MB";
 
-        await repo.SaveAsync(instance);
-        var loaded = await repo.GetAsync("X");
+        await repo.SaveAsync(instance, TestContext.Current.CancellationToken);
+        var loaded = await repo.GetAsync("X", TestContext.Current.CancellationToken);
 
         loaded!.TotalFileSizeString.Should().Be("1 KB");
     }

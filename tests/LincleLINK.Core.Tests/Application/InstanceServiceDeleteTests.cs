@@ -38,7 +38,7 @@ public sealed class InstanceServiceDeleteTests
         _dialogs.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
         _repository.DeleteAsync("IIDX28", Arg.Any<CancellationToken>()).Returns(true);
 
-        var result = await CreateService().DeleteInstanceAsync("IIDX28");
+        var result = await CreateService().DeleteInstanceAsync("IIDX28", TestContext.Current.CancellationToken);
 
         result.Deleted.Should().BeTrue();
         result.Cancelled.Should().BeFalse();
@@ -51,7 +51,7 @@ public sealed class InstanceServiceDeleteTests
     {
         _dialogs.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
 
-        var result = await CreateService().DeleteInstanceAsync("IIDX28");
+        var result = await CreateService().DeleteInstanceAsync("IIDX28", TestContext.Current.CancellationToken);
 
         result.Deleted.Should().BeFalse();
         result.Cancelled.Should().BeTrue();
@@ -64,7 +64,7 @@ public sealed class InstanceServiceDeleteTests
         _dialogs.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
         _repository.DeleteAsync("nope", Arg.Any<CancellationToken>()).Returns(false);
 
-        var result = await CreateService().DeleteInstanceAsync("nope");
+        var result = await CreateService().DeleteInstanceAsync("nope", TestContext.Current.CancellationToken);
 
         result.Deleted.Should().BeFalse();
         result.Cancelled.Should().BeFalse();

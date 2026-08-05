@@ -51,7 +51,7 @@ public sealed class LinkingServiceCoverageTests
         });
 
         var logs = new List<string>();
-        var result = await CreateService().LinkInstanceAsync("inst", new SynchronousProgress<string>(logs.Add));
+        var result = await CreateService().LinkInstanceAsync("inst", new SynchronousProgress<string>(logs.Add), ct: TestContext.Current.CancellationToken);
 
         result.Failed.Should().Be(25);
         logs.Should().Contain(m => m.Contains("25 failed"));
@@ -64,7 +64,7 @@ public sealed class LinkingServiceCoverageTests
         _dialogs.PickFolderAsync(Arg.Any<string>()).Returns("C:\\dest");
         _repository.GetAsync("nope", Arg.Any<CancellationToken>()).Returns((Instance?)null);
 
-        var result = await CreateService().CopyHashedFilesAsync("nope");
+        var result = await CreateService().CopyHashedFilesAsync("nope", ct: TestContext.Current.CancellationToken);
 
         result.Cancelled.Should().BeFalse();
         result.Error.Should().NotBeNullOrEmpty();
@@ -84,7 +84,7 @@ public sealed class LinkingServiceCoverageTests
 
         var percents = new List<double>();
         var result = await CreateService().LinkInstanceAsync(
-            "inst", percent: new SynchronousProgress<double>(percents.Add));
+            "inst", percent: new SynchronousProgress<double>(percents.Add), ct: TestContext.Current.CancellationToken);
 
         result.Linked.Should().Be(2);
         percents.Should().NotBeEmpty();

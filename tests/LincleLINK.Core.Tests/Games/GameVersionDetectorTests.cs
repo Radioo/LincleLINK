@@ -60,7 +60,7 @@ public sealed class GameVersionDetectorTests : IDisposable
         _temp.CreateFile("bm2dx.dll", [0x4D, 0x5A, 0, 0]); // MZ header
         var dataFolder = _temp.CreateFile("data/graphics/somefile.bin");
 
-        var result = await CreateDetector().DetectAsync(Path.GetDirectoryName(Path.GetDirectoryName(dataFolder))!);
+        var result = await CreateDetector().DetectAsync(Path.GetDirectoryName(Path.GetDirectoryName(dataFolder))!, TestContext.Current.CancellationToken);
 
         result.Info.Should().NotBeNull();
         result.Info!.GameCode.Should().Be("LDJ");
@@ -88,7 +88,7 @@ public sealed class GameVersionDetectorTests : IDisposable
         _temp.CreateFile("data/sound/b.bin");
         _temp.CreateFile("data/others/c.bin");
 
-        var result = await CreateDetector().DetectAsync(_temp.Root);
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
 
         result.Info.Should().NotBeNull();
         result.Info!.GameCode.Should().Be("KFC");
@@ -112,7 +112,7 @@ public sealed class GameVersionDetectorTests : IDisposable
         _temp.CreateFile("modules/soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
         _temp.CreateFile("data/graphics/somefile.bin");
 
-        var result = await CreateDetector().DetectAsync(Path.Combine(_temp.Root, "data"));
+        var result = await CreateDetector().DetectAsync(Path.Combine(_temp.Root, "data"), TestContext.Current.CancellationToken);
 
         result.Info.Should().NotBeNull();
         result.Info!.GameCode.Should().Be("KFC");
@@ -129,7 +129,7 @@ public sealed class GameVersionDetectorTests : IDisposable
         _temp.CreateFile("contents/modules/soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
         _temp.CreateFile("contents/data/graphics/somefile.bin");
 
-        var result = await CreateDetector().DetectAsync(Path.Combine(_temp.Root, "contents", "data"));
+        var result = await CreateDetector().DetectAsync(Path.Combine(_temp.Root, "contents", "data"), TestContext.Current.CancellationToken);
 
         result.Info.Should().NotBeNull();
         result.Info!.GameCode.Should().Be("KFC");
@@ -145,7 +145,7 @@ public sealed class GameVersionDetectorTests : IDisposable
         _temp.CreateFile("contents/modules/soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
         _temp.CreateFile("contents/data/graphics/somefile.bin");
 
-        var result = await CreateDetector().DetectAsync(_temp.Root);
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
 
         result.Info.Should().NotBeNull();
         result.Info!.GameCode.Should().Be("KFC");
@@ -167,7 +167,7 @@ public sealed class GameVersionDetectorTests : IDisposable
                 """));
         _temp.CreateFile("bm2dx.dll", [0x4D, 0x5A, 0, 0]);
 
-        var result = await CreateDetector().DetectAsync(_temp.Root);
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
 
         result.Info.Should().NotBeNull();
         result.Info!.DateCode.Should().Be("2023101800"); // newer bootstrap wins
@@ -178,7 +178,7 @@ public sealed class GameVersionDetectorTests : IDisposable
     {
         _temp.CreateFile("some/file.txt");
 
-        var result = await CreateDetector().DetectAsync(_temp.Root);
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
 
         result.Info.Should().BeNull();
         result.GameRootPath.Should().BeNull();
@@ -193,7 +193,7 @@ public sealed class GameVersionDetectorTests : IDisposable
         _temp.CreateFile("prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes("<broken"));
         _temp.CreateFile("modules/soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
 
-        var result = await CreateDetector().DetectAsync(_temp.Root);
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
 
         result.Info.Should().NotBeNull();
         result.Info!.GameCode.Should().Be("KFC"); // model hint from the DLL scan
@@ -218,7 +218,7 @@ public sealed class GameVersionDetectorTests : IDisposable
                 """));
         _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
 
-        var result = await CreateDetector().DetectAsync(_temp.Root);
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
 
         result.Info.Should().NotBeNull();
         result.Info!.GameCode.Should().Be("KFC");
@@ -244,7 +244,7 @@ public sealed class GameVersionDetectorTests : IDisposable
                 """));
         _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
 
-        var result = await CreateDetector().DetectAsync(_temp.Root);
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
 
         result.Info.Should().NotBeNull();
         result.Info!.GameCode.Should().Be("KFC");
@@ -286,7 +286,7 @@ public sealed class GameVersionDetectorTests : IDisposable
         _temp.CreateFile("contents/modules/bm2dx.dll", [0x4D, 0x5A, 0, 0]);
         _temp.CreateFile("contents/data/graphics/a.bin");
 
-        var result = await CreateDetector().DetectAsync(Path.Combine(_temp.Root, "contents", "data"));
+        var result = await CreateDetector().DetectAsync(Path.Combine(_temp.Root, "contents", "data"), TestContext.Current.CancellationToken);
 
         result.Info.Should().NotBeNull();
         result.Info!.GameCode.Should().Be("LDJ");
@@ -319,7 +319,7 @@ public sealed class GameVersionDetectorTests : IDisposable
         _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
         _temp.CreateFile("data/graphics/a.bin");
 
-        var result = await CreateDetector().DetectAsync(_temp.Root);
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
 
         result.Info.Should().NotBeNull();
         result.Info!.GameCode.Should().Be("KFC");
@@ -351,7 +351,7 @@ public sealed class GameVersionDetectorTests : IDisposable
         _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
         _temp.CreateFile("data/graphics/a.bin");
 
-        var result = await CreateDetector().DetectAsync(_temp.Root);
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
 
         result.Info.Should().NotBeNull();
         result.Info!.GameCode.Should().Be("KFC");
@@ -382,7 +382,7 @@ public sealed class GameVersionDetectorTests : IDisposable
         _temp.CreateFile("soundvoltex.dll", [0x4D, 0x5A, 0, 0]);
         _temp.CreateFile("data/graphics/a.bin");
 
-        var result = await CreateDetector().DetectAsync(_temp.Root);
+        var result = await CreateDetector().DetectAsync(_temp.Root, TestContext.Current.CancellationToken);
 
         result.Info.Should().NotBeNull();
         result.Info!.GameCode.Should().Be("UFC");
@@ -396,7 +396,7 @@ public sealed class GameVersionDetectorTests : IDisposable
     {
         var missing = Path.Combine(_temp.Root, "does-not-exist");
 
-        var result = await CreateDetector().DetectAsync(missing);
+        var result = await CreateDetector().DetectAsync(missing, TestContext.Current.CancellationToken);
 
         result.Info.Should().BeNull();
     }

@@ -112,17 +112,17 @@ public sealed class PersistenceInfrastructureTests
 
             await using (var context = new LincleLinkDbContext(options))
             {
-                await context.Database.MigrateAsync();
+                await context.Database.MigrateAsync(TestContext.Current.CancellationToken);
             }
 
             await using (var rollback = new LincleLinkDbContext(options))
             {
-                await rollback.Database.MigrateAsync("20260802122044_InitialCreate");
+                await rollback.Database.MigrateAsync("20260802122044_InitialCreate", TestContext.Current.CancellationToken);
             }
 
             await using (var check = new LincleLinkDbContext(options))
             {
-                var applied = await check.Database.GetAppliedMigrationsAsync();
+                var applied = await check.Database.GetAppliedMigrationsAsync(TestContext.Current.CancellationToken);
                 applied.Should().Equal("20260802122044_InitialCreate");
             }
         }
