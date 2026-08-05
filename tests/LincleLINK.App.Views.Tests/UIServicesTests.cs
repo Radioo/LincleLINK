@@ -6,6 +6,7 @@ using LincleLINK.App;
 using LincleLINK.App.Behaviors;
 using LincleLINK.App.Controls;
 using LincleLINK.App.Converters;
+using LincleLINK.App.Logos;
 using LincleLINK.App.Services;
 using LincleLINK.App.ViewModels;
 using LincleLINK.Core.Abstractions.Settings;
@@ -98,6 +99,60 @@ public sealed class UIServicesTests
 
         var act = () => converter.ConvertBack(new object(), typeof(object), null, CultureInfo.InvariantCulture);
         act.Should().Throw<NotSupportedException>();
+    }
+
+    [Fact]
+    public void LogoSourceConverter_evicts_file_cache_for_overwritten_custom_logos()
+    {
+        // Regression (High 4): custom logos always overwrite the same path, so
+        // without eviction a cache hit served the previous image forever.
+        var converter = HeadlessAppHost.RunOnUiThread(() => new LogoSourceConverter());
+        var dir = Path.Combine(Path.GetTempPath(), "LincleLINK.App.Views.Tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var png = Path.Combine(dir, "logo.png");
+        File.WriteAllBytes(png, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x01]);
+
+        var first = HeadlessAppHost.RunOnUiThread(() =>
+            converter.Convert(png, typeof(object), null, CultureInfo.InvariantCulture));
+        first.Should().NotBeNull();
+
+        // Same path, same cached instance - the stale-bitmap case.
+        var cached = HeadlessAppHost.RunOnUiThread(() =>
+            converter.Convert(png, typeof(object), null, CultureInfo.InvariantCulture));
+        cached.Should().BeSameAs(first);
+
+        // Eviction forces a fresh read on the next conversion.
+        HeadlessAppHost.RunOnUiThread(() => LogoSourceConverter.Evict(png));
+        var fresh = HeadlessAppHost.RunOnUiThread(() =>
+            converter.Convert(png, typeof(object), null, CultureInfo.InvariantCulture));
+        fresh.Should().NotBeSameAs(first);
+    }
+
+    [Fact]
+    public void SaveCustomLogo_evicts_the_cached_bitmap_for_its_path()
+    {
+        // The write path must evict the converter cache, so replacing image A with
+        // image B on the same path shows B immediately (not after restart).
+        var converter = HeadlessAppHost.RunOnUiThread(() => new LogoSourceConverter());
+        var dir = Path.Combine(Path.GetTempPath(), "LincleLINK.App.Views.Tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var srcA = Path.Combine(dir, "a.png");
+        var srcB = Path.Combine(dir, "b.png");
+        File.WriteAllBytes(srcA, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x01]);
+        File.WriteAllBytes(srcB, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x02]);
+
+        LogoCatalog.SaveCustomLogo(dir, "game", srcA);
+        var path = LogoCatalog.GetCustomLogoFilePath(dir, "game")!;
+        var first = HeadlessAppHost.RunOnUiThread(() =>
+            converter.Convert(path, typeof(object), null, CultureInfo.InvariantCulture));
+        first.Should().NotBeNull();
+
+        // Overwrite the same custom-logo path with a different source image.
+        LogoCatalog.SaveCustomLogo(dir, "game", srcB);
+
+        var after = HeadlessAppHost.RunOnUiThread(() =>
+            converter.Convert(path, typeof(object), null, CultureInfo.InvariantCulture));
+        after.Should().NotBeSameAs(first);
     }
 
     [Fact]

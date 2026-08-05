@@ -1,3 +1,5 @@
+using LincleLINK.App.Converters;
+
 namespace LincleLINK.App.Logos;
 
 public sealed record LogoEntry(string LogoKey, string AssetPath, string DisplayName);
@@ -41,6 +43,10 @@ public sealed class LogoCatalog
         Directory.CreateDirectory(dir);
         var dest = Path.Combine(dir, nameKey + ".png");
         File.Copy(sourceFilePath, dest, overwrite: true);
+
+        // Custom logos always overwrite the same path; a cached bitmap for it
+        // would be stale until restart, so evict it for the next conversion.
+        LogoSourceConverter.Evict(dest);
     }
 
     public static void DeleteCustomLogo(string dataDirectory, string nameKey)
@@ -49,6 +55,7 @@ public sealed class LogoCatalog
         if (File.Exists(filePath))
         {
             File.Delete(filePath);
+            LogoSourceConverter.Evict(filePath);
         }
     }
 
