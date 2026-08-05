@@ -72,4 +72,20 @@ public sealed class GameVersionDetectorIoFaultTests
         result.Info.Should().NotBeNull();
         result.Info!.PeIdentifier.Should().BeNull();
     }
+
+    [Fact]
+    public async Task Unreadable_subdirectory_is_skipped_not_aborting_detection()
+    {
+        // Regression (High 1): the walk-up and data-folder enumerations must
+        // degrade when a folder is unreadable (ACL-restricted, missing volume)
+        // instead of throwing and aborting the whole detection.
+        var fs = StubBase();
+        fs.FileExists(Arg.Any<string>()).Returns(false);
+        fs.EnumerateDirectories(Arg.Any<string>(), false).Returns(_ => throw new UnauthorizedAccessException("denied"));
+        fs.EnumerateFiles(Arg.Any<string>(), false).Returns([]);
+
+        var result = await new GameVersionDetector(fs).DetectAsync("C:\\game", TestContext.Current.CancellationToken);
+
+        result.Info.Should().BeNull();
+    }
 }

@@ -154,10 +154,13 @@ public sealed class GameVersionDetector : IGameVersionDetector
 
     /// <summary>
     /// Locates the game identity, walking up from the selected folder. At each
-    /// level the identity is probed directly and then in each immediate
-    /// subdirectory, so a <c>contents</c> wrapper (which may or may not be
-    /// present) is found by content, never by name. The returned game root is
-    /// the folder that actually holds the identity files.
+    /// level the identity is probed directly; the <b>originally selected</b>
+    /// folder's immediate subdirectories are also probed, so a <c>contents</c>
+    /// wrapper (which may or may not be present) is found by content, never by
+    /// name. Ancestors are probed directly only - probing their subdirectories
+    /// would attach a sibling folder (a neighboring game on the same drive root)
+    /// to the selection. The returned game root is the folder that actually holds
+    /// the identity files.
     /// </summary>
     private (GameVersionInfo? Info, string? GameRootPath) ResolveIdentity(string startPath, CancellationToken ct)
     {
@@ -173,15 +176,20 @@ public sealed class GameVersionDetector : IGameVersionDetector
                 return hit;
             }
 
-            // A game wrapped in <contents> keeps the identity one level down;
-            // probe immediate subdirectories by content, not by name.
-            foreach (var sub in _fileSystem.EnumerateDirectories(candidate, recursive: false))
+            // A game wrapped in <contents> keeps the identity one level down from
+            // the selection; probe that level's immediate subdirectories. Later
+            // (ancestor) levels skip this: a sibling folder is outside the user's
+            // selection and must not be tagged.
+            if (i == 0)
             {
-                ct.ThrowIfCancellationRequested();
-                hit = TryDetect(sub);
-                if (hit.Info is not null)
+                foreach (var sub in TryEnumerateDirectories(candidate))
                 {
-                    return hit;
+                    ct.ThrowIfCancellationRequested();
+                    hit = TryDetect(sub);
+                    if (hit.Info is not null)
+                    {
+                        return hit;
+                    }
                 }
             }
 
@@ -242,7 +250,7 @@ public sealed class GameVersionDetector : IGameVersionDetector
         string? best = null;
         var bestEntries = -1;
 
-        foreach (var dir in _fileSystem.EnumerateDirectories(gameRoot, recursive: false))
+        foreach (var dir in TryEnumerateDirectories(gameRoot))
         {
             ct.ThrowIfCancellationRequested();
             if (IsSupportFolder(dir)) continue;
@@ -410,8 +418,8 @@ public sealed class GameVersionDetector : IGameVersionDetector
     }
 
     private int CountEntries(string dir)
-        => _fileSystem.EnumerateDirectories(dir, recursive: false).Count
-           + _fileSystem.EnumerateFiles(dir, recursive: false).Count;
+        => TryEnumerateDirectories(dir).Count
+           + TryEnumerateFiles(dir).Count;
 
     private static string? ResolveTitle(string gameCode)
     {

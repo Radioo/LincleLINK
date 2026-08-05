@@ -454,6 +454,26 @@ public sealed class GameVersionDetectorTests : IDisposable
         result.Info.DisplayTitle.Should().Be("SOUND VOLTEX II -infinite infection-");
     }
 
+    [Fact]
+    public async Task Neighboring_game_sibling_is_not_attached()
+    {
+        // Regression (High 5): the walk-up used to probe every ancestor's
+        // immediate subdirectories, so a sibling folder that looks like a game was
+        // tagged with the wrong identity (and a GameRootPath outside the
+        // selection). Only the originally selected folder's subdirectories - the
+        // contents-wrapper case - are probed.
+        _temp.CreateFile("IIDX31/prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(ConfigFor("LDJ", "2023101800")));
+        _temp.CreateFile("IIDX31/bm2dx.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("SongPacks/prop/ea3-config.xml", System.Text.Encoding.UTF8.GetBytes(ConfigFor("LDJ", "2013111300")));
+        _temp.CreateFile("SongPacks/bm2dx.dll", [0x4D, 0x5A, 0, 0]);
+        _temp.CreateFile("Selected/data/placeholder.bin");
+
+        var result = await CreateDetector().DetectAsync(Path.Combine(_temp.Root, "Selected"), TestContext.Current.CancellationToken);
+
+        result.Info.Should().BeNull();
+        result.GameRootPath.Should().BeNull();
+    }
+
     private string ConfigFor(string model, string ext) => $$"""
         <?xml version="1.0" encoding="utf-8"?>
         <ea3>
