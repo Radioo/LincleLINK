@@ -9,6 +9,7 @@ using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
 using LincleLINK.Core.Tests.TestHelpers;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 
@@ -36,7 +37,7 @@ public sealed class InstanceServiceTests
     // The preflight substitute returns null (= linkable) by default, matching the
     // common same-volume case; cross-volume tests override it explicitly.
     private InstanceService CreateService()
-        => new(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs);
+        => new(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, NullLogger<InstanceService>.Instance);
 
     private void StubDataPath(string dataPath, params string[] files)
     {

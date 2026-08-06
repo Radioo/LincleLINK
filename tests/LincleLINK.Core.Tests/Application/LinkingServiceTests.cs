@@ -6,6 +6,7 @@ using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 
@@ -22,7 +23,7 @@ public sealed class LinkingServiceTests
 
     // The preflight substitute returns null (= linkable) by default; the
     // cross-volume test overrides it explicitly.
-    private LinkingService CreateService() => new(_fs, _store, _hardLinker, _preflight, _repository, _dialogs);
+    private LinkingService CreateService() => new(_fs, _store, _hardLinker, _preflight, _repository, _dialogs, NullLogger<LinkingService>.Instance);
 
     private static Instance SampleInstance() => Instance.Create(
         "inst",

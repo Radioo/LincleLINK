@@ -10,6 +10,7 @@ using LincleLINK.Core.Tests.TestHelpers;
 using LincleLINK.Core.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 
@@ -29,19 +30,19 @@ public sealed class StorageMigrationServiceTests : IDisposable
         services.AddDbContextFactory<LincleLinkDbContext>(
             o => o.UseSqlite(LincleLinkPersistence.ConnectionStringFor(_paths.DataDirectory)));
         _factory = services.BuildServiceProvider().GetRequiredService<IDbContextFactory<LincleLinkDbContext>>();
-        _repository = new SqliteInstanceRepository(_factory);
+        _repository = new SqliteInstanceRepository(_factory, NullLogger<SqliteInstanceRepository>.Instance);
     }
 
     public void Dispose() => _temp.Dispose();
 
-    private StorageMigrationService CreateService() => new(_paths, _repository, _factory);
+    private StorageMigrationService CreateService() => new(_paths, _repository, _factory, NullLogger<StorageMigrationService>.Instance);
 
     /// <summary>
     /// Service wired to a substituted repository so verification/insertion failure
     /// paths can be forced; the real factory still applies the schema migrations.
     /// </summary>
     private StorageMigrationService CreateService(IInstanceRepository repository)
-        => new(_paths, repository, _factory);
+        => new(_paths, repository, _factory, NullLogger<StorageMigrationService>.Instance);
 
     private void WriteInstanceJson(string name, string json)
     {

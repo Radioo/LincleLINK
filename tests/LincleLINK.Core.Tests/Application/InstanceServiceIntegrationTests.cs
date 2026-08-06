@@ -12,6 +12,7 @@ using LincleLINK.Core.Infrastructure.Linking;
 using LincleLINK.Core.Infrastructure.Paths;
 using LincleLINK.Core.Infrastructure.Storage;
 using LincleLINK.Core.Tests.TestHelpers;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 
@@ -59,7 +60,8 @@ public sealed class InstanceServiceIntegrationTests : IDisposable
             new HardLinkPreflight(paths, linker),
             new JsonInstanceRepository(paths),
             Substitute.For<IDriveInfoProvider>(),
-            Substitute.For<IDialogService>());
+            Substitute.For<IDialogService>(),
+            NullLogger<InstanceService>.Instance);
 
         var result = await service.CreateInstanceAsync(new AddInstanceRequest("inst", dataPath, CopyMoveMode.Move));
 
@@ -106,7 +108,8 @@ public sealed class InstanceServiceIntegrationTests : IDisposable
             new HardLinkPreflight(paths, linker),
             new JsonInstanceRepository(paths),
             driveInfo,
-            Substitute.For<IDialogService>());
+            Substitute.For<IDialogService>(),
+            NullLogger<InstanceService>.Instance);
 
         var result = await service.CreateInstanceAsync(new AddInstanceRequest("inst", dataPath, CopyMoveMode.Copy));
 
