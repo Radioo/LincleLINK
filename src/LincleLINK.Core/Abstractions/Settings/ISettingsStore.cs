@@ -12,8 +12,13 @@ public enum AppTheme
 /// App settings stored in the per-OS config directory (never in the data dir).
 /// <c>DataDirectory</c> null means "current working directory".
 /// <c>HashThreadCount</c> bounds the parallel hashing workers used by add-instance.
+/// <c>SaveLogToFile</c> opts into the on-disk diagnostic log (issue #17); default off.
 /// </summary>
-public sealed record AppSettings(AppTheme Theme, string? DataDirectory, int HashThreadCount);
+public sealed record AppSettings(
+    AppTheme Theme,
+    string? DataDirectory,
+    int HashThreadCount,
+    bool SaveLogToFile = false);
 
 public interface ISettingsStore
 {
