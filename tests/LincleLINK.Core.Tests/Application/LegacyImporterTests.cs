@@ -32,12 +32,12 @@ public sealed class LegacyImporterTests : IDisposable
     {
         var xmlPath = _temp.CreateFile("DBInfo.xml", Encoding.UTF8.GetBytes(TestData.V1DbInfoXml));
 
-        var result = await _importer.ImportAsync(xmlPath);
+        var result = await _importer.ImportAsync(xmlPath, TestContext.Current.CancellationToken);
 
         result.Imported.Should().BeEquivalentTo("IIDX28", "Dupe");
         result.SkippedExisting.Should().BeEmpty();
 
-        var imported = await _repository.GetAsync("IIDX28");
+        var imported = await _repository.GetAsync("IIDX28", TestContext.Current.CancellationToken);
         imported.Should().NotBeNull();
         imported!.InstanceName.Should().Be("IIDX28");
         imported.FileList.Should().ContainSingle();
@@ -53,10 +53,10 @@ public sealed class LegacyImporterTests : IDisposable
     [Fact]
     public async Task Import_skips_existing_instances()
     {
-        await _repository.SaveAsync(LincleLINK.Core.Domain.Instance.Create("IIDX28", [], []));
+        await _repository.SaveAsync(LincleLINK.Core.Domain.Instance.Create("IIDX28", [], []), TestContext.Current.CancellationToken);
         var xmlPath = _temp.CreateFile("DBInfo.xml", Encoding.UTF8.GetBytes(TestData.V1DbInfoXml));
 
-        var result = await _importer.ImportAsync(xmlPath);
+        var result = await _importer.ImportAsync(xmlPath, TestContext.Current.CancellationToken);
 
         result.Imported.Should().Equal("Dupe");
         result.SkippedExisting.Should().Equal("IIDX28");
@@ -96,11 +96,11 @@ public sealed class LegacyImporterTests : IDisposable
         """;
         var xmlPath = _temp.CreateFile("DBInfo.xml", Encoding.UTF8.GetBytes(unsafeXml));
 
-        var result = await _importer.ImportAsync(xmlPath);
+        var result = await _importer.ImportAsync(xmlPath, TestContext.Current.CancellationToken);
 
         result.Imported.Should().Equal("Safe");
 
-        var imported = await _repository.GetAsync("Safe");
+        var imported = await _repository.GetAsync("Safe", TestContext.Current.CancellationToken);
         imported.Should().NotBeNull();
         imported!.FileList.Should().ContainSingle();
         imported.FileList[0].FileName.Should().Be("ok.bin");
@@ -129,10 +129,10 @@ public sealed class LegacyImporterTests : IDisposable
         """;
         var xmlPath = _temp.CreateFile("DBInfo.xml", Encoding.UTF8.GetBytes(nilXml));
 
-        var result = await _importer.ImportAsync(xmlPath);
+        var result = await _importer.ImportAsync(xmlPath, TestContext.Current.CancellationToken);
 
         result.Imported.Should().Equal("Nil");
-        var imported = await _repository.GetAsync("Nil");
+        var imported = await _repository.GetAsync("Nil", TestContext.Current.CancellationToken);
         imported.Should().NotBeNull();
         // A nil Location is treated as a root-level entry; the file is still imported.
         imported!.FileList.Should().ContainSingle(f => f.FileName == "nil.bin");

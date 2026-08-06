@@ -1,6 +1,7 @@
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Disk;
 using LincleLINK.Core.Abstractions.Filesystem;
+using LincleLINK.Core.Abstractions.Games;
 using LincleLINK.Core.Abstractions.Hashing;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Linking;
@@ -44,6 +45,7 @@ public sealed partial class InstanceService
     private readonly IInstanceRepository _repository;
     private readonly IDriveInfoProvider _driveInfo;
     private readonly IDialogService _dialogs;
+    private readonly IGameVersionDetector _detector;
     private readonly ILogger<InstanceService> _logger;
 
     public InstanceService(
@@ -55,6 +57,7 @@ public sealed partial class InstanceService
         IInstanceRepository repository,
         IDriveInfoProvider driveInfo,
         IDialogService dialogs,
+        IGameVersionDetector detector,
         ILogger<InstanceService> logger)
     {
         _fileSystem = fileSystem;
@@ -65,6 +68,7 @@ public sealed partial class InstanceService
         _repository = repository;
         _driveInfo = driveInfo;
         _dialogs = dialogs;
+        _detector = detector;
         _logger = logger;
     }
 
@@ -284,6 +288,28 @@ public sealed partial class InstanceService
         }
 
         var instance = Instance.Create(request.InstanceName, instanceFiles, directories);
+
+        // Detection is best-effort and must never sink the save: by this point the
+        // files are already hashed and in storage (in Move mode the originals are
+        // hard links), so a detection failure has to leave the entry saved rather
+        // than orphan gigabytes with no manifest.
+        try
+        {
+            var detection = await _detector.DetectAsync(request.DataPath, ct);
+            if (detection?.Info is not null)
+            {
+                instance.DetectedGame = detection.Info;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            log?.Report($"Game detection failed for {request.DataPath}: {ex.Message}");
+        }
+
         await _repository.SaveAsync(instance, ct);
 
         log?.Report(

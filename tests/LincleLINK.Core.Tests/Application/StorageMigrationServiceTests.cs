@@ -82,7 +82,7 @@ public sealed class StorageMigrationServiceTests : IDisposable
         WriteInstanceJson("Dupe", """{"Name":"Dupe","TotalFileSize":0,"TotalFileCount":0,"TotalFileSizeString":"0 B"}""");
         var service = CreateService();
 
-        var result = await service.MigrateAsync();
+        var result = await service.MigrateAsync(ct: TestContext.Current.CancellationToken);
 
         result.Migrated.Should().Be(2);
         result.Skipped.Should().Be(0);
@@ -90,7 +90,7 @@ public sealed class StorageMigrationServiceTests : IDisposable
         result.Errors.Should().BeEmpty();
         Directory.GetFiles(_paths.InstanceDirectory, "*.json").Should().BeEmpty();
 
-        var loaded = await _repository.GetAsync("IIDX28");
+        var loaded = await _repository.GetAsync("IIDX28", TestContext.Current.CancellationToken);
         loaded.Should().NotBeNull();
         loaded!.FileList.Should().ContainSingle();
         loaded.FileList[0].HashedFileName.Should().Be("7AFE6AC1B80128D44BA5357D4349B21A.2dx");
@@ -103,12 +103,12 @@ public sealed class StorageMigrationServiceTests : IDisposable
         WriteInstanceJson("IIDX28", TestData.V2InstanceJson);
         var service = CreateService();
 
-        var first = await service.MigrateAsync();
+        var first = await service.MigrateAsync(ct: TestContext.Current.CancellationToken);
         first.Migrated.Should().Be(1);
 
         // Simulate a crash leftover: the JSON reappears for an already-migrated name.
         WriteInstanceJson("IIDX28", TestData.V2InstanceJson);
-        var second = await service.MigrateAsync();
+        var second = await service.MigrateAsync(ct: TestContext.Current.CancellationToken);
 
         second.Migrated.Should().Be(0);
         second.Skipped.Should().Be(1);
@@ -122,7 +122,7 @@ public sealed class StorageMigrationServiceTests : IDisposable
         WriteInstanceJson("bad", "{ this is not json");
         var service = CreateService();
 
-        var result = await service.MigrateAsync();
+        var result = await service.MigrateAsync(ct: TestContext.Current.CancellationToken);
 
         result.Migrated.Should().Be(1);
         result.Quarantined.Should().Be(1);
@@ -131,9 +131,9 @@ public sealed class StorageMigrationServiceTests : IDisposable
         Directory.GetFiles(_paths.InstanceDirectory, "*.json").Should().BeEmpty();
         File.Exists(Path.Combine(_paths.InstanceDirectory, "instance-corrupt", "bad.json")).Should().BeTrue();
 
-        var loaded = await _repository.GetAsync("IIDX28");
+        var loaded = await _repository.GetAsync("IIDX28", TestContext.Current.CancellationToken);
         loaded.Should().NotBeNull();
-        (await _repository.ExistsAsync("bad")).Should().BeFalse();
+        (await _repository.ExistsAsync("bad", TestContext.Current.CancellationToken)).Should().BeFalse();
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public sealed class StorageMigrationServiceTests : IDisposable
         WriteInstanceJson("IIDX28", TestData.V2InstanceJson);
         var service = CreateService();
 
-        await service.MigrateAsync();
+        await service.MigrateAsync(ct: TestContext.Current.CancellationToken);
 
         File.Exists(Path.Combine(_paths.DataDirectory, LincleLinkPersistence.DatabaseFileName)).Should().BeTrue();
     }
@@ -155,7 +155,7 @@ public sealed class StorageMigrationServiceTests : IDisposable
         _paths.EnsureCreated();
         var service = CreateService();
 
-        var result = await service.MigrateAsync();
+        var result = await service.MigrateAsync(ct: TestContext.Current.CancellationToken);
 
         result.Migrated.Should().Be(0);
         result.Skipped.Should().Be(0);
@@ -172,10 +172,10 @@ public sealed class StorageMigrationServiceTests : IDisposable
         _paths.EnsureCreated();
         var service = CreateService();
 
-        await service.EnsureSchemaAsync();
+        await service.EnsureSchemaAsync(TestContext.Current.CancellationToken);
 
         File.Exists(Path.Combine(_paths.DataDirectory, LincleLinkPersistence.DatabaseFileName)).Should().BeTrue();
-        var loaded = await _repository.GetAllAsync();
+        var loaded = await _repository.GetAllAsync(TestContext.Current.CancellationToken);
         loaded.Should().BeEmpty();
     }
 
@@ -189,7 +189,7 @@ public sealed class StorageMigrationServiceTests : IDisposable
         WriteInstanceJson("bad", """{"Name":"CON","TotalFileSize":0,"TotalFileCount":0,"TotalFileSizeString":"0 B"}""");
         var service = CreateService();
 
-        var result = await service.MigrateAsync();
+        var result = await service.MigrateAsync(ct: TestContext.Current.CancellationToken);
 
         result.Migrated.Should().Be(1);
         result.Quarantined.Should().Be(1);
@@ -197,7 +197,7 @@ public sealed class StorageMigrationServiceTests : IDisposable
         Directory.GetFiles(_paths.InstanceDirectory, "*.json").Should().BeEmpty();
         File.Exists(Path.Combine(_paths.InstanceDirectory, "instance-corrupt", "bad.json")).Should().BeTrue();
 
-        var loaded = await _repository.GetAsync("IIDX28");
+        var loaded = await _repository.GetAsync("IIDX28", TestContext.Current.CancellationToken);
         loaded.Should().NotBeNull();
     }
 
@@ -211,7 +211,8 @@ public sealed class StorageMigrationServiceTests : IDisposable
 
         var result = await service.MigrateAsync(
             new SynchronousProgress<string>(log.Add),
-            new SynchronousProgress<double>(percents.Add));
+            new SynchronousProgress<double>(percents.Add),
+            TestContext.Current.CancellationToken);
 
         result.Migrated.Should().Be(1);
         log.Should().Contain("Migrated IIDX28");
@@ -229,7 +230,8 @@ public sealed class StorageMigrationServiceTests : IDisposable
 
         var result = await service.MigrateAsync(
             new SynchronousProgress<string>(log.Add),
-            new SynchronousProgress<double>(percents.Add));
+            new SynchronousProgress<double>(percents.Add),
+            TestContext.Current.CancellationToken);
 
         result.Quarantined.Should().Be(1);
         log.Should().Contain(line => line.Contains("Quarantined bad"));
@@ -249,7 +251,7 @@ public sealed class StorageMigrationServiceTests : IDisposable
         WriteInstanceJson("IIDX28", TestData.V2InstanceJson);
         var service = CreateService(repository);
 
-        var result = await service.MigrateAsync();
+        var result = await service.MigrateAsync(ct: TestContext.Current.CancellationToken);
 
         result.Migrated.Should().Be(0);
         result.Quarantined.Should().Be(1);
@@ -271,7 +273,7 @@ public sealed class StorageMigrationServiceTests : IDisposable
         WriteInstanceJson("IIDX28", TestData.V2InstanceJson);
         var service = CreateService(repository);
 
-        var result = await service.MigrateAsync();
+        var result = await service.MigrateAsync(ct: TestContext.Current.CancellationToken);
 
         await repository.Received(1).SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>());
         result.Migrated.Should().Be(0);
@@ -286,7 +288,7 @@ public sealed class StorageMigrationServiceTests : IDisposable
         WriteInstanceJson("bad", "null");
         var service = CreateService();
 
-        var result = await service.MigrateAsync();
+        var result = await service.MigrateAsync(ct: TestContext.Current.CancellationToken);
 
         result.Quarantined.Should().Be(1);
         result.Errors.Should().ContainSingle().Which.Should().Contain("Instance JSON was null");
@@ -308,7 +310,7 @@ public sealed class StorageMigrationServiceTests : IDisposable
         WriteInstanceJson("IIDX28", TestData.V2InstanceJson);
         var service = CreateService(repository);
 
-        var result = await service.MigrateAsync();
+        var result = await service.MigrateAsync(ct: TestContext.Current.CancellationToken);
 
         await repository.Received(1).SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>());
         result.Migrated.Should().Be(0);
@@ -329,7 +331,7 @@ public sealed class StorageMigrationServiceTests : IDisposable
         WriteInstanceJson("second", MinimalJson("iidx28"));
         var service = CreateService();
 
-        var result = await service.MigrateAsync();
+        var result = await service.MigrateAsync(ct: TestContext.Current.CancellationToken);
 
         result.Migrated.Should().Be(1);
         result.Quarantined.Should().Be(1);
@@ -349,7 +351,7 @@ public sealed class StorageMigrationServiceTests : IDisposable
         WriteInstanceJson("foo", """{"Name":"CON","TotalFileSize":0,"TotalFileCount":0,"TotalFileSizeString":"0 B"}""");
         var service = CreateService(recording);
 
-        var result = await service.MigrateAsync();
+        var result = await service.MigrateAsync(ct: TestContext.Current.CancellationToken);
 
         result.Migrated.Should().Be(1);
         result.Quarantined.Should().Be(1);
@@ -374,7 +376,7 @@ public sealed class StorageMigrationServiceTests : IDisposable
         WriteInstanceJson("IIDX999", MinimalJson("IIDX000"));
         var service = CreateService();
 
-        var result = await service.MigrateAsync();
+        var result = await service.MigrateAsync(ct: TestContext.Current.CancellationToken);
 
         result.Migrated.Should().Be(BulkFlushThreshold);
         result.Skipped.Should().Be(1);
@@ -471,5 +473,8 @@ public sealed class StorageMigrationServiceTests : IDisposable
             BulkInsertCalls++;
             await _inner.BulkInsertAsync(instances, ct);
         }
+
+        public Task SetCustomLogoAsync(string name, string? logoSource, CancellationToken ct = default)
+            => _inner.SetCustomLogoAsync(name, logoSource, ct);
     }
 }

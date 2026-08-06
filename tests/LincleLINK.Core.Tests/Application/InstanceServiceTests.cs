@@ -2,6 +2,7 @@ using FluentAssertions;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Disk;
 using LincleLINK.Core.Abstractions.Filesystem;
+using LincleLINK.Core.Abstractions.Games;
 using LincleLINK.Core.Abstractions.Hashing;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Linking;
@@ -33,11 +34,12 @@ public sealed class InstanceServiceTests
     private readonly IInstanceRepository _repository = Substitute.For<IInstanceRepository>();
     private readonly IDriveInfoProvider _driveInfo = Substitute.For<IDriveInfoProvider>();
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
+    private readonly IGameVersionDetector _detector = Substitute.For<IGameVersionDetector>();
 
     // The preflight substitute returns null (= linkable) by default, matching the
     // common same-volume case; cross-volume tests override it explicitly.
     private InstanceService CreateService()
-        => new(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, NullLogger<InstanceService>.Instance);
+        => new(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, _detector, NullLogger<InstanceService>.Instance);
 
     private void StubDataPath(string dataPath, params string[] files)
     {
@@ -61,7 +63,7 @@ public sealed class InstanceServiceTests
     public async Task Invalid_name_returns_error_without_io()
     {
         _fs.DirectoryExists(Data).Returns(true);
-        var result = await CreateService().CreateInstanceAsync(new("bad/name", Data, CopyMoveMode.Copy));
+        var result = await CreateService().CreateInstanceAsync(new("bad/name", Data, CopyMoveMode.Copy), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeFalse();
         result.Error.Should().NotBeNullOrEmpty();
@@ -72,7 +74,7 @@ public sealed class InstanceServiceTests
     public async Task Missing_data_path_returns_error()
     {
         _fs.DirectoryExists(Missing).Returns(false);
-        var result = await CreateService().CreateInstanceAsync(new("ok", Missing, CopyMoveMode.Copy));
+        var result = await CreateService().CreateInstanceAsync(new("ok", Missing, CopyMoveMode.Copy), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("folder does not exist");
@@ -84,7 +86,7 @@ public sealed class InstanceServiceTests
         StubDataPath(Data, FileA);
         _repository.ExistsAsync("dupe", Arg.Any<CancellationToken>()).Returns(true);
 
-        var result = await CreateService().CreateInstanceAsync(new("dupe", Data, CopyMoveMode.Copy));
+        var result = await CreateService().CreateInstanceAsync(new("dupe", Data, CopyMoveMode.Copy), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("already exists");
@@ -96,7 +98,7 @@ public sealed class InstanceServiceTests
         _fs.DirectoryExists(Data).Returns(true);
         _fs.EnumerateFiles(Data, true).Returns([]);
 
-        var result = await CreateService().CreateInstanceAsync(new("ok", Data, CopyMoveMode.Copy));
+        var result = await CreateService().CreateInstanceAsync(new("ok", Data, CopyMoveMode.Copy), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("no files");
@@ -108,7 +110,7 @@ public sealed class InstanceServiceTests
         StubDataPath(Data, FileA, FileB, FileSubC);
         _store.Exists("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin").Returns(false, true, false);
 
-        var result = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Copy));
+        var result = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Copy), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeTrue();
         result.FilesAdded.Should().Be(2);
@@ -132,7 +134,7 @@ public sealed class InstanceServiceTests
             return true;
         });
 
-        var result = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Move));
+        var result = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Move), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeTrue();
         result.FilesAdded.Should().Be(1);
@@ -162,7 +164,7 @@ public sealed class InstanceServiceTests
             return true;
         });
 
-        var result = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Move));
+        var result = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Move), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeTrue();
         result.AlreadyExisted.Should().Be(1);
@@ -193,7 +195,7 @@ public sealed class InstanceServiceTests
         var logs = new List<string>();
         var log = new SynchronousProgress<string>(logs.Add);
 
-        var result = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Move), log);
+        var result = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Move), log, ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeTrue();
         // No data loss: the original file is never deleted or overwritten when the
@@ -209,7 +211,7 @@ public sealed class InstanceServiceTests
         StubDataPath(Data, FileA);
         _preflight.CheckLinkTo(Data).Returns("The folder is on a different drive than storage.");
 
-        var result = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Move));
+        var result = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Move), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("Can't reclaim space");
@@ -226,11 +228,11 @@ public sealed class InstanceServiceTests
         var confirm = true;
         _dialogs.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(_ => confirm);
 
-        var proceed = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Copy));
+        var proceed = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Copy), ct: TestContext.Current.CancellationToken);
         proceed.Success.Should().BeTrue();
 
         confirm = false;
-        var declined = await CreateService().CreateInstanceAsync(new("inst2", Data, CopyMoveMode.Copy));
+        var declined = await CreateService().CreateInstanceAsync(new("inst2", Data, CopyMoveMode.Copy), ct: TestContext.Current.CancellationToken);
         declined.Success.Should().BeFalse();
         declined.Error.Should().BeNull();
 
@@ -244,7 +246,7 @@ public sealed class InstanceServiceTests
         StubDataPath(Data, FileA);
         _driveInfo.GetAvailableFreeSpace(Data).Returns(10L);
 
-        var result = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Move));
+        var result = await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Move), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeTrue();
         _driveInfo.DidNotReceiveWithAnyArgs().GetAvailableFreeSpace(default!);
@@ -258,7 +260,7 @@ public sealed class InstanceServiceTests
         Instance? saved = null;
         _repository.SaveAsync(Arg.Do<Instance>(i => saved = i), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Copy));
+        await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Copy), ct: TestContext.Current.CancellationToken);
 
         saved.Should().NotBeNull();
         saved!.FileList.Should().HaveCount(2);
@@ -280,7 +282,7 @@ public sealed class InstanceServiceTests
         Instance? saved = null;
         _repository.SaveAsync(Arg.Do<Instance>(i => saved = i), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Copy));
+        await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Copy), ct: TestContext.Current.CancellationToken);
 
         saved.Should().NotBeNull();
         // Directories that contain no files must still be recorded (v2 parity).
@@ -300,7 +302,7 @@ public sealed class InstanceServiceTests
         var status = new SynchronousProgress<string>(s => { lock (progressLock) statuses.Add(s); });
         var percent = new SynchronousProgress<double>(p => lastPercent = p);
 
-        await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Copy), log, percent, status);
+        await CreateService().CreateInstanceAsync(new("inst", Data, CopyMoveMode.Copy), log, percent, status, TestContext.Current.CancellationToken);
 
         logs.Should().Contain(m => m.StartsWith("Hashing ", StringComparison.Ordinal));      // header
         statuses.Should().Contain(m => m.StartsWith("Hashed ", StringComparison.Ordinal));   // per-file completion
@@ -341,7 +343,8 @@ public sealed class InstanceServiceTests
             });
 
         var result = await CreateService().CreateInstanceAsync(
-            new("inst", Data, CopyMoveMode.Copy, MaxDegreeOfParallelism: 1));
+            new("inst", Data, CopyMoveMode.Copy, MaxDegreeOfParallelism: 1),
+            ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeTrue();
         maxActive.Should().Be(1);

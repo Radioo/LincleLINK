@@ -1,9 +1,11 @@
 using FluentAssertions;
 using LincleLINK.App.Abstractions;
+using LincleLINK.App.Tests.TestHelpers;
 using LincleLINK.App.ViewModels;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Disk;
 using LincleLINK.Core.Abstractions.Filesystem;
+using LincleLINK.Core.Abstractions.Games;
 using LincleLINK.Core.Abstractions.Hashing;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Linking;
@@ -33,11 +35,12 @@ public sealed class AddInstanceViewModelTests
     private readonly ITaskbarProgress _taskbarProgress = Substitute.For<ITaskbarProgress>();
 
     private readonly IHardLinkPreflight _preflight = Substitute.For<IHardLinkPreflight>();
+    private readonly IGameVersionDetector _detector = Substitute.For<IGameVersionDetector>();
 
     private AddInstanceViewModel Create() =>
         new(
-            new InstanceService(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, NullLogger<InstanceService>.Instance),
-            _dialogs, _taskbarProgress, _fs, _preflight, NullLogger<AddInstanceViewModel>.Instance);
+            new InstanceService(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, _detector, NullLogger<InstanceService>.Instance),
+            _dialogs, _taskbarProgress, _fs, _preflight, NullLogger<AddInstanceViewModel>.Instance, _detector);
 
     private void StubDataPath()
     {
@@ -151,11 +154,8 @@ public sealed class AddInstanceViewModelTests
         var vm = Create();
         vm.DataPath = Data;
 
-        // The analysis runs in the background; poll briefly for its completion.
-        for (var i = 0; i < 100 && vm.ReclaimAvailable; i++)
-        {
-            await Task.Delay(10);
-        }
+        // The analysis runs in the background; wait for its outcome.
+        await AsyncWaits.AwaitUntilAsync(() => !vm.ReclaimAvailable);
 
         vm.ReclaimAvailable.Should().BeFalse();
         vm.CrossVolumeReason.Should().Contain("different drive");

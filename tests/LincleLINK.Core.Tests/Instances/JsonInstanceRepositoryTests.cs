@@ -21,9 +21,9 @@ public sealed class JsonInstanceRepositoryTests : InstanceRepositoryContractTest
             [new InstanceFile("25063_pre.2dx", @"sound\25063", 463806, "7AFE6AC1B80128D44BA5357D4349B21A.2dx")],
             [@"sound\25063"]);
 
-        await repo.SaveAsync(instance);
+        await repo.SaveAsync(instance, TestContext.Current.CancellationToken);
 
-        var written = await File.ReadAllTextAsync(Path.Combine(Paths.InstanceDirectory, "IIDX28.json"));
+        var written = await File.ReadAllTextAsync(Path.Combine(Paths.InstanceDirectory, "IIDX28.json"), TestContext.Current.CancellationToken);
         Compact(written).Should().Be(Compact(TestData.V2InstanceJson));
     }
 
@@ -31,10 +31,10 @@ public sealed class JsonInstanceRepositoryTests : InstanceRepositoryContractTest
     public async Task Get_roundtrips_v2_fixture_from_disk()
     {
         Directory.CreateDirectory(Paths.InstanceDirectory);
-        await File.WriteAllTextAsync(Path.Combine(Paths.InstanceDirectory, "IIDX28.json"), TestData.V2InstanceJson);
+        await File.WriteAllTextAsync(Path.Combine(Paths.InstanceDirectory, "IIDX28.json"), TestData.V2InstanceJson, TestContext.Current.CancellationToken);
         var repo = (JsonInstanceRepository)CreateRepository();
 
-        var loaded = await repo.GetAsync("IIDX28");
+        var loaded = await repo.GetAsync("IIDX28", TestContext.Current.CancellationToken);
 
         loaded.Should().NotBeNull();
         loaded!.InstanceName.Should().Be("IIDX28");
@@ -48,10 +48,10 @@ public sealed class JsonInstanceRepositoryTests : InstanceRepositoryContractTest
         Directory.CreateDirectory(Paths.InstanceDirectory);
         await File.WriteAllTextAsync(
             Path.Combine(Paths.InstanceDirectory, "minimal.json"),
-            """{ "Name": "minimal", "TotalFileSize": 0, "TotalFileCount": 0, "TotalFileSizeString": "0 B" }""");
+            """{ "Name": "minimal", "TotalFileSize": 0, "TotalFileCount": 0, "TotalFileSizeString": "0 B" }""", TestContext.Current.CancellationToken);
         var repo = (JsonInstanceRepository)CreateRepository();
 
-        var loaded = await repo.GetAsync("minimal");
+        var loaded = await repo.GetAsync("minimal", TestContext.Current.CancellationToken);
 
         loaded.Should().NotBeNull();
         loaded!.FileList.Should().BeEmpty();
@@ -62,7 +62,7 @@ public sealed class JsonInstanceRepositoryTests : InstanceRepositoryContractTest
     public async Task Corrupt_json_throws_InstanceStorageException()
     {
         Directory.CreateDirectory(Paths.InstanceDirectory);
-        await File.WriteAllTextAsync(Path.Combine(Paths.InstanceDirectory, "bad.json"), "{ this is not json");
+        await File.WriteAllTextAsync(Path.Combine(Paths.InstanceDirectory, "bad.json"), "{ this is not json", TestContext.Current.CancellationToken);
         var repo = (JsonInstanceRepository)CreateRepository();
 
         var act = () => repo.GetAsync("bad");
@@ -75,7 +75,7 @@ public sealed class JsonInstanceRepositoryTests : InstanceRepositoryContractTest
         Directory.CreateDirectory(Paths.InstanceDirectory);
         await File.WriteAllTextAsync(
             Path.Combine(Paths.InstanceDirectory, "nullname.json"),
-            """{ "Name": null, "TotalFileSize": 0, "TotalFileCount": 0, "TotalFileSizeString": "0 B" }""");
+            """{ "Name": null, "TotalFileSize": 0, "TotalFileCount": 0, "TotalFileSizeString": "0 B" }""", TestContext.Current.CancellationToken);
         var repo = (JsonInstanceRepository)CreateRepository();
 
         var act = () => repo.GetAsync("nullname");

@@ -16,7 +16,7 @@ public sealed class Md5FileHasherTests : IDisposable
     {
         var path = _temp.CreateFile("hello.txt", "hello world"u8.ToArray());
 
-        var hash = await new Md5FileHasher().ComputeHashAsync(path);
+        var hash = await new Md5FileHasher().ComputeHashAsync(path, TestContext.Current.CancellationToken);
 
         hash.Should().Be("5EB63BBBE01EEED093CB22BB8F5ACDC3");
     }
@@ -26,7 +26,7 @@ public sealed class Md5FileHasherTests : IDisposable
     {
         var path = _temp.CreateFile("data.bin", [0x00, 0x01, 0xFE, 0xFF]);
 
-        var hash = await new Md5FileHasher().ComputeHashAsync(path);
+        var hash = await new Md5FileHasher().ComputeHashAsync(path, TestContext.Current.CancellationToken);
 
         hash.Should().MatchRegex("^[0-9A-F]{32}$");
     }

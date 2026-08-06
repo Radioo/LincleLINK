@@ -55,7 +55,8 @@ public sealed class HardLinkPreflight : IHardLinkPreflight
         }
     }
 
-    private static void TryDelete(string path)
+    /// <summary>Best-effort probe cleanup (internal for direct testing of the swallow path).</summary>
+    internal static void TryDelete(string path)
     {
         try
         {

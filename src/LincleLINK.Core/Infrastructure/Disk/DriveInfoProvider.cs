@@ -15,12 +15,20 @@ public sealed class DriveInfoProvider : IDriveInfoProvider
         return drive.AvailableFreeSpace;
     }
 
-    private static DriveInfo ResolveDrive(string path)
+    /// <summary>Resolves the DriveInfo backing <paramref name="path"/> (extracted for testability).</summary>
+    internal static DriveInfo ResolveDrive(string path)
+        => ResolveDrive(path, () => Path.GetPathRoot(Environment.CurrentDirectory));
+
+    /// <summary>
+    /// Resolution core with an injectable fallback root, so the "no root" guard is
+    /// unit-testable on any host (the current-directory fallback can never be null).
+    /// </summary>
+    internal static DriveInfo ResolveDrive(string path, Func<string?> fallbackRoot)
     {
         var root = Path.GetPathRoot(path);
         if (string.IsNullOrEmpty(root))
         {
-            root = Path.GetPathRoot(Environment.CurrentDirectory);
+            root = fallbackRoot();
         }
 
         if (root is null)

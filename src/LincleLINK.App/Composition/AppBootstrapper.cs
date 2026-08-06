@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using LincleLINK.App.Abstractions;
+using LincleLINK.App.Logos;
 using LincleLINK.App.Services;
 using LincleLINK.App.Services.Taskbar;
 using LincleLINK.App.ViewModels;
@@ -72,6 +73,7 @@ public static class AppBootstrapper
         var services = new ServiceCollection();
         services.AddLincleLINKCore();
         services.AddSingleton<IAppPaths>(paths);
+        services.AddSingleton<LogoCatalog>();
 
         RegisterSharedServices(services, settingsFile, ownerProvider);
 

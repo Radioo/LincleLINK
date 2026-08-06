@@ -46,7 +46,7 @@ public sealed class TorrentServiceTests
             .Returns(TorrentTestFactory.BuildTorrentData(4, Files));
         _repository.GetAsync("inst", Arg.Any<CancellationToken>()).Returns(SampleInstance());
 
-        var result = await CreateService().CheckFilesAsync(new TorrentCheckRequest("inst", "x.torrent", "data"));
+        var result = await CreateService().CheckFilesAsync(new TorrentCheckRequest("inst", "x.torrent", "data"), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeTrue();
         result.Matched.Should().Be(2);
@@ -65,7 +65,7 @@ public sealed class TorrentServiceTests
             .Returns(TorrentTestFactory.BuildTorrentData(4, files));
         _repository.GetAsync("inst", Arg.Any<CancellationToken>()).Returns(SampleInstance());
 
-        var result = await CreateService().CheckFilesAsync(new TorrentCheckRequest("inst", "x.torrent", "data"));
+        var result = await CreateService().CheckFilesAsync(new TorrentCheckRequest("inst", "x.torrent", "data"), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeTrue();
         result.Matched.Should().Be(1);
@@ -79,7 +79,7 @@ public sealed class TorrentServiceTests
             .Returns(TorrentTestFactory.BuildTorrentData(4, Files));
         _repository.GetAsync("inst", Arg.Any<CancellationToken>()).Returns(SampleInstance());
 
-        var result = await CreateService().CheckFilesAsync(new TorrentCheckRequest("inst", "x.torrent", "wrong"));
+        var result = await CreateService().CheckFilesAsync(new TorrentCheckRequest("inst", "x.torrent", "wrong"), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeTrue();
         result.Matched.Should().Be(0);
@@ -91,7 +91,7 @@ public sealed class TorrentServiceTests
         _source.LoadAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns<TorrentData>(_ => throw new TorrentNotSupportedException("no v2"));
 
-        var result = await CreateService().CheckFilesAsync(new TorrentCheckRequest("inst", "x.torrent", "data"));
+        var result = await CreateService().CheckFilesAsync(new TorrentCheckRequest("inst", "x.torrent", "data"), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("v2");
@@ -109,7 +109,7 @@ public sealed class TorrentServiceTests
         _fs.OpenRead("C:\\db\\AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin").Returns(_ => new MemoryStream(Files[0].Item2));
         _fs.OpenRead("C:\\db\\BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.bin").Returns(_ => new MemoryStream(Files[1].Item2));
 
-        var result = await CreateService().CheckPiecesAsync(new TorrentCheckRequest("inst", "x.torrent", "data"));
+        var result = await CreateService().CheckPiecesAsync(new TorrentCheckRequest("inst", "x.torrent", "data"), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeTrue();
         result.PieceCountMismatch.Should().BeFalse();
@@ -138,7 +138,8 @@ public sealed class TorrentServiceTests
         _store.GetPath(Arg.Any<string>()).Returns(x => "C:\\db\\" + x[0]);
 
         var result = await CreateService().LinkToTorrentAsync(
-            new LinkToTorrentRequest("C:\\dl", files, [1]));
+            new LinkToTorrentRequest("C:\\dl", files, [1]),
+            ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeTrue();
         result.Linked.Should().Be(1); // only a.bin (clean piece 0)
@@ -151,7 +152,7 @@ public sealed class TorrentServiceTests
     [Fact]
     public async Task LinkToTorrent_empty_download_path_is_error()
     {
-        var result = await CreateService().LinkToTorrentAsync(new LinkToTorrentRequest("", [], []));
+        var result = await CreateService().LinkToTorrentAsync(new LinkToTorrentRequest("", [], []), ct: TestContext.Current.CancellationToken);
         result.Success.Should().BeFalse();
         result.Error.Should().NotBeNullOrEmpty();
     }

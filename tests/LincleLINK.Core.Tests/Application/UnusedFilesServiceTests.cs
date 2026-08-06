@@ -25,7 +25,7 @@ public sealed class UnusedFilesServiceTests
         _repository.GetAllHashedFileNamesAsync(Arg.Any<CancellationToken>())
             .Returns(["AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin"]);
 
-        var result = await CreateService().CheckAndDeleteAsync(threadCount: 4);
+        var result = await CreateService().CheckAndDeleteAsync(threadCount: 4, ct: TestContext.Current.CancellationToken);
 
         await _dialogs.Received(1).InfoAsync(Arg.Any<string>(), Arg.Any<string>());
         result.Found.Should().Be(0);
@@ -42,7 +42,7 @@ public sealed class UnusedFilesServiceTests
         _store.GetSize("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.bin").Returns(2048);
         _dialogs.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
 
-        var result = await CreateService().CheckAndDeleteAsync(threadCount: 4);
+        var result = await CreateService().CheckAndDeleteAsync(threadCount: 4, ct: TestContext.Current.CancellationToken);
 
         result.Found.Should().Be(1);
         result.Deleted.Should().Be(1);
@@ -61,7 +61,7 @@ public sealed class UnusedFilesServiceTests
         _repository.GetAllHashedFileNamesAsync(Arg.Any<CancellationToken>()).Returns([]);
         _dialogs.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
 
-        var result = await CreateService().CheckAndDeleteAsync(threadCount: 4);
+        var result = await CreateService().CheckAndDeleteAsync(threadCount: 4, ct: TestContext.Current.CancellationToken);
 
         result.Cancelled.Should().BeTrue();
         result.Found.Should().Be(1);

@@ -44,4 +44,6 @@ public interface IInstanceRepository
     /// <see cref="SaveAsync"/> (SQLite inserts without change tracking).
     /// </summary>
     Task BulkInsertAsync(IReadOnlyList<Instance> instances, CancellationToken ct = default);
+
+    Task SetCustomLogoAsync(string name, string? logoSource, CancellationToken ct = default);
 }

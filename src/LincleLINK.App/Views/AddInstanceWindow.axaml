@@ -34,6 +34,20 @@
                            Opacity="0.6" FontSize="12"
                            IsVisible="{Binding EstimatedSizeText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
             </StackPanel>
+            <Border Background="{DynamicResource LLAccentSoft}" CornerRadius="6" Padding="8,6"
+                    IsVisible="{Binding IsGameRootDetected}" Margin="0,4,0,0">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="That's the full game folder" FontWeight="SemiBold" FontSize="12" />
+                    <TextBlock Text="Config files inside a full game folder shouldn't be linked — use just the data folder instead."
+                               FontSize="11.5" Opacity="0.8" TextWrapping="Wrap" />
+                    <Button Content="Switch to data folder" FontSize="11" Padding="8,3"
+                            Command="{Binding SwitchToDataFolderCommand}"
+                            ToolTip.Tip="{Binding DataFolderHint}" />
+                </StackPanel>
+            </Border>
+            <TextBlock Text="{Binding DetectedGameText}"
+                       IsVisible="{Binding DetectedGameText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                       Opacity="0.7" FontSize="12" FontStyle="Italic" Margin="0,2,0,0" /> 
         </StackPanel>
 
         <StackPanel Grid.Row="3" Spacing="8" Margin="0,12,0,0" IsEnabled="{Binding !IsBusy}">

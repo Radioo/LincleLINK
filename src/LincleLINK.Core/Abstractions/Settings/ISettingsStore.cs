@@ -12,13 +12,21 @@ public enum AppTheme
 /// App settings stored in the per-OS config directory (never in the data dir).
 /// <c>DataDirectory</c> null means "current working directory".
 /// <c>HashThreadCount</c> bounds the parallel hashing workers used by add-instance.
+/// <c>ViewMode</c> is the persisted library list/grid choice.
 /// <c>SaveLogToFile</c> opts into the on-disk diagnostic log (issue #17); default off.
 /// </summary>
 public sealed record AppSettings(
     AppTheme Theme,
     string? DataDirectory,
     int HashThreadCount,
+    LibraryViewMode ViewMode = LibraryViewMode.List,
     bool SaveLogToFile = false);
+
+public enum LibraryViewMode
+{
+    List,
+    Grid,
+}
 
 public interface ISettingsStore
 {

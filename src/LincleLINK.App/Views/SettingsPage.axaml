@@ -1,0 +1,81 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LincleLINK.App.ViewModels"
+             x:Class="LincleLINK.App.Views.SettingsPage"
+             x:DataType="vm:MainViewModel">
+    <ScrollViewer>
+        <StackPanel Spacing="12">
+            <TextBlock Text="Settings" FontSize="19" FontWeight="Bold" />
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="12">
+
+                <Border Grid.Row="0" Grid.Column="0" Background="{DynamicResource LLCard}"
+                        BorderBrush="{DynamicResource LLHairline}" BorderThickness="1" CornerRadius="8" Padding="14">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Appearance" FontWeight="SemiBold" FontSize="13.5" />
+                        <TextBlock Text="Theme follows your system by default" Opacity="0.6" FontSize="11.5" />
+                        <StackPanel Orientation="Horizontal" Spacing="14">
+                            <RadioButton Content="Light" GroupName="theme" IsChecked="{Binding IsLightTheme, Mode=TwoWay}" />
+                            <RadioButton Content="Dark" GroupName="theme" IsChecked="{Binding IsDarkTheme, Mode=TwoWay}" />
+                            <RadioButton Content="System" GroupName="theme" IsChecked="{Binding IsSystemTheme, Mode=TwoWay}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="0" Grid.Column="1" Background="{DynamicResource LLCard}"
+                        BorderBrush="{DynamicResource LLHairline}" BorderThickness="1" CornerRadius="8" Padding="14">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Performance" FontWeight="SemiBold" FontSize="13.5" />
+                        <TextBlock Text="Worker threads for hashing and storage cleanup" Opacity="0.6" FontSize="11.5" />
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <Slider Grid.Column="0" Minimum="1" Maximum="{Binding MaxThreadCount}"
+                                    Value="{Binding ThreadCount, Mode=TwoWay}" />
+                            <TextBlock Grid.Column="1" Text="{Binding ThreadCount}" VerticalAlignment="Center"
+                                       MinWidth="24" TextAlignment="Right" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="1" Grid.Column="0" Background="{DynamicResource LLCard}"
+                        BorderBrush="{DynamicResource LLHairline}" BorderThickness="1" CornerRadius="8" Padding="14">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Data location" FontWeight="SemiBold" FontSize="13.5" />
+                        <TextBlock Text="Where storage (db) and the library database live" Opacity="0.6" FontSize="11.5" />
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <TextBox Grid.Column="0" Text="{Binding DataDirectory}" IsReadOnly="True" />
+                            <Button Grid.Column="1" Content="Change..." Command="{Binding ChangeDataDirectoryCommand}" />
+                        </Grid>
+                        <TextBlock Text="Takes effect after restarting LincleLINK"
+                                   Foreground="{DynamicResource LLWarning}" FontSize="11.5"
+                                   IsVisible="{Binding DataDirectoryChangePending}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="1" Grid.Column="1" Background="{DynamicResource LLCard}"
+                        BorderBrush="{DynamicResource LLHairline}" BorderThickness="1" CornerRadius="8" Padding="14">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Import from LincleLINK v1" FontWeight="SemiBold" FontSize="13.5" />
+                        <TextBlock Text="Bring in a legacy DBInfo.xml library list" Opacity="0.6" FontSize="11.5" />
+                        <Button Content="Import DBInfo.xml..." Command="{Binding ImportLegacyCommand}"
+                                HorizontalAlignment="Left" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="2" Grid.ColumnSpan="2" Background="{DynamicResource LLCard}"
+                        BorderBrush="{DynamicResource LLHairline}" BorderThickness="1" CornerRadius="8" Padding="14">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Diagnostics" FontWeight="SemiBold" FontSize="13.5" />
+                        <TextBlock Text="Save the diagnostic log to a file, one per day. Daily files, last 14 kept, 10 MB each."
+                                   Opacity="0.6" FontSize="11.5" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <ToggleSwitch IsChecked="{Binding SaveLogToFile, Mode=TwoWay}" VerticalAlignment="Center" />
+                            <TextBlock Text="Save diagnostic log to file" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding LogDirectory}" Opacity="0.6" FontSize="11.5" TextWrapping="Wrap" />
+                        <Button Content="Open log folder" Command="{Binding OpenLogFolderCommand}"
+                                HorizontalAlignment="Left" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -25,13 +25,15 @@ public sealed class JsonSettingsStore : ISettingsStore
     /// <summary>
     /// On-disk shape, tolerant of older files: v2/early-v3 stored a
     /// <c>IsDarkTheme</c> bool instead of the <c>Theme</c> enum, and files written
-    /// before issue #17 have no <c>SaveLogToFile</c> (loads as false).
+    /// before #17 have no <c>SaveLogToFile</c> (loads as false) and pre-icon-work
+    /// files have no <c>ViewMode</c> (loads as List).
     /// </summary>
     private sealed record PersistedSettings(
         AppTheme? Theme,
         bool? IsDarkTheme,
         string? DataDirectory,
         int? HashThreadCount,
+        LibraryViewMode? ViewMode,
         bool? SaveLogToFile);
 
     public JsonSettingsStore(string settingsFile)
@@ -74,6 +76,7 @@ public sealed class JsonSettingsStore : ISettingsStore
                 },
                 persisted.DataDirectory,
                 persisted.HashThreadCount ?? Environment.ProcessorCount,
+                persisted.ViewMode ?? LibraryViewMode.List,
                 persisted.SaveLogToFile ?? false));
         }
         catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException)

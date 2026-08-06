@@ -1,6 +1,7 @@
 using FluentAssertions;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Disk;
+using LincleLINK.Core.Abstractions.Games;
 using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
@@ -49,7 +50,7 @@ public sealed class InstanceServiceIntegrationTests : IDisposable
         var dataPath = Path.Combine(_temp.Root, "source");
         Directory.CreateDirectory(dataPath);
         var sourceFile = Path.Combine(dataPath, "a.bin");
-        await File.WriteAllBytesAsync(sourceFile, [1, 2, 3, 4]);
+        await File.WriteAllBytesAsync(sourceFile, [1, 2, 3, 4], TestContext.Current.CancellationToken);
 
         var paths = new AppPaths(Path.Combine(_temp.Root, "data"));
         var service = new InstanceService(
@@ -61,15 +62,16 @@ public sealed class InstanceServiceIntegrationTests : IDisposable
             new JsonInstanceRepository(paths),
             Substitute.For<IDriveInfoProvider>(),
             Substitute.For<IDialogService>(),
+            Substitute.For<IGameVersionDetector>(),
             NullLogger<InstanceService>.Instance);
 
-        var result = await service.CreateInstanceAsync(new AddInstanceRequest("inst", dataPath, CopyMoveMode.Move));
+        var result = await service.CreateInstanceAsync(new AddInstanceRequest("inst", dataPath, CopyMoveMode.Move), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeTrue();
         result.FilesAdded.Should().Be(1);
         result.BytesAdded.Should().Be(4);
 
-        var storeName = await new Md5FileHasher().ComputeHashAsync(sourceFile);
+        var storeName = await new Md5FileHasher().ComputeHashAsync(sourceFile, TestContext.Current.CancellationToken);
         storeName = storeName + Path.GetExtension(sourceFile);
 
         // The db has the hashed copy AND the original path still works (hard link back).
@@ -78,7 +80,7 @@ public sealed class InstanceServiceIntegrationTests : IDisposable
         File.ReadAllBytes(sourceFile).Should().Equal(1, 2, 3, 4);
 
         // Instance manifest saved and readable.
-        var loaded = await new JsonInstanceRepository(paths).GetAsync("inst");
+        var loaded = await new JsonInstanceRepository(paths).GetAsync("inst", TestContext.Current.CancellationToken);
         loaded.Should().NotBeNull();
         loaded!.FileList.Should().ContainSingle(f => f.FileName == "a.bin");
     }
@@ -95,7 +97,7 @@ public sealed class InstanceServiceIntegrationTests : IDisposable
         var nested = Path.Combine(dataPath, "sub", "nested");
         Directory.CreateDirectory(nested);
         var sourceFile = Path.Combine(dataPath, "a.bin");
-        await File.WriteAllBytesAsync(sourceFile, [1, 2, 3, 4]);
+        await File.WriteAllBytesAsync(sourceFile, [1, 2, 3, 4], TestContext.Current.CancellationToken);
 
         var paths = new AppPaths(Path.Combine(_temp.Root, "data"));
         var driveInfo = Substitute.For<IDriveInfoProvider>();
@@ -109,13 +111,14 @@ public sealed class InstanceServiceIntegrationTests : IDisposable
             new JsonInstanceRepository(paths),
             driveInfo,
             Substitute.For<IDialogService>(),
+            Substitute.For<IGameVersionDetector>(),
             NullLogger<InstanceService>.Instance);
 
-        var result = await service.CreateInstanceAsync(new AddInstanceRequest("inst", dataPath, CopyMoveMode.Copy));
+        var result = await service.CreateInstanceAsync(new AddInstanceRequest("inst", dataPath, CopyMoveMode.Copy), ct: TestContext.Current.CancellationToken);
 
         result.Success.Should().BeTrue();
 
-        var loaded = await new JsonInstanceRepository(paths).GetAsync("inst");
+        var loaded = await new JsonInstanceRepository(paths).GetAsync("inst", TestContext.Current.CancellationToken);
         loaded.Should().NotBeNull();
         loaded!.DirectoryList.Should().Contain(Path.Combine("empty"));
         loaded.DirectoryList.Should().Contain(Path.Combine("sub", "nested"));

@@ -3,14 +3,17 @@ using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LincleLINK.App.Abstractions;
+using LincleLINK.App.Logos;
 using LincleLINK.App.Services;
 using LincleLINK.App.ViewModels.Base;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Linking;
+using LincleLINK.Core.Abstractions.Paths;
 using LincleLINK.Core.Abstractions.Settings;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
+using LincleLINK.Core.Infrastructure.Collections;
 using Microsoft.Extensions.Logging;
 
 namespace LincleLINK.App.ViewModels;
@@ -35,6 +38,11 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     private readonly Func<AddInstanceViewModel> _addInstanceFactory;
     private readonly ILogger<MainViewModel> _logger;
     private readonly DiagnosticLogOptions _logOptions;
+    private readonly LogoCatalog _logoCatalog;
+    private readonly IAppPaths _paths;
+
+    /// <summary>Logo key → index in the built-in catalog, i.e. the supported-list order.</summary>
+    private readonly Dictionary<string, int> _logoOrder;
 
     public ObservableCollection<InstanceListEntry> Instances { get; } = [];
 
@@ -77,7 +85,11 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         nameof(CopyHashedCommand))]
     private InstanceListEntry? _selectedInstance;
 
-    partial void OnSelectedInstanceChanged(InstanceListEntry? value) => _ = LoadUniqueSizeAsync(value);
+    partial void OnSelectedInstanceChanged(InstanceListEntry? value)
+    {
+        _ = LoadUniqueSizeAsync(value);
+        SelectedLogoUri = value?.LogoUri;
+    }
 
     [ObservableProperty]
     private string _filterText = string.Empty;
@@ -87,6 +99,20 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     /// <summary>Inspector figure: bytes referenced by the selection and no other entry.</summary>
     [ObservableProperty]
     private string _selectedUniqueSizeText = string.Empty;
+
+    [ObservableProperty]
+    private bool _isGridView;
+
+    [ObservableProperty]
+    private string? _selectedLogoUri;
+
+    public ObservableCollection<LogoEntry> AvailableLogos { get; } = [];
+
+    [ObservableProperty]
+    private bool _isLogoPickerOpen;
+
+    partial void OnIsGridViewChanged(bool value) =>
+        SaveSettings(viewMode: value ? LibraryViewMode.Grid : LibraryViewMode.List);
 
     // ── slide-over add flow ────────────────────────────────────────────────
 
@@ -207,6 +233,82 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     [RelayCommand]
     private void ToggleLog() => IsLogOpen = !IsLogOpen;
 
+    [RelayCommand]
+    private void ToggleViewMode() => IsGridView = !IsGridView;
+
+    [RelayCommand]
+    private void OpenLogoPicker()
+    {
+        AvailableLogos.Clear();
+        foreach (var logo in _logoCatalog.AllLogos)
+        {
+            AvailableLogos.Add(logo);
+        }
+
+        IsLogoPickerOpen = true;
+    }
+
+    [RelayCommand]
+    private void CloseLogoPicker() => IsLogoPickerOpen = false;
+
+    [RelayCommand]
+    private async Task SetCustomLogo(LogoEntry? logo)
+    {
+        IsLogoPickerOpen = false;
+
+        if (SelectedInstance is null) return;
+
+        try
+        {
+            var name = SelectedInstance.InstanceName;
+
+            if (logo is null)
+            {
+                // reset to auto
+                LogoCatalog.DeleteCustomLogo(_paths.DataDirectory, name.ToLowerInvariant());
+                await _repository.SetCustomLogoAsync(name, null);
+            }
+            else
+            {
+                await _repository.SetCustomLogoAsync(name, logo.LogoKey);
+            }
+
+            await RefreshInstancesAsync();
+        }
+        catch (Exception ex)
+        {
+            // A locked custom-logo file or a failed DB write must not take the
+            // process down on the UI context; degrade and log instead.
+            LogLines.Add($"Could not change the logo: {ex.Message}");
+            ReportOutcome($"⚠ Could not change the logo", isWarning: true);
+        }
+    }
+
+    [RelayCommand]
+    private async Task SetCustomImageAsync()
+    {
+        IsLogoPickerOpen = false;
+
+        if (SelectedInstance is null) return;
+
+        try
+        {
+            var name = SelectedInstance.InstanceName;
+            var picked = await _dialogs.PickOpenFileAsync("Select image", new Core.Abstractions.Dialogs.FileType("Images", ["*.png", "*.jpg", "*.jpeg"]));
+            if (picked is null) return;
+
+            LogoCatalog.SaveCustomLogo(_paths.DataDirectory, name.ToLowerInvariant(), picked);
+            await _repository.SetCustomLogoAsync(name, "custom");
+
+            await RefreshInstancesAsync();
+        }
+        catch (Exception ex)
+        {
+            LogLines.Add($"Could not set the custom image: {ex.Message}");
+            ReportOutcome($"⚠ Could not set the custom image", isWarning: true);
+        }
+    }
+
     private CancellationTokenSource? _operationCts;
 
     public MainViewModel(
@@ -224,7 +326,9 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         IHardLinkPreflight hardLinkPreflight,
         Func<AddInstanceViewModel> addInstanceFactory,
         ILogger<MainViewModel> logger,
-        DiagnosticLogOptions logOptions)
+        DiagnosticLogOptions logOptions,
+        LogoCatalog logoCatalog,
+        IAppPaths paths)
     {
         _instanceService = instanceService;
         _linkingService = linkingService;
@@ -239,6 +343,15 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         _addInstanceFactory = addInstanceFactory;
         _logger = logger;
         _logOptions = logOptions;
+        _logoCatalog = logoCatalog;
+        _paths = paths;
+
+        _logoOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < logoCatalog.AllLogos.Count; i++)
+        {
+            _logoOrder[logoCatalog.AllLogos[i].LogoKey] = i;
+        }
+
         TorrentCheck = new TorrentCheckViewModel(torrentService, dialogs, hardLinkPreflight, this);
     }
 
@@ -256,13 +369,16 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
 
         _initialized = true;
 
-        // Seed the diagnostics toggle from persisted settings without the user-flip
-        // side effects (Program.Main already set the live switch and wrote the header).
-        var persisted = _settingsStore.Load();
-        if (persisted is not null)
+        var settings = _settingsStore.Load();
+        if (settings is not null)
         {
+            // Seed the library view mode from persisted settings.
+            IsGridView = settings.ViewMode == LibraryViewMode.Grid;
+
+            // Seed the diagnostics toggle from persisted settings without the
+            // user-flip side effects (Program.Main already set the live switch).
             _seedingSaveLogToFile = true;
-            SaveLogToFile = persisted.SaveLogToFile;
+            SaveLogToFile = settings.SaveLogToFile;
         }
 
         await RefreshAllAsync();
@@ -329,6 +445,17 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         var result = await _instanceService.DeleteInstanceAsync(instanceName);
         if (result.Deleted)
         {
+            // A removed instance must not orphan its custom logo, or a future
+            // same-named instance would inherit the wrong image.
+            try
+            {
+                LogoCatalog.DeleteCustomLogo(_paths.DataDirectory, instanceName.ToLowerInvariant());
+            }
+            catch (Exception ex)
+            {
+                AddLogLine($"Could not remove the custom logo for {instanceName}: {ex.Message}");
+            }
+
             AddLogLine($"Removed {instanceName} from the library (its files stay in storage).");
             ReportOutcome($"✓ Removed {instanceName} from the library");
         }
@@ -613,13 +740,14 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     /// Persists a single setting change, preserving the other fields from the
     /// currently stored settings so startup seeding never clobbers them.
     /// </summary>
-    private void SaveSettings(AppTheme? theme = null, int? threads = null, string? dataDirectory = null, bool? saveLogToFile = null)
+    private void SaveSettings(AppTheme? theme = null, int? threads = null, string? dataDirectory = null, LibraryViewMode? viewMode = null, bool? saveLogToFile = null)
     {
         var current = _settingsStore.Load();
         _settingsStore.Save(new AppSettings(
             theme ?? current.Theme,
             dataDirectory ?? current.DataDirectory,
             threads ?? current.HashThreadCount,
+            viewMode ?? current.ViewMode,
             saveLogToFile ?? current.SaveLogToFile));
     }
 
@@ -636,9 +764,12 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         var selectedName = SelectedInstance?.InstanceName;
 
         Instances.Clear();
-        foreach (var summary in all)
+        foreach (var summary in all
+                     .OrderBy(LogoSortTier)
+                     .ThenBy(LogoCatalogIndex)
+                     .ThenBy(e => e.InstanceName, NaturalStringComparer.Instance))
         {
-            Instances.Add(summary);
+            Instances.Add(summary with { LogoUri = ResolveLogoPath(summary) });
         }
 
         ApplyFilter();
@@ -650,6 +781,64 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         }
 
         AddLogLine(LogMessages.LibraryRefreshed);
+    }
+
+    /// <summary>
+    /// The logo key an entry is shown with (custom image, picked logo, or the
+    /// auto-detected one), matching <see cref="ResolveLogoPath"/>.
+    /// </summary>
+    private static string? EffectiveLogoKey(InstanceListEntry entry)
+    {
+        if (entry.CustomLogoSource == "custom")
+        {
+            return null;
+        }
+
+        if (entry.CustomLogoSource is { } customKey)
+        {
+            return customKey;
+        }
+
+        return entry.DetectedGame?.LogoKey;
+    }
+
+    /// <summary>0 for entries whose logo is in the built-in catalog, 1 otherwise.</summary>
+    private int LogoSortTier(InstanceListEntry entry)
+        => EffectiveLogoKey(entry) is { } key && _logoOrder.ContainsKey(key) ? 0 : 1;
+
+    /// <summary>Index of the entry's logo in the built-in catalog (int.MaxValue when unknown).</summary>
+    private int LogoCatalogIndex(InstanceListEntry entry)
+    {
+        if (EffectiveLogoKey(entry) is { } key && _logoOrder.TryGetValue(key, out var index))
+        {
+            return index;
+        }
+
+        return int.MaxValue;
+    }
+
+    private string? ResolveLogoPath(InstanceListEntry entry)
+    {
+        var key = entry.CustomLogoSource;
+        if (key == "custom")
+        {
+            var file = LogoCatalog.GetCustomLogoFilePath(_paths.DataDirectory, entry.InstanceName.ToLowerInvariant());
+            if (file is not null) return file;
+            return null;
+        }
+
+        if (key is not null)
+        {
+            return _logoCatalog.GetLogoPath(key);
+        }
+
+        var detected = entry.DetectedGame?.LogoKey;
+        if (detected is not null)
+        {
+            return _logoCatalog.GetLogoPath(detected);
+        }
+
+        return null;
     }
 
     private void ApplyFilter()
