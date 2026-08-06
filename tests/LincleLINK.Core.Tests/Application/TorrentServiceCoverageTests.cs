@@ -9,6 +9,7 @@ using LincleLINK.Core.Application.Torrents;
 using LincleLINK.Core.Domain;
 using LincleLINK.Core.Domain.Torrents;
 using LincleLINK.Core.Tests.TestHelpers;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 
@@ -27,7 +28,7 @@ public sealed class TorrentServiceCoverageTests
     private readonly IHardLinker _hardLinker = Substitute.For<IHardLinker>();
     private readonly IFileSystem _fs = Substitute.For<IFileSystem>();
 
-    private TorrentService CreateService() => new(_source, _repository, _store, _hardLinker, _fs);
+    private TorrentService CreateService() => new(_source, _repository, _store, _hardLinker, _fs, NullLogger<TorrentService>.Instance);
 
     private static readonly (string, byte[])[] Files =
     [

@@ -1,6 +1,7 @@
 using FluentAssertions;
 using LincleLINK.Core.Abstractions.Filesystem;
 using LincleLINK.Core.Infrastructure.Games;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
 
@@ -87,5 +88,23 @@ public sealed class GameVersionDetectorIoFaultTests
         var result = await new GameVersionDetector(fs).DetectAsync("C:\\game", TestContext.Current.CancellationToken);
 
         result.Info.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Unreadable_directory_reports_a_warning_to_the_diagnostic_log()
+    {
+        // The degraded-but-continuing swallow must be visible in the diagnostic
+        // log, not just silent (issue #17 D3 Warning convention).
+        var fs = StubBase();
+        fs.FileExists(Arg.Any<string>()).Returns(false);
+        fs.EnumerateDirectories(Arg.Any<string>(), false).Returns(_ => throw new UnauthorizedAccessException("denied"));
+        fs.EnumerateFiles(Arg.Any<string>(), false).Returns([]);
+        var logger = Substitute.For<ILogger<GameVersionDetector>>();
+
+        var result = await new GameVersionDetector(fs, logger).DetectAsync("C:\\game", TestContext.Current.CancellationToken);
+
+        result.Info.Should().BeNull();
+        // Exactly one event reaches the log - the degraded-enumeration warning.
+        logger.ReceivedWithAnyArgs(1).Log(default, default, default, default!, default!);
     }
 }

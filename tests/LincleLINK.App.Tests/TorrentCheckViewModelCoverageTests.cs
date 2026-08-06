@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.Security.Cryptography;
 using FluentAssertions;
 using LincleLINK.App.Abstractions;
@@ -12,6 +11,7 @@ using LincleLINK.Core.Abstractions.Torrents;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
 using LincleLINK.Core.Domain.Torrents;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 
@@ -33,14 +33,13 @@ public sealed class TorrentCheckViewModelCoverageTests
 
     public TorrentCheckViewModelCoverageTests()
     {
-        _host.LogLines.Returns(new ObservableCollection<string>());
-        _host.RunOperationAsync(Arg.Any<Func<OperationContext, Task>>())
+        _host.RunOperationAsync(Arg.Any<string>(), Arg.Any<Func<OperationContext, Task>>())
             .Returns(ci => ci.Arg<Func<OperationContext, Task>>()!(new OperationContext(
-                new InlineProgress<string>(), new InlineProgress<string>(), new InlineProgress<double>(), CancellationToken.None)));
+                new InlineProgress<string>(), new InlineProgress<double>(), CancellationToken.None)));
     }
 
     private TorrentCheckViewModel CreateViewModel() =>
-        new(new TorrentService(_source, _repository, _store, Substitute.For<IHardLinker>(), _fs), _dialogs, _preflight, _host);
+        new(new TorrentService(_source, _repository, _store, Substitute.For<IHardLinker>(), _fs, NullLogger<TorrentService>.Instance), _dialogs, _preflight, _host);
 
     [Fact]
     public async Task Browse_torrent_file_sets_the_path()

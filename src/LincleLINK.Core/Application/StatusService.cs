@@ -4,6 +4,7 @@ using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Paths;
 using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace LincleLINK.Core.Application;
 
@@ -30,17 +31,20 @@ public sealed class StatusService
     private readonly IInstanceRepository _repository;
     private readonly IDriveInfoProvider _driveInfo;
     private readonly IAppPaths _paths;
+    private readonly ILogger<StatusService> _logger;
 
     public StatusService(
         IFileStore store,
         IInstanceRepository repository,
         IDriveInfoProvider driveInfo,
-        IAppPaths paths)
+        IAppPaths paths,
+        ILogger<StatusService> logger)
     {
         _store = store;
         _repository = repository;
         _driveInfo = driveInfo;
         _paths = paths;
+        _logger = logger;
     }
 
     public async Task<StatusSummary> GetSummaryAsync(CancellationToken ct = default)
@@ -59,6 +63,10 @@ public sealed class StatusService
         // Savings can go negative when db/ holds orphaned files no instance references;
         // SizeFormatter rejects negative sizes, so clamp at zero.
         var savings = Math.Max(0, instancesTotal - dbSize);
+
+        _logger.LogDebug(
+            "Status summary: db {DbSize} bytes, instances {InstancesTotal} bytes, savings {Savings} bytes, free {FreeSpace} bytes",
+            dbSize, instancesTotal, savings, freeSpace);
 
         return new StatusSummary(dbSize, instancesTotal, savings, freeSpace);
     }

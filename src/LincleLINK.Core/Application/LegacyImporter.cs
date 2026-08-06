@@ -2,6 +2,7 @@ using System.Xml;
 using System.Xml.Serialization;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace LincleLINK.Core.Application;
 
@@ -15,13 +16,15 @@ public sealed record LegacyImportResult(
 /// location, derive the directory list from file paths, skip existing names
 /// (case-insensitive). Totals are recomputed via <see cref="Instance.Create"/>.
 /// </summary>
-public sealed class LegacyImporter
+public sealed partial class LegacyImporter
 {
     private readonly IInstanceRepository _repository;
+    private readonly ILogger<LegacyImporter> _logger;
 
-    public LegacyImporter(IInstanceRepository repository)
+    public LegacyImporter(IInstanceRepository repository, ILogger<LegacyImporter> logger)
     {
         _repository = repository;
+        _logger = logger;
     }
 
     public async Task<LegacyImportResult> ImportAsync(string xmlPath, CancellationToken ct = default)
@@ -41,6 +44,7 @@ public sealed class LegacyImporter
         {
             // Parse failures are user-presentable (mirrors TorrentService.LoadAsync
             // converting expected parse failures into a clear message).
+            _logger.LogError(ex, "Failed to import legacy DBInfo.xml from {XmlPath}", xmlPath);
             throw new LegacyImportException(
                 $"'{xmlPath}' is not a valid v1 DBInfo.xml: {ex.Message}", ex);
         }
@@ -76,8 +80,12 @@ public sealed class LegacyImporter
             imported.Add(legacy.InstanceName);
         }
 
+        LogImportCompleted(xmlPath, imported.Count, skipped.Count);
         return new LegacyImportResult(imported, skipped);
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Legacy import from {XmlPath} completed: {Imported} imported, {Skipped} skipped")]
+    private partial void LogImportCompleted(string xmlPath, int imported, int skipped);
 
     /// <summary>
     /// Builds an <see cref="InstanceFile"/> from a legacy file entry, returning

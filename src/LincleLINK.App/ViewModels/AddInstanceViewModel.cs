@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using Avalonia;
 using LincleLINK.App.Abstractions;
 using LincleLINK.App.Logos;
@@ -12,6 +11,7 @@ using LincleLINK.Core.Abstractions.Games;
 using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace LincleLINK.App.ViewModels;
 
@@ -29,12 +29,11 @@ public partial class AddInstanceViewModel : ViewModelBase
     private readonly ITaskbarProgress _taskbarProgress;
     private readonly IFileSystem _fileSystem;
     private readonly IHardLinkPreflight _preflight;
+    private readonly ILogger<AddInstanceViewModel> _logger;
     private readonly IGameVersionDetector _detector;
 
     private string? _gameRootPath;
     private string? _dataFolderName;
-
-    public ObservableCollection<string> LogLines { get; } = [];
 
     /// <summary>
     /// True once an add completed and requested close - lets the hosting shell
@@ -113,6 +112,7 @@ public partial class AddInstanceViewModel : ViewModelBase
         ITaskbarProgress taskbarProgress,
         IFileSystem fileSystem,
         IHardLinkPreflight preflight,
+        ILogger<AddInstanceViewModel> logger,
         IGameVersionDetector detector)
     {
         _service = service;
@@ -120,6 +120,7 @@ public partial class AddInstanceViewModel : ViewModelBase
         _taskbarProgress = taskbarProgress;
         _fileSystem = fileSystem;
         _preflight = preflight;
+        _logger = logger;
         _detector = detector;
     }
 
@@ -244,6 +245,7 @@ public partial class AddInstanceViewModel : ViewModelBase
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Estimation is advisory only; the add operation will surface real errors.
+            _logger.LogDebug(ex, "Folder analysis failed for {Path}", path);
         }
         finally
         {
@@ -289,7 +291,12 @@ public partial class AddInstanceViewModel : ViewModelBase
             }
         }
         catch (OperationCanceledException) { }
-        catch { }
+        catch (Exception ex)
+        {
+            // Detection is best-effort UI candy; a failure must not block the add,
+            // but it should still land in the diagnostic log (issue #17 D3).
+            _logger.LogWarning(ex, "Game detection failed for {Path}", path);
+        }
     }
 
     [RelayCommand]
@@ -305,11 +312,12 @@ public partial class AddInstanceViewModel : ViewModelBase
     private async Task CreateInstanceAsync()
     {
         IsBusy = true;
+        _logger.LogInformation("Starting add-instance for '{InstanceName}'", InstanceName);
         _taskbarProgress.BeginOperation();
         using var cts = new CancellationTokenSource();
         _operationCts = cts;
         CancelOperationCommand.NotifyCanExecuteChanged();
-        var log = ProgressBridge.Create<string>(LogLines.Add, batchSize: 100);
+        var log = ProgressBridge.Create<string>(line => AddLogLine(line, _logger), batchSize: 100);
         var status = ProgressBridge.Create<string>(line => StatusLine = line, batchSize: 200);
         var percent = ProgressBridge.Create<double>(p =>
         {
@@ -325,24 +333,27 @@ public partial class AddInstanceViewModel : ViewModelBase
 
             if (result.Success)
             {
+                _logger.LogInformation("Add-instance for '{InstanceName}' completed", InstanceName);
                 CompletedSuccessfully = true;
                 RequestClose();
             }
             else if (result.Error is not null)
             {
+                _logger.LogWarning("Add-instance for '{InstanceName}' failed: {Error}", InstanceName, result.Error);
                 await _dialogs.ErrorAsync(result.Error, "Add folder to library");
             }
             else
             {
-                LogLines.Add("Operation cancelled.");
+                AddLogLine("Operation cancelled.", _logger);
             }
         }
         catch (OperationCanceledException)
         {
-            LogLines.Add("Operation cancelled.");
+            AddLogLine("Operation cancelled.", _logger);
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Add-instance for '{InstanceName}' failed", InstanceName);
             await _dialogs.ErrorAsync(ex.Message, "Add folder to library");
         }
         finally

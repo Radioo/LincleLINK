@@ -3,6 +3,7 @@ using LincleLINK.Core.Abstractions.Settings;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Infrastructure.Settings;
 using LincleLINK.Core.Tests.TestHelpers;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace LincleLINK.Core.Tests.Application;
@@ -22,7 +23,7 @@ public sealed class FirstLaunchServiceTests : IDisposable
         var dataDir = Path.Combine(_temp.Root, "data");
         store.Save(new AppSettings(AppTheme.Light, dataDir, 4));
 
-        var result = new FirstLaunchService(store).ResolveDataDirectory();
+        var result = new FirstLaunchService(store, NullLogger<FirstLaunchService>.Instance).ResolveDataDirectory();
 
         result.Action.Should().Be(FirstLaunchAction.UseExistingSettings);
         result.DataDirectory.Should().Be(dataDir);
@@ -43,7 +44,7 @@ public sealed class FirstLaunchServiceTests : IDisposable
             Environment.CurrentDirectory = cwd;
             // Compare against the canonical CWD: on macOS the temp root sits behind
             // the /var -> /private/var symlink, which chdir resolves.
-            var result = new FirstLaunchService(store).ResolveDataDirectory();
+            var result = new FirstLaunchService(store, NullLogger<FirstLaunchService>.Instance).ResolveDataDirectory();
             result.DataDirectory.Should().Be(Environment.CurrentDirectory);
         }
         finally
@@ -64,7 +65,7 @@ public sealed class FirstLaunchServiceTests : IDisposable
             var cwd = Path.Combine(_temp.Root, "cwd");
             Directory.CreateDirectory(cwd);
             Environment.CurrentDirectory = cwd;
-            _ = new FirstLaunchService(store).ResolveDataDirectory();
+            _ = new FirstLaunchService(store, NullLogger<FirstLaunchService>.Instance).ResolveDataDirectory();
         }
         finally
         {
@@ -89,7 +90,7 @@ public sealed class FirstLaunchServiceTests : IDisposable
         try
         {
             Environment.CurrentDirectory = cwd;
-            var result = new FirstLaunchService(new JsonSettingsStore(SettingsPath)).ResolveDataDirectory();
+            var result = new FirstLaunchService(new JsonSettingsStore(SettingsPath), NullLogger<FirstLaunchService>.Instance).ResolveDataDirectory();
 
             result.Action.Should().Be(FirstLaunchAction.AdoptCurrentDirectory);
             // Canonical CWD, not `cwd`: macOS resolves the /var -> /private/var symlink.
@@ -113,7 +114,7 @@ public sealed class FirstLaunchServiceTests : IDisposable
             Directory.CreateDirectory(cwd);
             Environment.CurrentDirectory = cwd;
 
-            var result = new FirstLaunchService(new JsonSettingsStore(SettingsPath)).ResolveDataDirectory();
+            var result = new FirstLaunchService(new JsonSettingsStore(SettingsPath), NullLogger<FirstLaunchService>.Instance).ResolveDataDirectory();
 
             result.Action.Should().Be(FirstLaunchAction.PromptForDirectory);
             result.HasLegacyV2Data.Should().BeFalse();
@@ -128,7 +129,7 @@ public sealed class FirstLaunchServiceTests : IDisposable
     public void CompleteFirstLaunch_persists_and_imports_legacy_dark_theme()
     {
         var store = new JsonSettingsStore(SettingsPath);
-        var service = new FirstLaunchService(store);
+        var service = new FirstLaunchService(store, NullLogger<FirstLaunchService>.Instance);
         var dataDir = Path.Combine(_temp.Root, "data");
         Directory.CreateDirectory(dataDir);
         File.WriteAllText(Path.Combine(dataDir, "settings.json"), """{"IsDarkTheme": true}""");
@@ -142,5 +143,27 @@ public sealed class FirstLaunchServiceTests : IDisposable
         // Next launch is no longer first launch.
         var result = service.ResolveDataDirectory();
         result.Action.Should().Be(FirstLaunchAction.UseExistingSettings);
+    }
+
+    [Fact]
+    public void CompleteFirstLaunch_preserves_other_settings_fields()
+    {
+        // The method is documented "safe to call more than once": it must not drop
+        // ViewMode/SaveLogToFile/HashThreadCount back to defaults when re-run on a
+        // store that already has them.
+        var store = new JsonSettingsStore(SettingsPath);
+        store.Save(new AppSettings(AppTheme.Dark, "C:\\old", 3, LibraryViewMode.Grid, SaveLogToFile: true));
+        var service = new FirstLaunchService(store, NullLogger<FirstLaunchService>.Instance);
+        var dataDir = Path.Combine(_temp.Root, "data");
+        Directory.CreateDirectory(dataDir);
+
+        service.CompleteFirstLaunch(dataDir);
+
+        var settings = store.Load();
+        settings.Theme.Should().Be(AppTheme.Dark);
+        settings.DataDirectory.Should().Be(dataDir);
+        settings.HashThreadCount.Should().Be(3);
+        settings.ViewMode.Should().Be(LibraryViewMode.Grid);
+        settings.SaveLogToFile.Should().BeTrue();
     }
 }

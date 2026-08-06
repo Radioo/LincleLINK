@@ -1,7 +1,9 @@
+using System.Collections.ObjectModel;
 using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using LincleLINK.App.Abstractions;
 using LincleLINK.Core.Abstractions.Settings;
+using Microsoft.Extensions.Logging;
 
 namespace LincleLINK.App.ViewModels.Base;
 
@@ -21,6 +23,19 @@ public abstract partial class ViewModelBase : ObservableObject, IDialogViewModel
 
     /// <summary>Signals the hosting dialog window to close.</summary>
     protected void RequestClose() => CloseRequested?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>User-visible activity feed shown in the dialog/panel/drawer.</summary>
+    public ObservableCollection<string> LogLines { get; } = [];
+
+    /// <summary>
+    /// Single choke point for user-visible activity lines (issue #17 D5): timestamps
+    /// the line for the feed and mirrors it into the diagnostic log at Debug.
+    /// </summary>
+    protected void AddLogLine(string line, ILogger logger)
+    {
+        LogLines.Add($"{DateTime.Now:HH:mm:ss} {line}");
+        logger.LogDebug("Activity: {Line}", line);
+    }
 
     [ObservableProperty]
     private bool _isDarkTheme;

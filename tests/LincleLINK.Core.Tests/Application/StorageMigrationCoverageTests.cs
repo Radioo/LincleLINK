@@ -9,6 +9,7 @@ using LincleLINK.Core.Infrastructure.Persistence;
 using LincleLINK.Core.Tests.TestHelpers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 
@@ -33,13 +34,13 @@ public sealed class StorageMigrationCoverageTests : IDisposable
         services.AddDbContextFactory<LincleLinkDbContext>(
             o => o.UseSqlite(LincleLinkPersistence.ConnectionStringFor(_paths.DataDirectory)));
         _factory = services.BuildServiceProvider().GetRequiredService<IDbContextFactory<LincleLinkDbContext>>();
-        _repository = new SqliteInstanceRepository(_factory);
+        _repository = new SqliteInstanceRepository(_factory, NullLogger<SqliteInstanceRepository>.Instance);
     }
 
     public void Dispose() => _temp.Dispose();
 
     private StorageMigrationService CreateService(IInstanceRepository? repository = null)
-        => new(_paths, repository ?? _repository, _factory);
+        => new(_paths, repository ?? _repository, _factory, NullLogger<StorageMigrationService>.Instance);
 
     private void WriteInstanceJson(string name, string json)
     {

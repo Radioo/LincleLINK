@@ -5,6 +5,7 @@ using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Abstractions.Torrents;
 using LincleLINK.Core.Application.Torrents;
 using LincleLINK.Core.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace LincleLINK.Core.Application;
 
@@ -27,26 +28,29 @@ public sealed record LinkToTorrentResult(bool Success, string? Error, int Linked
 /// Torrent-aware linking (plan 07). Stateless: all inputs travel in requests and all
 /// results come back explicitly. Only files whose pieces all match are linked.
 /// </summary>
-public sealed class TorrentService
+public sealed partial class TorrentService
 {
     private readonly ITorrentSource _torrentSource;
     private readonly IInstanceRepository _repository;
     private readonly IFileStore _store;
     private readonly IHardLinker _hardLinker;
     private readonly IFileSystem _fileSystem;
+    private readonly ILogger<TorrentService> _logger;
 
     public TorrentService(
         ITorrentSource torrentSource,
         IInstanceRepository repository,
         IFileStore store,
         IHardLinker hardLinker,
-        IFileSystem fileSystem)
+        IFileSystem fileSystem,
+        ILogger<TorrentService> logger)
     {
         _torrentSource = torrentSource;
         _repository = repository;
         _store = store;
         _hardLinker = hardLinker;
         _fileSystem = fileSystem;
+        _logger = logger;
     }
 
     public async Task<CheckFilesResult> CheckFilesAsync(
@@ -96,6 +100,7 @@ public sealed class TorrentService
         }
 
         log?.Report($"Matched {matched.Count} out of {torrent.Files.Count} files (compared names and sizes).");
+        LogFilesMatched(request.InstanceName, matched.Count, torrent.Files.Count);
         return new CheckFilesResult(true, null, matched.Count, torrent.Files.Count, matched);
     }
 
@@ -120,6 +125,7 @@ public sealed class TorrentService
         log?.Report($"Piece length: {torrent.PieceLength}");
         log?.Report($"Number of pieces: {torrent.PieceHashes.Count}");
         log?.Report("Beginning piece check, this might take a while...");
+        LogPieceCheckStarted(request.InstanceName, torrent.PieceHashes.Count, torrent.PieceLength);
 
         var relativePrefix = PathNormalizer.Canonicalize(request.RelativePath);
         var localFiles = BuildLocalFileMap(torrent, instance, relativePrefix);
@@ -130,12 +136,14 @@ public sealed class TorrentService
         if (result.PieceCountMismatch)
         {
             log?.Report("Piece count does not match, something went terribly wrong.");
+            LogPieceCountMismatch(request.InstanceName);
             return new CheckPiecesResult(false, "Piece count does not match.", true, 0, torrent.PieceHashes.Count, [], []);
         }
 
         var total = torrent.PieceHashes.Count;
         var matched = total - result.BadPieceIndices.Count;
         log?.Report($"Piece check finished. {matched} out of {total} pieces matched.");
+        LogPieceCheckCompleted(request.InstanceName, matched, total);
 
         return new CheckPiecesResult(true, null, false, matched, total, result.BadPieceIndices, result.Files);
     }
@@ -174,6 +182,7 @@ public sealed class TorrentService
             // turned into a path outside DownloadPath.
             if (!PathNormalizer.IsSafeRelativePath(file.TorrentPath))
             {
+                LogSkippedUnsafePath(file.TorrentPath);
                 log?.Report($"Skipped unsafe path '{file.TorrentPath}'.");
                 skipped++;
                 continue;
@@ -193,10 +202,12 @@ public sealed class TorrentService
             }
             else if (_hardLinker.TryCreateLink(_store.GetPath(file.HashedFileName), target, out var linkError))
             {
+                LogFileLinkedToTorrent(file.HashedFileName, target);
                 linked++;
             }
             else
             {
+                LogTorrentLinkFailed(file.TorrentPath, linkError ?? "unknown error");
                 log?.Report($"{file.TorrentPath}: {linkError}");
                 skipped++;
             }
@@ -205,6 +216,7 @@ public sealed class TorrentService
         }
 
         log?.Report($"Pre-fill finished: linked {linked} files, skipped {skipped}.");
+        LogTorrentLinkingCompleted(linked, skipped);
         return new LinkToTorrentResult(true, null, linked, skipped);
     }
 
@@ -263,4 +275,28 @@ public sealed class TorrentService
             return (null, ex.Message);
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Torrent file check for '{InstanceName}': matched {Matched} of {Total} files")]
+    private partial void LogFilesMatched(string instanceName, int matched, int total);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Piece check for '{InstanceName}' started: {TotalPieces} pieces of {PieceLength} bytes")]
+    private partial void LogPieceCheckStarted(string instanceName, int totalPieces, long pieceLength);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Piece count mismatch for '{InstanceName}'")]
+    private partial void LogPieceCountMismatch(string instanceName);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Piece check for '{InstanceName}' completed: {Matched} of {Total} pieces matched")]
+    private partial void LogPieceCheckCompleted(string instanceName, int matched, int total);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Skipped unsafe torrent path '{TorrentPath}'")]
+    private partial void LogSkippedUnsafePath(string torrentPath);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Linked {StoreName} to {Target}")]
+    private partial void LogFileLinkedToTorrent(string storeName, string target);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to link torrent file '{TorrentPath}': {Error}")]
+    private partial void LogTorrentLinkFailed(string torrentPath, string error);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Torrent linking completed: {Linked} linked, {Skipped} skipped")]
+    private partial void LogTorrentLinkingCompleted(int linked, int skipped);
 }

@@ -5,6 +5,7 @@ using LincleLINK.Core.Abstractions.Paths;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 
@@ -17,7 +18,8 @@ public sealed class StorageMigrationViewModelTests
         var service = Substitute.ForPartsOf<StorageMigrationService>(
             Substitute.For<IAppPaths>(),
             Substitute.For<IInstanceRepository>(),
-            Substitute.For<IDbContextFactory<LincleLinkDbContext>>());
+            Substitute.For<IDbContextFactory<LincleLinkDbContext>>(),
+            NullLogger<StorageMigrationService>.Instance);
         service.MigrateAsync(
                 Arg.Any<IProgress<string>>(),
                 Arg.Any<IProgress<double>>(),
@@ -31,7 +33,8 @@ public sealed class StorageMigrationViewModelTests
         var service = Substitute.ForPartsOf<StorageMigrationService>(
             Substitute.For<IAppPaths>(),
             Substitute.For<IInstanceRepository>(),
-            Substitute.For<IDbContextFactory<LincleLinkDbContext>>());
+            Substitute.For<IDbContextFactory<LincleLinkDbContext>>(),
+            NullLogger<StorageMigrationService>.Instance);
         service.MigrateAsync(
                 Arg.Any<IProgress<string>>(),
                 Arg.Any<IProgress<double>>(),
@@ -43,7 +46,7 @@ public sealed class StorageMigrationViewModelTests
     [Fact]
     public async Task RunAsync_reports_completion_and_closes()
     {
-        var vm = new StorageMigrationViewModel(CreateService(new StorageMigrationResult(3, 1, 0, [])));
+        var vm = new StorageMigrationViewModel(CreateService(new StorageMigrationResult(3, 1, 0, [])), NullLogger<StorageMigrationViewModel>.Instance);
         var completed = false;
         var closed = false;
         vm.Completed += (_, _) => completed = true;
@@ -60,7 +63,7 @@ public sealed class StorageMigrationViewModelTests
     [Fact]
     public async Task RunAsync_reports_quarantined_manifests_in_status()
     {
-        var vm = new StorageMigrationViewModel(CreateService(new StorageMigrationResult(1, 0, 1, ["bad: corrupt"])));
+        var vm = new StorageMigrationViewModel(CreateService(new StorageMigrationResult(1, 0, 1, ["bad: corrupt"])), NullLogger<StorageMigrationViewModel>.Instance);
 
         await vm.RunAsync();
 
@@ -71,7 +74,7 @@ public sealed class StorageMigrationViewModelTests
     [Fact]
     public async Task RunAsync_on_failure_still_closes_and_reports_error()
     {
-        var vm = new StorageMigrationViewModel(CreateFailingService(new IOException("db locked")));
+        var vm = new StorageMigrationViewModel(CreateFailingService(new IOException("db locked")), NullLogger<StorageMigrationViewModel>.Instance);
         var closed = false;
         vm.CloseRequested += (_, _) => closed = true;
 

@@ -8,6 +8,7 @@ using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Domain;
 using LincleLINK.Core.Domain.Validation;
+using Microsoft.Extensions.Logging;
 
 namespace LincleLINK.Core.Application;
 
@@ -32,7 +33,7 @@ public sealed record DeleteInstanceResult(bool Deleted, bool Cancelled);
 /// dedup copy/move into <c>db/</c>, directory collection, and instance save.
 /// All dialogs go through <see cref="IDialogService"/>; the service stays UI-free.
 /// </summary>
-public sealed class InstanceService
+public sealed partial class InstanceService
 {
     private const long LowDiskWiggleRoom = 100_000_000; // 100 MB, v2 parity
 
@@ -45,6 +46,7 @@ public sealed class InstanceService
     private readonly IDriveInfoProvider _driveInfo;
     private readonly IDialogService _dialogs;
     private readonly IGameVersionDetector _detector;
+    private readonly ILogger<InstanceService> _logger;
 
     public InstanceService(
         IFileSystem fileSystem,
@@ -55,7 +57,8 @@ public sealed class InstanceService
         IInstanceRepository repository,
         IDriveInfoProvider driveInfo,
         IDialogService dialogs,
-        IGameVersionDetector detector)
+        IGameVersionDetector detector,
+        ILogger<InstanceService> logger)
     {
         _fileSystem = fileSystem;
         _hasher = hasher;
@@ -66,6 +69,7 @@ public sealed class InstanceService
         _driveInfo = driveInfo;
         _dialogs = dialogs;
         _detector = detector;
+        _logger = logger;
     }
 
     public async Task<AddInstanceResult> CreateInstanceAsync(
@@ -78,16 +82,19 @@ public sealed class InstanceService
         var nameError = InstanceNameValidator.FirstError(request.InstanceName);
         if (nameError is not null)
         {
+            LogAddFailed(request.InstanceName, nameError);
             return Fail(nameError);
         }
 
         if (!_fileSystem.DirectoryExists(request.DataPath))
         {
+            LogAddFailed(request.InstanceName, "The folder does not exist or is not a directory.");
             return Fail("The folder does not exist or is not a directory.");
         }
 
         if (await _repository.ExistsAsync(request.InstanceName, ct))
         {
+            LogAddFailed(request.InstanceName, "A library entry with this name already exists.");
             return Fail("A library entry with this name already exists.");
         }
 
@@ -99,6 +106,7 @@ public sealed class InstanceService
             var reason = await Task.Run(() => _preflight.CheckLinkTo(request.DataPath), ct);
             if (!string.IsNullOrEmpty(reason))
             {
+                LogAddFailed(request.InstanceName, $"Can't reclaim space from this folder: {reason}");
                 return Fail(
                     $"Can't reclaim space from this folder: {reason} " +
                     "You can still add it with \"Keep originals\".");
@@ -129,6 +137,7 @@ public sealed class InstanceService
         var files = enumerated.Files;
         if (files.Count == 0)
         {
+            LogAddFailed(request.InstanceName, "The folder contains no files.");
             return Fail("The folder contains no files.");
         }
 
@@ -138,6 +147,7 @@ public sealed class InstanceService
             long freeSpace = _driveInfo.GetAvailableFreeSpace(request.DataPath);
             if (enumerated.SizeToCopy + LowDiskWiggleRoom > freeSpace)
             {
+                LogLowDisk(request.InstanceName, freeSpace, enumerated.SizeToCopy);
                 var proceed = await _dialogs.ConfirmAsync(
                     $"This drive is low on disk space, do you want to continue? " +
                     $"Free space: {SizeFormatter.Format(freeSpace)}, " +
@@ -145,6 +155,7 @@ public sealed class InstanceService
                     "Low disk space");
                 if (!proceed)
                 {
+                    LogAddCancelled(request.InstanceName);
                     log?.Report("Operation cancelled.");
                     return new AddInstanceResult(false, null, 0, 0, 0, files.Count);
                 }
@@ -195,6 +206,7 @@ public sealed class InstanceService
             StringComparer.Ordinal);
 
         log?.Report($"Hashing {files.Count} files...");
+        LogHashingStart(files.Count, request.InstanceName);
 
         // Phase A: hash every file in parallel (bounded), capturing the length before any
         // mutation. Results are index-aligned so phase B stays in enumeration order.
@@ -213,6 +225,7 @@ public sealed class InstanceService
                 // finishes; per-file lines go to the transient status channel, not
                 // the log (plan 14 D5).
                 status?.Report($"Hashed {item.path}");
+                LogHashed(item.path);
                 hashResults[item.index] = new HashResult(item.path, hash, _fileSystem.GetFileLength(item.path));
                 percent?.Report(Interlocked.Increment(ref hashed) * hashStep);
             });
@@ -233,6 +246,7 @@ public sealed class InstanceService
             instanceFiles.Add(new InstanceFile(Path.GetFileName(result.Path), relativePath, fileLength, storeName));
 
             var isNew = !_store.Exists(storeName);
+            LogFileStored(result.Path, storeName, isNew);
 
             if (request.Mode == CopyMoveMode.Move)
             {
@@ -293,6 +307,7 @@ public sealed class InstanceService
         }
         catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Game detection failed for {DataPath}", request.DataPath);
             log?.Report($"Game detection failed for {request.DataPath}: {ex.Message}");
         }
 
@@ -303,10 +318,38 @@ public sealed class InstanceService
             $"{SizeFormatter.Format(bytesAdded)} added to storage.");
         percent?.Report(100);
 
+        LogAddCompleted(request.InstanceName, filesAdded, bytesAdded, alreadyExisted);
         return new AddInstanceResult(true, null, filesAdded, bytesAdded, alreadyExisted, files.Count);
     }
 
     private readonly record struct HashResult(string Path, string Hash, long Length);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Hashing {Count} files for instance '{InstanceName}'")]
+    private partial void LogHashingStart(int count, string instanceName);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Hashed {File}")]
+    private partial void LogHashed(string file);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Stored {File} as {StoreName} (new: {IsNew})")]
+    private partial void LogFileStored(string file, string storeName, bool isNew);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Could not hard-link {File} back into place: {Error}")]
+    private partial void LogLinkBackFailed(string file, string error);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Add instance '{InstanceName}' completed: {FilesAdded} files, {BytesAdded} bytes, {AlreadyExisted} already existed")]
+    private partial void LogAddCompleted(string instanceName, int filesAdded, long bytesAdded, int alreadyExisted);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Deleted instance '{InstanceName}'")]
+    private partial void LogInstanceDeleted(string instanceName);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Low disk space while adding '{InstanceName}': {FreeSpace} free, {SizeToCopy} to copy")]
+    private partial void LogLowDisk(string instanceName, long freeSpace, long sizeToCopy);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Add instance '{InstanceName}' failed: {Error}")]
+    private partial void LogAddFailed(string instanceName, string error);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Add instance '{InstanceName}' cancelled")]
+    private partial void LogAddCancelled(string instanceName);
 
     /// <summary>
     /// Replaces the original file at its source path with a hard link to its
@@ -321,6 +364,7 @@ public sealed class InstanceService
 
         if (!_hardLinker.TryCreateLink(dbPath, tempLink, out var error))
         {
+            LogLinkBackFailed(originalPath, error ?? "unknown error");
             log?.Report(
                 $"File {Path.GetFileName(originalPath)} is in storage, but its original could not be " +
                 $"replaced with a link ({error}). The original file was left unchanged.");
@@ -354,6 +398,11 @@ public sealed class InstanceService
         }
 
         var deleted = await _repository.DeleteAsync(instanceName, ct);
+        if (deleted)
+        {
+            LogInstanceDeleted(instanceName);
+        }
+
         return new DeleteInstanceResult(deleted, false);
     }
 }

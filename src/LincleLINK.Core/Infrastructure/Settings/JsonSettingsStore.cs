@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using LincleLINK.Core.Abstractions.Settings;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LincleLINK.Core.Infrastructure.Settings;
 
@@ -12,6 +14,7 @@ namespace LincleLINK.Core.Infrastructure.Settings;
 public sealed class JsonSettingsStore : ISettingsStore
 {
     private readonly string _settingsFile;
+    private readonly ILogger<JsonSettingsStore> _logger;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -21,18 +24,27 @@ public sealed class JsonSettingsStore : ISettingsStore
 
     /// <summary>
     /// On-disk shape, tolerant of older files: v2/early-v3 stored a
-    /// <c>IsDarkTheme</c> bool instead of the <c>Theme</c> enum.
+    /// <c>IsDarkTheme</c> bool instead of the <c>Theme</c> enum, and files written
+    /// before #17 have no <c>SaveLogToFile</c> (loads as false) and pre-icon-work
+    /// files have no <c>ViewMode</c> (loads as List).
     /// </summary>
     private sealed record PersistedSettings(
         AppTheme? Theme,
         bool? IsDarkTheme,
         string? DataDirectory,
         int? HashThreadCount,
-        LibraryViewMode? ViewMode);
+        LibraryViewMode? ViewMode,
+        bool? SaveLogToFile);
 
     public JsonSettingsStore(string settingsFile)
+        : this(settingsFile, NullLogger<JsonSettingsStore>.Instance)
+    {
+    }
+
+    public JsonSettingsStore(string settingsFile, ILogger<JsonSettingsStore> logger)
     {
         _settingsFile = settingsFile;
+        _logger = logger;
     }
 
     public bool Exists => File.Exists(_settingsFile);
@@ -64,13 +76,14 @@ public sealed class JsonSettingsStore : ISettingsStore
                 },
                 persisted.DataDirectory,
                 persisted.HashThreadCount ?? Environment.ProcessorCount,
-                persisted.ViewMode ?? LibraryViewMode.List));
+                persisted.ViewMode ?? LibraryViewMode.List,
+                persisted.SaveLogToFile ?? false));
         }
         catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException)
         {
             // Corrupt settings reset to defaults; surface so a silently reset config
             // cannot go unnoticed (same visibility as a failed save).
-            Console.Error.WriteLine($"Failed to load settings from {_settingsFile}: {e.Message}");
+            _logger.LogWarning(e, "Failed to load settings from {SettingsFile}", _settingsFile);
             return Defaults();
         }
     }
@@ -100,7 +113,7 @@ public sealed class JsonSettingsStore : ISettingsStore
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             // Best-effort, like v2 - but surface the failure so it is not invisible.
-            Console.Error.WriteLine($"Failed to save settings to {_settingsFile}: {e.Message}");
+            _logger.LogWarning(e, "Failed to save settings to {SettingsFile}", _settingsFile);
         }
     }
 }

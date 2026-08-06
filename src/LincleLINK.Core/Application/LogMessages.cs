@@ -8,6 +8,6 @@ namespace LincleLINK.Core.Application;
 public static class LogMessages
 {
     public const string EntryAdded = "Added to library.";
-    public const string LibraryRefreshed = "Library refreshed.";
-    public const string RelativePathHint = @"Check if your relative path is correct. (example: contents\data)";
+    public const string DiagnosticLogEnabledPrefix = "Diagnostic log enabled - saving to";
+    public const string DiagnosticLogDisabled = "Diagnostic log disabled";
 }

@@ -6,6 +6,7 @@ using LincleLINK.Core.Infrastructure.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace LincleLINK.Core.Tests.Instances;
@@ -30,7 +31,7 @@ public sealed class SqliteInstanceRepositoryTests : InstanceRepositoryContractTe
         _connection.Dispose();
     }
 
-    protected override IInstanceRepository CreateRepository() => new SqliteInstanceRepository(_factory);
+    protected override IInstanceRepository CreateRepository() => new SqliteInstanceRepository(_factory, NullLogger<SqliteInstanceRepository>.Instance);
 
     private static IDbContextFactory<LincleLinkDbContext> CreateFactory(SqliteConnection connection)
     {
@@ -73,7 +74,7 @@ public sealed class SqliteInstanceRepositoryTests : InstanceRepositoryContractTe
             await context.Database.MigrateAsync(TestContext.Current.CancellationToken);
         }
 
-        var repo = new SqliteInstanceRepository(factory);
+        var repo = new SqliteInstanceRepository(factory, NullLogger<SqliteInstanceRepository>.Instance);
         await repo.SaveAsync(Instance.Create(
             "persisted",
             [new InstanceFile("f.bin", "", 5, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.bin")],
@@ -86,7 +87,7 @@ public sealed class SqliteInstanceRepositoryTests : InstanceRepositoryContractTe
         services2.AddDbContextFactory<LincleLinkDbContext>(
             o => o.UseSqlite(LincleLinkPersistence.ConnectionStringFor(Temp.Root)));
         var factory2 = services2.BuildServiceProvider().GetRequiredService<IDbContextFactory<LincleLinkDbContext>>();
-        var repo2 = new SqliteInstanceRepository(factory2);
+        var repo2 = new SqliteInstanceRepository(factory2, NullLogger<SqliteInstanceRepository>.Instance);
 
         var loaded = await repo2.GetAsync("persisted", TestContext.Current.CancellationToken);
         loaded.Should().NotBeNull();

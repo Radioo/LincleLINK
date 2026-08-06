@@ -3,6 +3,7 @@ using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Application;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 
@@ -14,7 +15,7 @@ public sealed class UnusedFilesServiceTests
     private readonly IInstanceRepository _repository = Substitute.For<IInstanceRepository>();
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
 
-    private UnusedFilesService CreateService() => new(_store, _repository, _dialogs);
+    private UnusedFilesService CreateService() => new(_store, _repository, _dialogs, NullLogger<UnusedFilesService>.Instance);
 
     [Fact]
     public async Task No_unused_files_shows_info_and_deletes_nothing()

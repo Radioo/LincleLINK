@@ -7,6 +7,7 @@ using LincleLINK.Core.Domain.Validation;
 using LincleLINK.Core.Infrastructure.Persistence;
 using LincleLINK.Core.Infrastructure.Serialization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace LincleLINK.Core.Application;
 
@@ -35,15 +36,18 @@ public class StorageMigrationService
     private readonly IAppPaths _paths;
     private readonly IInstanceRepository _repository;
     private readonly IDbContextFactory<LincleLinkDbContext> _contextFactory;
+    private readonly ILogger<StorageMigrationService> _logger;
 
     public StorageMigrationService(
         IAppPaths paths,
         IInstanceRepository repository,
-        IDbContextFactory<LincleLinkDbContext> contextFactory)
+        IDbContextFactory<LincleLinkDbContext> contextFactory,
+        ILogger<StorageMigrationService> logger)
     {
         _paths = paths;
         _repository = repository;
         _contextFactory = contextFactory;
+        _logger = logger;
     }
 
     /// <summary>
@@ -87,6 +91,7 @@ public class StorageMigrationService
             return new StorageMigrationResult(0, 0, 0, []);
         }
 
+        _logger.LogInformation("Migrating {Count} legacy JSON manifests to the database", files.Count);
         int migrated = 0;
         int skipped = 0;
         int quarantined = 0;
@@ -156,6 +161,7 @@ public class StorageMigrationService
                     var detail = $"{instance.InstanceName}: Duplicate manifest name; quarantined.";
                     errors.Add(detail);
                     log?.Report($"Quarantined {detail}");
+                    _logger.LogWarning("Quarantined duplicate manifest '{InstanceName}'", instance.InstanceName);
                     TryQuarantine(file, log);
                     ReportPercent(percent, handled, files.Count);
                     continue;
@@ -171,6 +177,7 @@ public class StorageMigrationService
                 var detail = $"{name}: {ex.Message}";
                 errors.Add(detail);
                 log?.Report($"Quarantined {detail}");
+                _logger.LogWarning(ex, "Quarantined unreadable manifest '{Name}'", name);
                 TryQuarantine(file, log);
                 ReportPercent(percent, handled, files.Count);
             }
@@ -202,6 +209,9 @@ public class StorageMigrationService
 
         log?.Report(
             $"Migration finished: {migrated} migrated, {skipped} already present, {quarantined} quarantined.");
+        _logger.LogInformation(
+            "Migration finished: {Migrated} migrated, {Skipped} already present, {Quarantined} quarantined",
+            migrated, skipped, quarantined);
         return new StorageMigrationResult(migrated, skipped, quarantined, errors);
     }
 
@@ -231,6 +241,7 @@ public class StorageMigrationService
                 migrated++;
                 TryDeleteLegacyFile(file, log);
                 log?.Report($"Migrated {instance.InstanceName}");
+                _logger.LogDebug("Migrated '{InstanceName}'", instance.InstanceName);
             }
             else
             {
@@ -238,6 +249,7 @@ public class StorageMigrationService
                 var detail = $"{instance.InstanceName}: Verification failed after writing.";
                 errors.Add(detail);
                 log?.Report($"Quarantined {detail}");
+                _logger.LogWarning("Quarantined '{InstanceName}': verification failed after writing", instance.InstanceName);
                 TryQuarantine(file, log);
             }
 
@@ -250,6 +262,7 @@ public class StorageMigrationService
         }
         catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or DbException)
         {
+            _logger.LogWarning(ex, "Bulk insert failed; retrying per instance");
             log?.Report($"Bulk insert failed ({ex.Message}); retrying individually.");
 
             for (var i = 0; i < pending.Count; i++)
@@ -277,6 +290,7 @@ public class StorageMigrationService
                     // would move the whole batch out of the migration path, so a
                     // transient lock strands it forever. Abort instead; the JSON stays
                     // on disk and the migration is re-offered next launch (idempotent).
+                    _logger.LogError(inner, "Migration aborted: DB-wide failure");
                     log?.Report($"Migration aborted: {inner.Message}");
                     throw;
                 }

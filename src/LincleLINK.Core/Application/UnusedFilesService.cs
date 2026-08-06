@@ -2,6 +2,7 @@ using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace LincleLINK.Core.Application;
 
@@ -13,17 +14,19 @@ public sealed record UnusedFilesResult(bool Cancelled, int Found, int Deleted, l
 /// the whole scan runs off the caller's thread, so a large library does not stall
 /// the UI; deletion is parallelized with bounded parallelism.
 /// </summary>
-public sealed class UnusedFilesService
+public sealed partial class UnusedFilesService
 {
     private readonly IFileStore _store;
     private readonly IInstanceRepository _repository;
     private readonly IDialogService _dialogs;
+    private readonly ILogger<UnusedFilesService> _logger;
 
-    public UnusedFilesService(IFileStore store, IInstanceRepository repository, IDialogService dialogs)
+    public UnusedFilesService(IFileStore store, IInstanceRepository repository, IDialogService dialogs, ILogger<UnusedFilesService> logger)
     {
         _store = store;
         _repository = repository;
         _dialogs = dialogs;
+        _logger = logger;
     }
 
     public async Task<UnusedFilesResult> CheckAndDeleteAsync(
@@ -64,18 +67,21 @@ public sealed class UnusedFilesService
 
         if (unused.Count == 0)
         {
+            LogNoUnusedFiles();
             await _dialogs.InfoAsync(
                 "Storage is clean - every file belongs to a library entry.",
                 "Clean up storage");
             return new UnusedFilesResult(false, 0, 0);
         }
 
+        LogUnusedFound(unused.Count, unusedBytes);
         var confirmed = await _dialogs.ConfirmAsync(
             $"{unused.Count} files in storage ({SizeFormatter.Format(unusedBytes)}) " +
             "don't belong to any library entry. Delete them?",
             "Clean up storage");
         if (!confirmed)
         {
+            LogCleanupCancelled(unused.Count);
             return new UnusedFilesResult(true, unused.Count, 0, unusedBytes);
         }
 
@@ -93,10 +99,27 @@ public sealed class UnusedFilesService
             // lets parallel workers report duplicate or out-of-order counts. The
             // running counter is transient status; only the summary goes to the log.
             var count = Interlocked.Increment(ref deleted);
+            LogFileDeleted(name);
             status?.Report($"Deleted {count} of {unused.Count} unneeded files...");
         });
 
+        LogCleanupCompleted(deleted, unusedBytes);
         log?.Report($"Deleted {deleted} files from storage ({SizeFormatter.Format(unusedBytes)} freed).");
         return new UnusedFilesResult(false, unused.Count, deleted, unusedBytes);
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Storage has no unused files")]
+    private partial void LogNoUnusedFiles();
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Found {Count} unused files in storage ({Bytes} bytes)")]
+    private partial void LogUnusedFound(int count, long bytes);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Storage cleanup cancelled ({Count} files left untouched)")]
+    private partial void LogCleanupCancelled(int count);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Deleted unused file {File} from storage")]
+    private partial void LogFileDeleted(string file);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Storage cleanup completed: {Count} files deleted, {Bytes} bytes freed")]
+    private partial void LogCleanupCompleted(int count, long bytes);
 }

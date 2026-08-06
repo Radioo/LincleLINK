@@ -1,5 +1,6 @@
 using System.Text.Json;
 using LincleLINK.Core.Abstractions.Settings;
+using Microsoft.Extensions.Logging;
 
 namespace LincleLINK.Core.Application;
 
@@ -24,10 +25,12 @@ public sealed record FirstLaunchResult(
 public sealed class FirstLaunchService
 {
     private readonly ISettingsStore _settingsStore;
+    private readonly ILogger<FirstLaunchService> _logger;
 
-    public FirstLaunchService(ISettingsStore settingsStore)
+    public FirstLaunchService(ISettingsStore settingsStore, ILogger<FirstLaunchService> logger)
     {
         _settingsStore = settingsStore;
+        _logger = logger;
     }
 
     public FirstLaunchResult ResolveDataDirectory()
@@ -48,6 +51,7 @@ public sealed class FirstLaunchService
                 _settingsStore.Save(settings with { DataDirectory = dir });
             }
 
+            _logger.LogInformation("Using existing settings with data directory {DataDirectory}", dir);
             return new FirstLaunchResult(FirstLaunchAction.UseExistingSettings, dir, false, null);
         }
 
@@ -56,9 +60,11 @@ public sealed class FirstLaunchService
 
         if (hasV2)
         {
+            _logger.LogInformation("Adopting current directory {DataDirectory} as the data directory (legacy v2 data found)", cwd);
             return new FirstLaunchResult(FirstLaunchAction.AdoptCurrentDirectory, cwd, true, ReadLegacyDarkTheme(cwd));
         }
 
+        _logger.LogInformation("Prompting for a data directory (no settings file, no legacy v2 data in {DataDirectory})", cwd);
         return new FirstLaunchResult(FirstLaunchAction.PromptForDirectory, cwd, false, ReadLegacyDarkTheme(cwd));
     }
 
@@ -75,7 +81,8 @@ public sealed class FirstLaunchService
             false => AppTheme.Light,
             null => settings.Theme,
         };
-        _settingsStore.Save(new AppSettings(theme, dataDirectory, settings.HashThreadCount));
+        _settingsStore.Save(settings with { Theme = theme, DataDirectory = dataDirectory });
+        _logger.LogInformation("Completed first launch with data directory {DataDirectory}", dataDirectory);
     }
 
     private static bool HasLegacyData(string dir)

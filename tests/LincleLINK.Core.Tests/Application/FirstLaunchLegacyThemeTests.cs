@@ -3,6 +3,7 @@ using LincleLINK.Core.Abstractions.Settings;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Infrastructure.Settings;
 using LincleLINK.Core.Tests.TestHelpers;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace LincleLINK.Core.Tests.Application;
@@ -38,7 +39,7 @@ public sealed class FirstLaunchLegacyThemeTests : IDisposable
         try
         {
             Environment.CurrentDirectory = cwd;
-            return new FirstLaunchService(new JsonSettingsStore(SettingsPath)).ResolveDataDirectory();
+            return new FirstLaunchService(new JsonSettingsStore(SettingsPath), NullLogger<FirstLaunchService>.Instance).ResolveDataDirectory();
         }
         finally
         {
@@ -83,7 +84,7 @@ public sealed class FirstLaunchLegacyThemeTests : IDisposable
     {
         var store = new JsonSettingsStore(SettingsPath);
         store.Save(new AppSettings(AppTheme.Light, null, 2));
-        var service = new FirstLaunchService(store);
+        var service = new FirstLaunchService(store, NullLogger<FirstLaunchService>.Instance);
 
         // No settings.json in the chosen data directory -> ReadLegacyDarkTheme is
         // null -> the persisted Theme is preserved (not forced to Dark/Light).
@@ -99,7 +100,7 @@ public sealed class FirstLaunchLegacyThemeTests : IDisposable
     public void CompleteFirstLaunch_with_legacy_light_theme_persists_light()
     {
         var store = new JsonSettingsStore(SettingsPath);
-        var service = new FirstLaunchService(store);
+        var service = new FirstLaunchService(store, NullLogger<FirstLaunchService>.Instance);
         var dataDir = Path.Combine(_temp.Root, "data");
         Directory.CreateDirectory(dataDir);
         File.WriteAllText(Path.Combine(dataDir, "settings.json"), """{"IsDarkTheme": false}""");

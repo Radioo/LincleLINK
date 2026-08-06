@@ -4,6 +4,7 @@ using LincleLINK.Core.Abstractions.Instances;
 using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace LincleLINK.Core.Application;
 
@@ -24,7 +25,7 @@ public sealed record CopyHashedResult(bool Cancelled, string? Error, int Copied,
 /// Per-file hard-link failures are collected, summarized on the log (capped), and
 /// the operation continues.
 /// </summary>
-public sealed class LinkingService
+public sealed partial class LinkingService
 {
     /// <summary>Per-file error lines logged before collapsing into an "…and N more." line.</summary>
     private const int MaxLoggedErrors = 20;
@@ -35,6 +36,7 @@ public sealed class LinkingService
     private readonly IHardLinkPreflight _preflight;
     private readonly IInstanceRepository _repository;
     private readonly IDialogService _dialogs;
+    private readonly ILogger<LinkingService> _logger;
 
     public LinkingService(
         IFileSystem fileSystem,
@@ -42,7 +44,8 @@ public sealed class LinkingService
         IHardLinker hardLinker,
         IHardLinkPreflight preflight,
         IInstanceRepository repository,
-        IDialogService dialogs)
+        IDialogService dialogs,
+        ILogger<LinkingService> logger)
     {
         _fileSystem = fileSystem;
         _store = store;
@@ -50,6 +53,7 @@ public sealed class LinkingService
         _preflight = preflight;
         _repository = repository;
         _dialogs = dialogs;
+        _logger = logger;
     }
 
     public async Task<LinkResult> LinkInstanceAsync(
@@ -89,6 +93,7 @@ public sealed class LinkingService
 
             if (!PathNormalizer.IsSafeRelativePath(dir))
             {
+                LogSkippedUnsafeDirectory(dir);
                 errors.Add($"Skipped unsafe directory path '{dir}'.");
                 continue;
             }
@@ -140,26 +145,31 @@ public sealed class LinkingService
 
             if (!TryBuildTargetPath(target, file.RelativePath, file.FileName, out var targetPath))
             {
+                LogSkippedUnsafeFile(file.FileName);
                 errors.Add($"{file.FileName}: unsafe path skipped.");
                 continue;
             }
 
             if (skipExisting && _fileSystem.FileExists(targetPath))
             {
+                LogFileSkippedExisting(file.FileName, targetPath);
                 skippedExisting++;
             }
             else if (_hardLinker.TryCreateLink(_store.GetPath(file.HashedFileName), targetPath, out var error))
             {
+                LogFileLinked(file.FileName, targetPath);
                 linked++;
             }
             else
             {
+                LogLinkFailed(file.FileName, error ?? "unknown error");
                 errors.Add($"{file.FileName}: {error}");
             }
 
             percent?.Report(progress.Report(ref index));
         }
 
+        LogLinkingCompleted(instanceName, linked, errors.Count, skippedExisting, target);
         ReportSummary(log, linked, skippedExisting, errors);
         return new LinkResult(false, null, linked, errors.Count, skippedExisting, errors);
     }
@@ -228,6 +238,7 @@ public sealed class LinkingService
             else
             {
                 await _store.CopyFromStoreAsync(file.HashedFileName, destination, ct);
+                LogFileCopied(file.HashedFileName, destination);
                 copied++;
                 status?.Report($"Exported {file.HashedFileName}");
             }
@@ -235,6 +246,7 @@ public sealed class LinkingService
             percent?.Report(progress.Report(ref index));
         }
 
+        LogCopyCompleted(instanceName, copied, alreadyExisted, dest);
         log?.Report(alreadyExisted > 0
             ? $"Exported {copied} files. {alreadyExisted} already existed and were skipped."
             : $"Exported {copied} files.");
@@ -266,4 +278,28 @@ public sealed class LinkingService
         path = PathNormalizer.ToPlatformSeparators(combined);
         return true;
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Skipped unsafe directory path '{Directory}' while deploying")]
+    private partial void LogSkippedUnsafeDirectory(string directory);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Skipped unsafe file path '{File}' while deploying")]
+    private partial void LogSkippedUnsafeFile(string file);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Linked {File} to {Target}")]
+    private partial void LogFileLinked(string file, string target);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Skipped {File} at {Target} (already exists)")]
+    private partial void LogFileSkippedExisting(string file, string target);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to link {File}: {Error}")]
+    private partial void LogLinkFailed(string file, string error);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Deploy of '{InstanceName}' to '{Target}' completed: {Linked} linked, {Failed} failed, {SkippedExisting} skipped")]
+    private partial void LogLinkingCompleted(string instanceName, int linked, int failed, int skippedExisting, string target);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Export for '{InstanceName}' to '{Destination}' completed: {Copied} copied, {AlreadyExisted} already existed")]
+    private partial void LogCopyCompleted(string instanceName, int copied, int alreadyExisted, string destination);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Copied {StoreName} to {Destination}")]
+    private partial void LogFileCopied(string storeName, string destination);
 }

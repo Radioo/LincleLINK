@@ -14,6 +14,7 @@ using LincleLINK.Core.Composition;
 using LincleLINK.Core.Infrastructure.Paths;
 using LincleLINK.Core.Tests.TestHelpers;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
 
@@ -38,10 +39,18 @@ public sealed class CompositionTests : IDisposable
         services.AddSingleton<IAppPaths>(new AppPaths(_temp.Root));
         services.AddSingleton<ISettingsStore>(Substitute.For<ISettingsStore>());
         services.AddSingleton<IDialogService>(Substitute.For<IDialogService>());
+        // Services now take ILogger<T>; register the logging infrastructure so every
+        // Core service resolves (issue #17 D3).
+        services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.None));
         services.AddLincleLINKCore();
 
         using var provider = services.BuildServiceProvider();
-        var descriptors = services.Where(d => d.ServiceType != typeof(IServiceCollection)).ToList();
+        var descriptors = services
+            .Where(d => d.ServiceType != typeof(IServiceCollection))
+            // Open generics (ILogger<>, IOptions<>, ...) register factories, not
+            // directly resolvable types; only closed descriptors must resolve.
+            .Where(d => !d.ServiceType.ContainsGenericParameters)
+            .ToList();
 
         descriptors.Should().NotBeEmpty();
         foreach (var descriptor in descriptors)

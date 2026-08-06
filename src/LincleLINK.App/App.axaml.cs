@@ -10,6 +10,8 @@ using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Settings;
 using LincleLINK.Core.Application;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Serilog;
 
 namespace LincleLINK.App;
 
@@ -32,6 +34,8 @@ public partial class App : Application
                 desktop.MainWindow = new MainWindow();
 
                 _services = await AppBootstrapper.BuildAsync(() => desktop.MainWindow);
+                var logger = _services.GetRequiredService<ILogger<App>>();
+                logger.LogInformation("Bootstrap completed; starting the main window");
 
                 var settings = _services.GetRequiredService<ISettingsStore>().Load();
 
@@ -41,6 +45,7 @@ public partial class App : Application
                 // this (plan 13 §7/§8).
                 var migration = _services.GetRequiredService<StorageMigrationService>();
                 await migration.EnsureSchemaAsync();
+                logger.LogInformation("Database schema ensured");
 
                 // Set the DataContext BEFORE any dialog can show the main window:
                 // with a null DataContext every page-visibility binding is unresolved
@@ -60,6 +65,7 @@ public partial class App : Application
                 // non-dismissable progress window; new installs skip straight through.
                 if (migration.NeedsMigration())
                 {
+                    logger.LogInformation("Legacy JSON manifests found; running the storage migration");
                     if (!desktop.MainWindow.IsVisible)
                     {
                         desktop.MainWindow.Show();
@@ -77,6 +83,7 @@ public partial class App : Application
                 // directly here when the window is already visible.
                 if (desktop.MainWindow.IsVisible)
                 {
+                    logger.LogInformation("Running the initial library refresh");
                     await viewModel.InitializeAsync();
                 }
             }
@@ -87,8 +94,17 @@ public partial class App : Application
                 // unhandled crash; a Shutdown keeps the process exit observable
                 // (CI, scripts). A corrupt or locked linclelink.db (EnsureSchemaAsync)
                 // must not die silently, so show an error dialog when the services
-                // needed to render one exist.
-                Console.Error.WriteLine($"Startup failed: {ex}");
+                // needed to render one exist. The console sink covers the report when
+                // services are not available yet.
+                if (_services is { } services)
+                {
+                    services.GetRequiredService<ILogger<App>>().LogCritical(ex, "Startup failed");
+                }
+                else
+                {
+                    Log.Logger.Fatal(ex, "Startup failed");
+                }
+
                 await ReportStartupFailureAsync(desktop, ex);
             }
         }

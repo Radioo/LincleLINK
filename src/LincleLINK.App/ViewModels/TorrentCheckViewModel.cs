@@ -131,7 +131,7 @@ public partial class TorrentCheckViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanCheckFiles))]
     private async Task CheckFilesAsync()
     {
-        await _host.RunOperationAsync(async op =>
+        await _host.RunOperationAsync("Check torrent files", async op =>
         {
             var result = await _torrentService.CheckFilesAsync(
                 new TorrentCheckRequest(TorrentInstance!.InstanceName, TorrentFilePath, RelativePath),
@@ -141,7 +141,7 @@ public partial class TorrentCheckViewModel : ViewModelBase
             {
                 if (result.Error is not null)
                 {
-                    _host.LogLines.Add(result.Error);
+                    await _dialogs.ErrorAsync(result.Error, "Check torrent files");
                 }
 
                 FilesMatched = false;
@@ -155,12 +155,10 @@ public partial class TorrentCheckViewModel : ViewModelBase
                 MatchedFiles.Add(path);
             }
 
-            MatchSummary = $"{result.Matched} of {result.Total} files matched.";
+            MatchSummary = result.Matched > 0
+                ? $"{result.Matched} of {result.Total} files matched."
+                : "No files matched - check your relative path.";
             FilesMatched = result.Matched > 0;
-            if (result.Matched == 0)
-            {
-                _host.LogLines.Add(LogMessages.RelativePathHint);
-            }
 
             UpdateHints();
         });
@@ -169,7 +167,7 @@ public partial class TorrentCheckViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanCheckPieces))]
     private async Task CheckPiecesAsync()
     {
-        await _host.RunOperationAsync(async op =>
+        await _host.RunOperationAsync("Check torrent pieces", async op =>
         {
             var result = await _torrentService.CheckPiecesAsync(
                 new TorrentCheckRequest(TorrentInstance!.InstanceName, TorrentFilePath, RelativePath),
@@ -179,7 +177,7 @@ public partial class TorrentCheckViewModel : ViewModelBase
             {
                 if (result.Error is not null)
                 {
-                    _host.LogLines.Add(result.Error);
+                    await _dialogs.ErrorAsync(result.Error, "Check torrent pieces");
                 }
 
                 PiecesVerified = false;
@@ -215,7 +213,7 @@ public partial class TorrentCheckViewModel : ViewModelBase
             return;
         }
 
-        await _host.RunOperationAsync(async op =>
+        await _host.RunOperationAsync("Link to torrent", async op =>
         {
             var result = await _torrentService.LinkToTorrentAsync(
                 new LinkToTorrentRequest(TorrentDownloadPath, _checkedFiles, _badPieces),
@@ -223,12 +221,11 @@ public partial class TorrentCheckViewModel : ViewModelBase
 
             if (result.Error is not null)
             {
-                _host.LogLines.Add(result.Error);
+                await _dialogs.ErrorAsync(result.Error, "Link to torrent");
                 return;
             }
 
             LinkSummary = $"Linked {result.Linked} files, skipped {result.Skipped}.";
-            _host.ReportOutcome($"✓ Pre-fill finished: linked {result.Linked} files, skipped {result.Skipped}");
         });
 
         // Linked files now exist at the target, so previous match/verify results

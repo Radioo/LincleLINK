@@ -10,6 +10,7 @@ using LincleLINK.App.Logos;
 using LincleLINK.App.Services;
 using LincleLINK.App.ViewModels;
 using LincleLINK.Core.Abstractions.Settings;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace LincleLINK.App.Views.Tests;
@@ -55,12 +56,12 @@ public sealed class UIServicesTests
                 NSubstitute.Substitute.For<LincleLINK.Core.Abstractions.Hashing.IFileHasher>(),
                 NSubstitute.Substitute.For<LincleLINK.Core.Abstractions.Storage.IFileStore>(),
                 NSubstitute.Substitute.For<LincleLINK.Core.Abstractions.Linking.IHardLinker>(),
-                preflight, repository, driveInfo, dialogs, detector);
+                preflight, repository, driveInfo, dialogs, detector, NullLogger<LincleLINK.Core.Application.InstanceService>.Instance);
 
             return locator.Build(new AddInstanceViewModel(
                 service, dialogs,
                 NSubstitute.Substitute.For<LincleLINK.App.Abstractions.ITaskbarProgress>(),
-                fs, preflight, detector));
+                fs, preflight, NullLogger<AddInstanceViewModel>.Instance, detector));
         });
 
         view.Should().BeOfType<LincleLINK.App.Views.AddInstanceWindow>();

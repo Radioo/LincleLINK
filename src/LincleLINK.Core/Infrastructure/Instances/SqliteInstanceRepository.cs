@@ -6,6 +6,7 @@ using LincleLINK.Core.Infrastructure.Collections;
 using LincleLINK.Core.Infrastructure.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace LincleLINK.Core.Infrastructure.Instances;
 
@@ -20,10 +21,14 @@ namespace LincleLINK.Core.Infrastructure.Instances;
 public sealed class SqliteInstanceRepository : IInstanceRepository
 {
     private readonly IDbContextFactory<LincleLinkDbContext> _contextFactory;
+    private readonly ILogger<SqliteInstanceRepository> _logger;
 
-    public SqliteInstanceRepository(IDbContextFactory<LincleLinkDbContext> contextFactory)
+    public SqliteInstanceRepository(
+        IDbContextFactory<LincleLinkDbContext> contextFactory,
+        ILogger<SqliteInstanceRepository> logger)
     {
         _contextFactory = contextFactory;
+        _logger = logger;
     }
 
     public async Task<IReadOnlyList<string>> GetNamesAsync(CancellationToken ct = default)
@@ -86,6 +91,7 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
             })
             .ToListAsync(ct);
 
+        _logger.LogDebug("Loaded {Count} library entries", summaries.Count);
         return summaries
             .OrderBy(x => x.InstanceName, NaturalStringComparer.Instance)
             .ToArray();
@@ -197,6 +203,7 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
         }
 
         await context.SaveChangesAsync(ct);
+        _logger.LogDebug("Saved instance '{InstanceName}' to the database", instance.InstanceName);
     }
 
     public async Task<bool> DeleteAsync(string name, CancellationToken ct = default)
@@ -213,6 +220,7 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
 
         context.Instances.Remove(entity);
         await context.SaveChangesAsync(ct);
+        _logger.LogDebug("Deleted instance '{InstanceName}' from the database", name);
         return true;
     }
 
@@ -253,6 +261,7 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
         }
 
         await transaction.CommitAsync(ct);
+        _logger.LogInformation("Bulk-inserted {Count} instances in one transaction", instances.Count);
     }
 
     private static async Task InsertInstanceAsync(

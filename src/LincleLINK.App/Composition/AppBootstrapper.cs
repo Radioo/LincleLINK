@@ -12,6 +12,8 @@ using LincleLINK.Core.Composition;
 using LincleLINK.Core.Infrastructure.Paths;
 using LincleLINK.Core.Infrastructure.Settings;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Serilog;
 
 namespace LincleLINK.App.Composition;
 
@@ -19,10 +21,7 @@ public static class AppBootstrapper
 {
     public static async Task<ServiceProvider> BuildAsync(Func<Window?> ownerProvider)
     {
-        var settingsFile = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "LincleLINK",
-            "settings.json");
+        var settingsFile = AppConfig.SettingsFile;
 
         string dataDirectory;
         using (var bootstrap = CreateBootstrapContainer(settingsFile, ownerProvider))
@@ -110,7 +109,13 @@ public static class AppBootstrapper
     {
         var dialogService = new DialogService(ownerProvider);
 
-        services.AddSingleton<ISettingsStore>(new JsonSettingsStore(settingsFile));
+        // One logger factory per container, both backed by the single static Serilog
+        // pipeline configured in Program.Main (issue #17 D1).
+        services.AddLogging(builder => builder.AddSerilog());
+        services.AddSingleton<ISettingsStore>(sp => new JsonSettingsStore(
+            settingsFile,
+            sp.GetRequiredService<ILoggerFactory>().CreateLogger<JsonSettingsStore>()));
+        services.AddSingleton(new DiagnosticLogOptions(AppConfig.LogDirectory));
         services.AddSingleton(dialogService);
         services.AddSingleton<IDialogService>(dialogService);
         services.AddSingleton<IAppDialogHost>(dialogService);
