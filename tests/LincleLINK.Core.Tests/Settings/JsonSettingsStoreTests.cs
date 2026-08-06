@@ -61,6 +61,26 @@ public sealed class JsonSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void SaveLogToFile_roundtrips_through_save_and_load()
+    {
+        var store = new JsonSettingsStore(SettingsPath);
+        store.Save(new AppSettings(AppTheme.Light, null, 2, SaveLogToFile: true));
+
+        new JsonSettingsStore(SettingsPath).Load().SaveLogToFile.Should().BeTrue();
+    }
+
+    [Fact]
+    public void SaveLogToFile_defaults_to_false_when_not_persisted()
+    {
+        // A settings file written before the SaveLogToFile field existed must come
+        // back as false (file logging is opt-in, never silently enabled).
+        Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
+        File.WriteAllText(SettingsPath, """{"Theme": "System", "DataDirectory": null, "HashThreadCount": 2}""");
+
+        new JsonSettingsStore(SettingsPath).Load().SaveLogToFile.Should().BeFalse();
+    }
+
+    [Fact]
     public void Save_creates_missing_directories()
     {
         var store = new JsonSettingsStore(SettingsPath);
