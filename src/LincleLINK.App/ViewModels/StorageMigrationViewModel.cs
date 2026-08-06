@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using LincleLINK.App.Services;
@@ -23,8 +22,6 @@ public partial class StorageMigrationViewModel : ViewModelBase
 
     public override Size DialogSize => new(560, 440);
 
-    public ObservableCollection<string> LogLines { get; } = [];
-
     [ObservableProperty]
     private string _status = "Upgrading instance database…";
 
@@ -43,7 +40,7 @@ public partial class StorageMigrationViewModel : ViewModelBase
     {
         try
         {
-            var log = ProgressBridge.Create<string>(AddLogLine, batchSize: 100);
+            var log = ProgressBridge.Create<string>(line => AddLogLine(line, _logger), batchSize: 100);
             var percent = ProgressBridge.Create<double>(p => Progress = p);
             var result = await Task.Run(() => _migration.MigrateAsync(log, percent));
 
@@ -51,7 +48,8 @@ public partial class StorageMigrationViewModel : ViewModelBase
                 ? "Upgrade complete."
                 : "Upgrade complete. Some manifests could not be read and were quarantined.";
             AddLogLine(
-                $"Migrated {result.Migrated}, skipped {result.Skipped}, quarantined {result.Quarantined}.");
+                $"Migrated {result.Migrated}, skipped {result.Skipped}, quarantined {result.Quarantined}.",
+                _logger);
 
             Completed?.Invoke(this, result);
         }
@@ -60,22 +58,12 @@ public partial class StorageMigrationViewModel : ViewModelBase
             // Never brick the app: report, keep the un-migrated JSON on disk (the next
             // launch re-offers), and let the main window open regardless.
             Status = "Upgrade failed. Your existing data has been left untouched.";
-            AddLogLine($"Upgrade failed: {ex.Message}");
+            AddLogLine($"Upgrade failed: {ex.Message}", _logger);
             _logger.LogError(ex, "Storage migration failed");
         }
         finally
         {
             RequestClose();
         }
-    }
-
-    /// <summary>
-    /// Appends a user-visible line to this window's activity feed with a timestamp
-    /// prefix and mirrors it into the diagnostic log (issue #17 D4/D5).
-    /// </summary>
-    private void AddLogLine(string line)
-    {
-        LogLines.Add($"{DateTime.Now:HH:mm:ss} {line}");
-        _logger.LogDebug("Activity: {Line}", line);
     }
 }

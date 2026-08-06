@@ -292,6 +292,57 @@ public sealed class DiagnosticLoggingTests
     }
 
     [Fact]
+    public void Level_switch_drops_debug_events_when_file_logging_is_off()
+    {
+        // Finding: the pipeline pinned MinimumLevel.Debug permanently, so per-file
+        // Debug events were materialized and dropped by both sinks whenever file
+        // logging was off (the default). The level switch must gate them cheaply.
+        FileLoggingSwitch.Enabled = false;
+        try
+        {
+            var sink = new CollectingSink();
+            using var log = new LoggerConfiguration()
+                .MinimumLevel.ControlledBy(FileLoggingSwitch.LevelSwitch)
+                .WriteTo.Sink(sink)
+                .CreateLogger();
+
+            log.Debug("debug-marker");
+            log.Information("info-marker");
+
+            sink.Events.Should().ContainSingle();
+            sink.Events[0].Level.Should().Be(LogEventLevel.Information);
+            sink.Events[0].MessageTemplate.Text.Should().NotContain("debug-marker");
+        }
+        finally
+        {
+            FileLoggingSwitch.Enabled = false;
+        }
+    }
+
+    [Fact]
+    public void Enabled_toggle_raises_the_level_switch_live()
+    {
+        FileLoggingSwitch.Enabled = false;
+        try
+        {
+            var sink = new CollectingSink();
+            using var log = new LoggerConfiguration()
+                .MinimumLevel.ControlledBy(FileLoggingSwitch.LevelSwitch)
+                .WriteTo.Sink(sink)
+                .CreateLogger();
+
+            FileLoggingSwitch.Enabled = true;
+            log.Debug("debug-marker");
+
+            sink.Events.Should().ContainSingle(e => e.MessageTemplate.Text == "debug-marker");
+        }
+        finally
+        {
+            FileLoggingSwitch.Enabled = false;
+        }
+    }
+
+    [Fact]
     public void WriteHeader_logs_version_os_and_runtime()
     {
         var sink = new CollectingSink();
@@ -343,15 +394,14 @@ public sealed class DiagnosticLoggingTests
     // ── Folder opener (D2) ───────────────────────────────────────────────────
 
     [Theory]
-    [InlineData(true, false, false, "explorer.exe")]
-    [InlineData(false, true, false, "xdg-open")]
-    [InlineData(false, false, true, "open")]
-    [InlineData(false, false, false, "xdg-open")]
-    public void FolderOpener_selects_platform_command(bool isWindows, bool isLinux, bool isMacOS, string expected)
+    [InlineData(true, false, "explorer.exe")]
+    [InlineData(false, false, "xdg-open")]
+    [InlineData(false, true, "open")]
+    public void FolderOpener_selects_platform_command(bool isWindows, bool isMacOS, string expected)
     {
         const string path = "/some/logs";
 
-        var info = FolderOpener.CreateStartInfo(path, isWindows, isLinux, isMacOS);
+        var info = FolderOpener.CreateStartInfo(path, isWindows, isMacOS);
 
         info.FileName.Should().Be(expected);
         info.UseShellExecute.Should().BeTrue();

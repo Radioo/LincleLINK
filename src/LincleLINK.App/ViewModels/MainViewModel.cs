@@ -49,8 +49,6 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     /// <summary>The library grid's view of <see cref="Instances"/> after the filter box.</summary>
     public ObservableCollection<InstanceListEntry> FilteredInstances { get; } = [];
 
-    public ObservableCollection<string> LogLines { get; } = [];
-
     /// <summary>The torrent pre-fill page (paths, wizard gates, commands).</summary>
     public TorrentCheckViewModel TorrentCheck { get; }
 
@@ -171,17 +169,18 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
 
     partial void OnSaveLogToFileChanged(bool value)
     {
-        SaveSettings(saveLogToFile: value);
         OpenLogFolderCommand.NotifyCanExecuteChanged();
 
         if (_seedingSaveLogToFile)
         {
             // Program.Main already seeded the live switch from the same settings;
-            // a VM seed must not re-touch the process-global switch.
+            // a VM seed must not re-touch the process-global switch or rewrite the
+            // settings file with identical content.
             _seedingSaveLogToFile = false;
             return;
         }
 
+        SaveSettings(saveLogToFile: value);
         FileLoggingSwitch.Enabled = value;
 
         if (value)
@@ -197,7 +196,21 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     }
 
     [RelayCommand(CanExecute = nameof(CanOpenLogFolder))]
-    private void OpenLogFolder() => FolderOpener.Open(LogDirectory);
+    private void OpenLogFolder()
+    {
+        try
+        {
+            FolderOpener.Open(LogDirectory);
+        }
+        catch (Exception ex)
+        {
+            // A missing or broken platform launcher (e.g. xdg-open on a minimal
+            // Linux install) must degrade to a warning, never crash the app
+            // through the diagnostics button.
+            AddLogLine($"Could not open the log folder: {ex.Message}");
+            _logger.LogWarning(ex, "Could not open the log folder {LogDirectory}", LogDirectory);
+        }
+    }
 
     private bool CanOpenLogFolder() => Directory.Exists(LogDirectory);
 
@@ -685,14 +698,10 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     }
 
     /// <summary>
-    /// Single choke point for user-visible activity lines (issue #17 D5): timestamps
-    /// the line for the drawer and mirrors it into the diagnostic log at Debug.
+    /// <see cref="IOperationHost"/> implementation; delegates to the shared
+    /// <see cref="ViewModelBase"/> helper.
     /// </summary>
-    public void AddLogLine(string line)
-    {
-        LogLines.Add($"{DateTime.Now:HH:mm:ss} {line}");
-        _logger.LogDebug("Activity: {Line}", line);
-    }
+    public void AddLogLine(string line) => AddLogLine(line, _logger);
 
     public void ReportOutcome(string message, bool isWarning = false)
     {

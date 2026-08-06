@@ -81,7 +81,7 @@ public sealed class FirstLaunchService
             false => AppTheme.Light,
             null => settings.Theme,
         };
-        _settingsStore.Save(new AppSettings(theme, dataDirectory, settings.HashThreadCount));
+        _settingsStore.Save(settings with { Theme = theme, DataDirectory = dataDirectory });
         _logger.LogInformation("Completed first launch with data directory {DataDirectory}", dataDirectory);
     }
 

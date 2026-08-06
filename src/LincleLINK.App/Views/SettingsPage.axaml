@@ -64,7 +64,7 @@
                         BorderBrush="{DynamicResource LLHairline}" BorderThickness="1" CornerRadius="8" Padding="14">
                     <StackPanel Spacing="8">
                         <TextBlock Text="Diagnostics" FontWeight="SemiBold" FontSize="13.5" />
-                        <TextBlock Text="Save the diagnostic log to a file, one per day. Daily files, last 14 kept, 10 MB each."
+                        <TextBlock Text="Save the diagnostic log to a file: daily files, last 14 kept, 10 MB each."
                                    Opacity="0.6" FontSize="11.5" TextWrapping="Wrap" />
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <ToggleSwitch IsChecked="{Binding SaveLogToFile, Mode=TwoWay}" VerticalAlignment="Center" />

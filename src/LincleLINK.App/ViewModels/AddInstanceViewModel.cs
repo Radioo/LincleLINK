@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using Avalonia;
 using LincleLINK.App.Abstractions;
 using LincleLINK.App.Logos;
@@ -35,8 +34,6 @@ public partial class AddInstanceViewModel : ViewModelBase
 
     private string? _gameRootPath;
     private string? _dataFolderName;
-
-    public ObservableCollection<string> LogLines { get; } = [];
 
     /// <summary>
     /// True once an add completed and requested close - lets the hosting shell
@@ -320,7 +317,7 @@ public partial class AddInstanceViewModel : ViewModelBase
         using var cts = new CancellationTokenSource();
         _operationCts = cts;
         CancelOperationCommand.NotifyCanExecuteChanged();
-        var log = ProgressBridge.Create<string>(AddLogLine, batchSize: 100);
+        var log = ProgressBridge.Create<string>(line => AddLogLine(line, _logger), batchSize: 100);
         var status = ProgressBridge.Create<string>(line => StatusLine = line, batchSize: 200);
         var percent = ProgressBridge.Create<double>(p =>
         {
@@ -347,12 +344,12 @@ public partial class AddInstanceViewModel : ViewModelBase
             }
             else
             {
-                AddLogLine("Operation cancelled.");
+                AddLogLine("Operation cancelled.", _logger);
             }
         }
         catch (OperationCanceledException)
         {
-            AddLogLine("Operation cancelled.");
+            AddLogLine("Operation cancelled.", _logger);
         }
         catch (Exception ex)
         {
@@ -367,16 +364,6 @@ public partial class AddInstanceViewModel : ViewModelBase
             Progress = 0;
             _taskbarProgress.EndOperation();
         }
-    }
-
-    /// <summary>
-    /// Appends a user-visible line to this panel's activity feed with a timestamp
-    /// prefix and mirrors it into the diagnostic log (issue #17 D4/D5).
-    /// </summary>
-    private void AddLogLine(string line)
-    {
-        LogLines.Add($"{DateTime.Now:HH:mm:ss} {line}");
-        _logger.LogDebug("Activity: {Line}", line);
     }
 
     [RelayCommand(CanExecute = nameof(CanCancelOperation))]

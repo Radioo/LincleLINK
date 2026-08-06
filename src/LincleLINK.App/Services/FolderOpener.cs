@@ -8,13 +8,13 @@ namespace LincleLINK.App.Services;
 public static class FolderOpener
 {
     public static void Open(string path)
-        => Open(path, OperatingSystem.IsWindows(), OperatingSystem.IsLinux(), OperatingSystem.IsMacOS());
+        => Open(path, OperatingSystem.IsWindows(), OperatingSystem.IsMacOS());
 
     /// <summary>
     /// Builds the launch info for the platform's file manager. Parameterized by OS
     /// flags so the selection logic is unit-testable on any host.
     /// </summary>
-    public static ProcessStartInfo CreateStartInfo(string path, bool isWindows, bool isLinux, bool isMacOS)
+    public static ProcessStartInfo CreateStartInfo(string path, bool isWindows, bool isMacOS)
     {
         var fileName = isWindows ? "explorer.exe" : isMacOS ? "open" : "xdg-open";
         var info = new ProcessStartInfo(fileName) { UseShellExecute = true };
@@ -22,13 +22,13 @@ public static class FolderOpener
         return info;
     }
 
-    private static void Open(string path, bool isWindows, bool isLinux, bool isMacOS)
+    private static void Open(string path, bool isWindows, bool isMacOS)
     {
         if (!Directory.Exists(path))
         {
             return;
         }
 
-        using var process = Process.Start(CreateStartInfo(path, isWindows, isLinux, isMacOS));
+        using var process = Process.Start(CreateStartInfo(path, isWindows, isMacOS));
     }
 }

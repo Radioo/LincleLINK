@@ -144,4 +144,26 @@ public sealed class FirstLaunchServiceTests : IDisposable
         var result = service.ResolveDataDirectory();
         result.Action.Should().Be(FirstLaunchAction.UseExistingSettings);
     }
+
+    [Fact]
+    public void CompleteFirstLaunch_preserves_other_settings_fields()
+    {
+        // The method is documented "safe to call more than once": it must not drop
+        // ViewMode/SaveLogToFile/HashThreadCount back to defaults when re-run on a
+        // store that already has them.
+        var store = new JsonSettingsStore(SettingsPath);
+        store.Save(new AppSettings(AppTheme.Dark, "C:\\old", 3, LibraryViewMode.Grid, SaveLogToFile: true));
+        var service = new FirstLaunchService(store, NullLogger<FirstLaunchService>.Instance);
+        var dataDir = Path.Combine(_temp.Root, "data");
+        Directory.CreateDirectory(dataDir);
+
+        service.CompleteFirstLaunch(dataDir);
+
+        var settings = store.Load();
+        settings.Theme.Should().Be(AppTheme.Dark);
+        settings.DataDirectory.Should().Be(dataDir);
+        settings.HashThreadCount.Should().Be(3);
+        settings.ViewMode.Should().Be(LibraryViewMode.Grid);
+        settings.SaveLogToFile.Should().BeTrue();
+    }
 }

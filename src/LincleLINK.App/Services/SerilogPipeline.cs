@@ -31,7 +31,7 @@ public static class SerilogPipeline
 
     public static LoggerConfiguration BuildConfiguration(string logDirectory)
         => new LoggerConfiguration()
-            .MinimumLevel.Debug()
+            .MinimumLevel.ControlledBy(FileLoggingSwitch.LevelSwitch)
             .WriteTo.Console(
                 restrictedToMinimumLevel: LogEventLevel.Information,
                 standardErrorFromLevel: LogEventLevel.Error,
