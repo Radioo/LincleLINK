@@ -20,6 +20,14 @@
     <!-- Dragged in transitively by AvaloniaUI.DiagnosticsSupport; pinned to the
          10.x line so the graph does not mix .NET 8 and .NET 10 dependency streams. -->
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.10" />
+    <!-- Diagnostic logging (issue #17): MEL API in Core, Serilog backend in App.
+         Serilog.Extensions.Logging 10.x targets the MEL 10 line, keeping the graph
+         on one dependency stream. -->
+    <PackageVersion Include="Serilog" Version="4.4.0" />
+    <PackageVersion Include="Serilog.Extensions.Logging" Version="10.0.0" />
+    <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
+    <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
     <!-- Torrent -->
     <PackageVersion Include="MonoTorrent" Version="3.0.2" />
     <!-- Session-bus access for the Linux taskbar (Unity LauncherEntry) progress

@@ -6,6 +6,9 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\LL_logo.ico</ApplicationIcon>
     <AssemblyName>LincleLINK</AssemblyName>
+    <!-- Message-template discipline (issue #17 D3): interpolation into ILogger
+         calls is an error, not a warning, in the App project too. -->
+    <WarningsAsErrors>CA2254</WarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
@@ -24,6 +27,11 @@
     <PackageReference Include="Semi.Avalonia.DataGrid" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Extensions.Logging" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Include="Serilog.Sinks.File" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" />
     <PackageReference Include="Tmds.DBus.Protocol" />
   </ItemGroup>
