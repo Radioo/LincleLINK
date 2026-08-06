@@ -7,6 +7,7 @@ using LincleLINK.App.Services;
 using LincleLINK.App.ViewModels;
 using LincleLINK.App.Views;
 using LincleLINK.Core.Domain;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 
@@ -268,17 +269,17 @@ public sealed class InteractionTests
             new LincleLINK.Core.Application.InstanceService(fs,
                 Substitute.For<LincleLINK.Core.Abstractions.Hashing.IFileHasher>(), store,
                 Substitute.For<LincleLINK.Core.Abstractions.Linking.IHardLinker>(), preflight,
-                repository, driveInfo, dialogs, detector),
+                repository, driveInfo, dialogs, detector, NullLogger<LincleLINK.Core.Application.InstanceService>.Instance),
             new LincleLINK.Core.Application.LinkingService(fs, store,
                 Substitute.For<LincleLINK.Core.Abstractions.Linking.IHardLinker>(), preflight,
-                repository, dialogs),
-            new LincleLINK.Core.Application.UnusedFilesService(store, repository, dialogs),
-            new LincleLINK.Core.Application.LegacyImporter(repository),
+                repository, dialogs, NullLogger<LincleLINK.Core.Application.LinkingService>.Instance),
+            new LincleLINK.Core.Application.UnusedFilesService(store, repository, dialogs, NullLogger<LincleLINK.Core.Application.UnusedFilesService>.Instance),
+            new LincleLINK.Core.Application.LegacyImporter(repository, NullLogger<LincleLINK.Core.Application.LegacyImporter>.Instance),
             new LincleLINK.Core.Application.TorrentService(
                 Substitute.For<LincleLINK.Core.Abstractions.Torrents.ITorrentSource>(),
-                repository, store, Substitute.For<LincleLINK.Core.Abstractions.Linking.IHardLinker>(), fs),
+                repository, store, Substitute.For<LincleLINK.Core.Abstractions.Linking.IHardLinker>(), fs, NullLogger<LincleLINK.Core.Application.TorrentService>.Instance),
             repository,
-            new LincleLINK.Core.Application.StatusService(store, repository, driveInfo, paths),
+            new LincleLINK.Core.Application.StatusService(store, repository, driveInfo, paths, NullLogger<LincleLINK.Core.Application.StatusService>.Instance),
             dialogs,
             Substitute.For<IThemeManager>(),
             settingsStore,
@@ -287,8 +288,10 @@ public sealed class InteractionTests
             () => new AddInstanceViewModel(new LincleLINK.Core.Application.InstanceService(fs,
                     Substitute.For<LincleLINK.Core.Abstractions.Hashing.IFileHasher>(), store,
                     Substitute.For<LincleLINK.Core.Abstractions.Linking.IHardLinker>(), preflight,
-                    repository, driveInfo, dialogs, detector),
-                dialogs, Substitute.For<ITaskbarProgress>(), fs, preflight, detector),
+                    repository, driveInfo, dialogs, detector, NullLogger<LincleLINK.Core.Application.InstanceService>.Instance),
+                dialogs, Substitute.For<ITaskbarProgress>(), fs, preflight, NullLogger<AddInstanceViewModel>.Instance, detector),
+            NullLogger<MainViewModel>.Instance,
+            new DiagnosticLogOptions(Path.Combine(Path.GetTempPath(), "linclelink-view-logs", Guid.NewGuid().ToString("N"))),
             new LogoCatalog(),
             paths);
     }

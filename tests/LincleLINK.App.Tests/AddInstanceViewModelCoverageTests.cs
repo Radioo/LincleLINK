@@ -12,6 +12,7 @@ using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 
@@ -39,8 +40,8 @@ public sealed class AddInstanceViewModelCoverageTests
 
     private AddInstanceViewModel Create() =>
         new(
-            new InstanceService(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, _detector),
-            _dialogs, _taskbarProgress, _fs, _preflight, _detector);
+            new InstanceService(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, _detector, NullLogger<InstanceService>.Instance),
+            _dialogs, _taskbarProgress, _fs, _preflight, NullLogger<AddInstanceViewModel>.Instance, _detector);
 
     private void StubDataPath()
     {

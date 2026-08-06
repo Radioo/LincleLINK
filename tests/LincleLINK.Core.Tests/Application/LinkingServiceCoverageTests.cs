@@ -7,6 +7,7 @@ using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
 using LincleLINK.Core.Tests.TestHelpers;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 
@@ -24,7 +25,7 @@ public sealed class LinkingServiceCoverageTests
     private readonly IInstanceRepository _repository = Substitute.For<IInstanceRepository>();
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
 
-    private LinkingService CreateService() => new(_fs, _store, _hardLinker, _preflight, _repository, _dialogs);
+    private LinkingService CreateService() => new(_fs, _store, _hardLinker, _preflight, _repository, _dialogs, NullLogger<LinkingService>.Instance);
 
     private static Instance SampleInstance() => Instance.Create(
         "inst",

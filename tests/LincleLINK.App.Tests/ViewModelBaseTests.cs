@@ -4,6 +4,7 @@ using LincleLINK.App.ViewModels;
 using LincleLINK.App.ViewModels.Base;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Settings;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 
@@ -94,10 +95,13 @@ public sealed class DialogViewModelSurfaceTests
     [Fact]
     public void StorageMigrationViewModel_exposes_title_and_size()
     {
-        var vm = new StorageMigrationViewModel(Substitute.For<LincleLINK.Core.Application.StorageMigrationService>(
-            Substitute.For<LincleLINK.Core.Abstractions.Paths.IAppPaths>(),
-            Substitute.For<LincleLINK.Core.Abstractions.Instances.IInstanceRepository>(),
-            Substitute.For<Microsoft.EntityFrameworkCore.IDbContextFactory<LincleLINK.Core.Infrastructure.Persistence.LincleLinkDbContext>>()));
+        var vm = new StorageMigrationViewModel(
+            Substitute.For<LincleLINK.Core.Application.StorageMigrationService>(
+                Substitute.For<LincleLINK.Core.Abstractions.Paths.IAppPaths>(),
+                Substitute.For<LincleLINK.Core.Abstractions.Instances.IInstanceRepository>(),
+                Substitute.For<Microsoft.EntityFrameworkCore.IDbContextFactory<LincleLINK.Core.Infrastructure.Persistence.LincleLinkDbContext>>(),
+                NullLogger<LincleLINK.Core.Application.StorageMigrationService>.Instance),
+            NullLogger<StorageMigrationViewModel>.Instance);
 
         vm.Title.Should().Be("Upgrading database");
         vm.DialogSize.Width.Should().Be(560);

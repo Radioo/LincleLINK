@@ -1,6 +1,7 @@
 using FluentAssertions;
 using LincleLINK.App.Abstractions;
 using LincleLINK.App.Logos;
+using LincleLINK.App.Services;
 using LincleLINK.App.Tests.TestHelpers;
 using LincleLINK.App.ViewModels;
 using LincleLINK.Core.Abstractions.Dialogs;
@@ -16,6 +17,7 @@ using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Abstractions.Torrents;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 
@@ -46,21 +48,23 @@ public sealed class MainViewModelCoverageTests : IDisposable
     public void Dispose() => _temp.Dispose();
 
     private MainViewModel CreateViewModel() => new(
-        new InstanceService(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, _detector),
-        new LinkingService(_fs, _store, _hardLinker, _preflight, _repository, _dialogs),
-        new UnusedFilesService(_store, _repository, _dialogs),
-        new LegacyImporter(_repository),
-        new TorrentService(Substitute.For<ITorrentSource>(), _repository, _store, _hardLinker, _fs),
+        new InstanceService(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, _detector, NullLogger<InstanceService>.Instance),
+        new LinkingService(_fs, _store, _hardLinker, _preflight, _repository, _dialogs, NullLogger<LinkingService>.Instance),
+        new UnusedFilesService(_store, _repository, _dialogs, NullLogger<UnusedFilesService>.Instance),
+        new LegacyImporter(_repository, NullLogger<LegacyImporter>.Instance),
+        new TorrentService(Substitute.For<ITorrentSource>(), _repository, _store, _hardLinker, _fs, NullLogger<TorrentService>.Instance),
         _repository,
-        new StatusService(_store, _repository, _driveInfo, _paths),
+        new StatusService(_store, _repository, _driveInfo, _paths, NullLogger<StatusService>.Instance),
         _dialogs,
         _themeManager,
         _settingsStore,
         _taskbarProgress,
         _preflight,
         () => new AddInstanceViewModel(
-            new InstanceService(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, _detector),
-            _dialogs, _taskbarProgress, _fs, _preflight, _detector),
+            new InstanceService(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, _detector, NullLogger<InstanceService>.Instance),
+            _dialogs, _taskbarProgress, _fs, _preflight, NullLogger<AddInstanceViewModel>.Instance, _detector),
+        NullLogger<MainViewModel>.Instance,
+        new DiagnosticLogOptions(Path.Combine(_temp.Root, "logs")),
         _logoCatalog, _paths);
 
     private void StubEmptyLibrary()
@@ -414,11 +418,11 @@ public sealed class MainViewModelCoverageTests : IDisposable
         StubEmptyLibrary();
         var vm = CreateViewModel();
 
-        await vm.RunOperationAsync(_ => throw new OperationCanceledException());
+        await vm.RunOperationAsync("Test op", _ => throw new OperationCanceledException());
         vm.LastOutcome.Should().Contain("cancelled");
         vm.IsBusy.Should().BeFalse();
 
-        await vm.RunOperationAsync(_ => throw new IOException("boom"));
+        await vm.RunOperationAsync("Test op", _ => throw new IOException("boom"));
         vm.LastOutcome.Should().Contain("boom");
         vm.LastOutcomeIsWarning.Should().BeTrue();
         vm.LogLines.Should().Contain(l => l.Contains("boom"));
@@ -430,7 +434,7 @@ public sealed class MainViewModelCoverageTests : IDisposable
         StubEmptyLibrary();
         var vm = CreateViewModel();
 
-        await vm.RunOperationAsync(_ => Task.CompletedTask);
+        await vm.RunOperationAsync("Test op", _ => Task.CompletedTask);
 
         _taskbarProgress.Received(1).BeginOperation();
         _taskbarProgress.Received(1).EndOperation();
@@ -633,7 +637,7 @@ public sealed class MainViewModelCoverageTests : IDisposable
         StubEmptyLibrary();
         var gate = new TaskCompletionSource();
         var vm = CreateViewModel();
-        var run = vm.RunOperationAsync(_ => gate.Task);
+        var run = vm.RunOperationAsync("Test op", _ => gate.Task);
         await AsyncWaits.AwaitUntilAsync(() => vm.CancelOperationCommand.CanExecute(null));
 
         vm.CancelOperationCommand.Execute(null);

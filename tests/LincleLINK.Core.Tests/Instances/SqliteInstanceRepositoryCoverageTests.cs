@@ -5,6 +5,7 @@ using LincleLINK.Core.Infrastructure.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace LincleLINK.Core.Tests.Instances;
@@ -26,7 +27,7 @@ public sealed class SqliteInstanceRepositoryCoverageTests : IDisposable
         _factory = CreateFactory(_connection);
         using var context = _factory.CreateDbContext();
         context.Database.EnsureCreated();
-        _repo = new SqliteInstanceRepository(_factory);
+        _repo = new SqliteInstanceRepository(_factory, NullLogger<SqliteInstanceRepository>.Instance);
     }
 
     public void Dispose() => _connection.Dispose();

@@ -16,6 +16,7 @@ using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Abstractions.Torrents;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 
@@ -44,8 +45,8 @@ public sealed class AdditionalVmCoverageTests
 
     private AddInstanceViewModel CreateAddVm() =>
         new(
-            new InstanceService(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, _detector),
-            _dialogs, _taskbarProgress, _fs, _preflight, _detector);
+            new InstanceService(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, _detector, NullLogger<InstanceService>.Instance),
+            _dialogs, _taskbarProgress, _fs, _preflight, NullLogger<AddInstanceViewModel>.Instance, _detector);
 
     [Fact]
     public void ViewModelBase_default_theme_hook_is_empty()

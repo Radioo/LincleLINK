@@ -9,6 +9,7 @@ using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Application;
 using NSubstitute;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace LincleLINK.Core.Tests.Application;
@@ -30,7 +31,7 @@ public sealed class InstanceServiceDeleteTests
     private readonly IGameVersionDetector _detector = Substitute.For<IGameVersionDetector>();
 
     private InstanceService CreateService() =>
-        new(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, _detector);
+        new(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, _detector, NullLogger<InstanceService>.Instance);
 
     [Fact]
     public async Task Confirmed_delete_deletes_and_reports_success()

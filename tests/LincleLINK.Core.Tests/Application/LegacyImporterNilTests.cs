@@ -5,6 +5,7 @@ using LincleLINK.Core.Application;
 using LincleLINK.Core.Infrastructure.Instances;
 using LincleLINK.Core.Infrastructure.Paths;
 using LincleLINK.Core.Tests.TestHelpers;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace LincleLINK.Core.Tests.Application;
@@ -23,7 +24,7 @@ public sealed class LegacyImporterNilTests : IDisposable
     public LegacyImporterNilTests()
     {
         _paths = new AppPaths(Path.Combine(_temp.Root, "data"));
-        _importer = new LegacyImporter(new JsonInstanceRepository(_paths));
+        _importer = new LegacyImporter(new JsonInstanceRepository(_paths), NullLogger<LegacyImporter>.Instance);
     }
 
     public void Dispose() => _temp.Dispose();
