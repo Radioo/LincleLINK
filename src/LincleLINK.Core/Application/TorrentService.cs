@@ -215,7 +215,7 @@ public sealed partial class TorrentService
             percent?.Report(progress.Report(ref index));
         }
 
-        log?.Report("Linking finished");
+        log?.Report($"Pre-fill finished: linked {linked} files, skipped {skipped}.");
         LogTorrentLinkingCompleted(linked, skipped);
         return new LinkToTorrentResult(true, null, linked, skipped);
     }

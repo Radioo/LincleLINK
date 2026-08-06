@@ -382,8 +382,20 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
 
             // Seed the diagnostics toggle from persisted settings without the
             // user-flip side effects (Program.Main already set the live switch).
+            // The generated setter is equality-guarded: when the persisted value
+            // equals the current field (e.g. false->false) OnSaveLogToFileChanged
+            // is never invoked, so the flag must clear unconditionally or the
+            // first user flip would be mistaken for a seed and never enable the
+            // live switch.
             _seedingSaveLogToFile = true;
-            SaveLogToFile = settings.SaveLogToFile;
+            try
+            {
+                SaveLogToFile = settings.SaveLogToFile;
+            }
+            finally
+            {
+                _seedingSaveLogToFile = false;
+            }
         }
 
         await RefreshAllAsync();

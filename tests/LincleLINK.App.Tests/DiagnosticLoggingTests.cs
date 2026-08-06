@@ -204,7 +204,37 @@ public sealed class DiagnosticLoggingTests
         }
     }
 
-    // ── File logging switch / conditional file sink (D1) ────────────────────
+    [Fact]
+    public async Task Seed_with_persisted_false_does_not_silence_a_subsequent_user_toggle()
+    {
+        // Regression: the seeding flag was only cleared when the generated setter
+        // actually invoked OnSaveLogToFileChanged. Seeding the default (false) is
+        // equality-guarded and skips the callback, so the flag stayed set and the
+        // first user flip was mistaken for a seed - the live switch never enabled
+        // for the rest of the session.
+        FileLoggingSwitch.Enabled = false;
+        try
+        {
+            var settingsStore = Substitute.For<ISettingsStore>();
+            settingsStore.Load().Returns(new AppSettings(AppTheme.System, null, 2, SaveLogToFile: false));
+            using var provider = new RecordingLoggerProvider();
+            var vm = CreateViewModel(provider, settingsStore);
+            StubStatus();
+
+            await vm.InitializeAsync();
+
+            vm.SaveLogToFile.Should().BeFalse();
+
+            vm.SaveLogToFile = true;
+
+            FileLoggingSwitch.Enabled.Should().BeTrue();
+            vm.LogLines.Should().Contain(l => l.Contains(LogMessages.DiagnosticLogEnabledPrefix));
+        }
+        finally
+        {
+            FileLoggingSwitch.Enabled = false;
+        }
+    }
 
     [Fact]
     public void File_sink_writes_when_enabled_and_is_silent_when_disabled()
