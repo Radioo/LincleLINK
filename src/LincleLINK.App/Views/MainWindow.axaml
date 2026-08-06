@@ -315,7 +315,7 @@
                     <ScrollViewer IsVisible="{Binding IsSettingsPage}">
                         <StackPanel Spacing="12">
                             <TextBlock Text="Settings" FontSize="19" FontWeight="Bold" />
-                            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="12">
+                            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="12">
 
                                 <Border Grid.Row="0" Grid.Column="0" Background="{DynamicResource LLCard}"
                                         BorderBrush="{DynamicResource LLHairline}" BorderThickness="1" CornerRadius="8" Padding="14">
@@ -365,6 +365,22 @@
                                         <TextBlock Text="Import from LincleLINK v1" FontWeight="SemiBold" FontSize="13.5" />
                                         <TextBlock Text="Bring in a legacy DBInfo.xml library list" Opacity="0.6" FontSize="11.5" />
                                         <Button Content="Import DBInfo.xml..." Command="{Binding ImportLegacyCommand}"
+                                                HorizontalAlignment="Left" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Grid.Row="2" Grid.ColumnSpan="2" Background="{DynamicResource LLCard}"
+                                        BorderBrush="{DynamicResource LLHairline}" BorderThickness="1" CornerRadius="8" Padding="14">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Diagnostics" FontWeight="SemiBold" FontSize="13.5" />
+                                        <TextBlock Text="Save the diagnostic log to a file, one per day. Daily files, last 14 kept, 10 MB each."
+                                                   Opacity="0.6" FontSize="11.5" TextWrapping="Wrap" />
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <ToggleSwitch IsChecked="{Binding SaveLogToFile, Mode=TwoWay}" VerticalAlignment="Center" />
+                                            <TextBlock Text="Save diagnostic log to file" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding LogDirectory}" Opacity="0.6" FontSize="11.5" TextWrapping="Wrap" />
+                                        <Button Content="Open log folder" Command="{Binding OpenLogFolderCommand}"
                                                 HorizontalAlignment="Left" />
                                     </StackPanel>
                                 </Border>

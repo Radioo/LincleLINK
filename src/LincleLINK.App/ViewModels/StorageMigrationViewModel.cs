@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using LincleLINK.App.Services;
 using LincleLINK.App.ViewModels.Base;
 using LincleLINK.Core.Application;
+using Microsoft.Extensions.Logging;
 
 namespace LincleLINK.App.ViewModels;
 
@@ -16,6 +17,7 @@ namespace LincleLINK.App.ViewModels;
 public partial class StorageMigrationViewModel : ViewModelBase
 {
     private readonly StorageMigrationService _migration;
+    private readonly ILogger<StorageMigrationViewModel> _logger;
 
     public override string Title => "Upgrading database";
 
@@ -31,23 +33,24 @@ public partial class StorageMigrationViewModel : ViewModelBase
 
     public event EventHandler<StorageMigrationResult>? Completed;
 
-    public StorageMigrationViewModel(StorageMigrationService migration)
+    public StorageMigrationViewModel(StorageMigrationService migration, ILogger<StorageMigrationViewModel> logger)
     {
         _migration = migration;
+        _logger = logger;
     }
 
     public async Task RunAsync()
     {
         try
         {
-            var log = ProgressBridge.Create<string>(LogLines.Add, batchSize: 100);
+            var log = ProgressBridge.Create<string>(AddLogLine, batchSize: 100);
             var percent = ProgressBridge.Create<double>(p => Progress = p);
             var result = await Task.Run(() => _migration.MigrateAsync(log, percent));
 
             Status = result.Errors.Count == 0
                 ? "Upgrade complete."
                 : "Upgrade complete. Some manifests could not be read and were quarantined.";
-            LogLines.Add(
+            AddLogLine(
                 $"Migrated {result.Migrated}, skipped {result.Skipped}, quarantined {result.Quarantined}.");
 
             Completed?.Invoke(this, result);
@@ -57,11 +60,22 @@ public partial class StorageMigrationViewModel : ViewModelBase
             // Never brick the app: report, keep the un-migrated JSON on disk (the next
             // launch re-offers), and let the main window open regardless.
             Status = "Upgrade failed. Your existing data has been left untouched.";
-            LogLines.Add($"Upgrade failed: {ex.Message}");
+            AddLogLine($"Upgrade failed: {ex.Message}");
+            _logger.LogError(ex, "Storage migration failed");
         }
         finally
         {
             RequestClose();
         }
+    }
+
+    /// <summary>
+    /// Appends a user-visible line to this window's activity feed with a timestamp
+    /// prefix and mirrors it into the diagnostic log (issue #17 D4/D5).
+    /// </summary>
+    private void AddLogLine(string line)
+    {
+        LogLines.Add($"{DateTime.Now:HH:mm:ss} {line}");
+        _logger.LogDebug("Activity: {Line}", line);
     }
 }

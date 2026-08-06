@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LincleLINK.App.Abstractions;
@@ -10,6 +11,7 @@ using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Abstractions.Settings;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace LincleLINK.App.ViewModels;
 
@@ -31,6 +33,8 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     private readonly ISettingsStore _settingsStore;
     private readonly ITaskbarProgress _taskbarProgress;
     private readonly Func<AddInstanceViewModel> _addInstanceFactory;
+    private readonly ILogger<MainViewModel> _logger;
+    private readonly DiagnosticLogOptions _logOptions;
 
     public ObservableCollection<InstanceListEntry> Instances { get; } = [];
 
@@ -127,6 +131,47 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     [ObservableProperty]
     private bool _dataDirectoryChangePending;
 
+    // ── diagnostics (issue #17 D2) ──────────────────────────────────────────
+
+    /// <summary>Opt-in on-disk diagnostic log; toggling applies live, no restart.</summary>
+    [ObservableProperty]
+    private bool _saveLogToFile;
+
+    /// <summary>True while InitializeAsync seeds the persisted value (no user flip side effects).</summary>
+    private bool _seedingSaveLogToFile;
+
+    /// <summary>Resolved log folder, shown on the settings page and used by <see cref="OpenLogFolderCommand"/>.</summary>
+    public string LogDirectory => _logOptions.Directory;
+
+    partial void OnSaveLogToFileChanged(bool value)
+    {
+        SaveSettings(saveLogToFile: value);
+        FileLoggingSwitch.Enabled = value;
+        OpenLogFolderCommand.NotifyCanExecuteChanged();
+
+        if (_seedingSaveLogToFile)
+        {
+            _seedingSaveLogToFile = false;
+            return;
+        }
+
+        if (value)
+        {
+            Directory.CreateDirectory(LogDirectory);
+            SerilogPipeline.WriteHeader();
+            AddLogLine($"{LogMessages.DiagnosticLogEnabledPrefix} {LogDirectory}");
+        }
+        else
+        {
+            AddLogLine(LogMessages.DiagnosticLogDisabled);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanOpenLogFolder))]
+    private void OpenLogFolder() => FolderOpener.Open(LogDirectory);
+
+    private bool CanOpenLogFolder() => Directory.Exists(LogDirectory);
+
     // ── activity bar ───────────────────────────────────────────────────────
 
     [ObservableProperty]
@@ -177,7 +222,9 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         ISettingsStore settingsStore,
         ITaskbarProgress taskbarProgress,
         IHardLinkPreflight hardLinkPreflight,
-        Func<AddInstanceViewModel> addInstanceFactory)
+        Func<AddInstanceViewModel> addInstanceFactory,
+        ILogger<MainViewModel> logger,
+        DiagnosticLogOptions logOptions)
     {
         _instanceService = instanceService;
         _linkingService = linkingService;
@@ -190,6 +237,8 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         _settingsStore = settingsStore;
         _taskbarProgress = taskbarProgress;
         _addInstanceFactory = addInstanceFactory;
+        _logger = logger;
+        _logOptions = logOptions;
         TorrentCheck = new TorrentCheckViewModel(torrentService, dialogs, hardLinkPreflight, this);
     }
 
@@ -206,6 +255,16 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         }
 
         _initialized = true;
+
+        // Seed the diagnostics toggle from persisted settings without the user-flip
+        // side effects (Program.Main already set the live switch and wrote the header).
+        var persisted = _settingsStore.Load();
+        if (persisted is not null)
+        {
+            _seedingSaveLogToFile = true;
+            SaveLogToFile = persisted.SaveLogToFile;
+        }
+
         await RefreshAllAsync();
     }
 
@@ -256,7 +315,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         {
             // A transient storage failure right after the panel closes must not
             // become an unobserved task exception; degrade and log instead.
-            LogLines.Add($"Could not refresh the library: {ex.Message}");
+            AddLogLine($"Could not refresh the library: {ex.Message}");
         }
     }
 
@@ -270,12 +329,12 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         var result = await _instanceService.DeleteInstanceAsync(instanceName);
         if (result.Deleted)
         {
-            LogLines.Add($"Removed {instanceName} from the library (its files stay in storage).");
+            AddLogLine($"Removed {instanceName} from the library (its files stay in storage).");
             ReportOutcome($"✓ Removed {instanceName} from the library");
         }
         else if (result.Cancelled)
         {
-            LogLines.Add("Removal cancelled.");
+            AddLogLine("Removal cancelled.");
             return;
         }
 
@@ -291,17 +350,17 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     {
         var instanceName = SelectedInstance!.InstanceName;
 
-        await RunOperationAsync(async op =>
+        await RunOperationAsync("Deploy to folder", async op =>
         {
             var result = await _linkingService.LinkInstanceAsync(
                 instanceName, op.Log, op.Percent, op.CancellationToken);
             if (result.Cancelled)
             {
-                LogLines.Add("Deploy cancelled.");
+                AddLogLine("Deploy cancelled.");
             }
             else if (result.Error is not null)
             {
-                LogLines.Add(result.Error);
+                AddLogLine(result.Error);
             }
             else
             {
@@ -319,17 +378,17 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     {
         var instanceName = SelectedInstance!.InstanceName;
 
-        await RunOperationAsync(async op =>
+        await RunOperationAsync("Export storage files", async op =>
         {
             var result = await _linkingService.CopyHashedFilesAsync(
                 instanceName, op.Log, op.Percent, op.Status, op.CancellationToken);
             if (result.Cancelled)
             {
-                LogLines.Add("Export cancelled.");
+                AddLogLine("Export cancelled.");
             }
             else if (result.Error is not null)
             {
-                LogLines.Add(result.Error);
+                AddLogLine(result.Error);
             }
             else
             {
@@ -341,13 +400,13 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     [RelayCommand(CanExecute = nameof(CanCheckUnused))]
     private async Task CheckUnusedAsync()
     {
-        await RunOperationAsync(async op =>
+        await RunOperationAsync("Clean up storage", async op =>
         {
             var result = await _unusedFilesService.CheckAndDeleteAsync(
                 op.Log, op.CancellationToken, threadCount: ThreadCount, status: op.Status);
             if (result.Cancelled)
             {
-                LogLines.Add("Storage cleanup cancelled.");
+                AddLogLine("Storage cleanup cancelled.");
             }
             else
             {
@@ -367,11 +426,11 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
             "Select legacy DBInfo.xml", new FileType("Legacy DBInfo", ["*.xml"]));
         if (path is null)
         {
-            LogLines.Add("Import cancelled.");
+            AddLogLine("Import cancelled.");
             return;
         }
 
-        await RunOperationAsync(async op =>
+        await RunOperationAsync("Import legacy DBInfo", async op =>
         {
             var result = await _legacyImporter.ImportAsync(path);
             foreach (var name in result.Imported)
@@ -403,7 +462,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         SaveSettings(dataDirectory: path);
         DataDirectory = path;
         DataDirectoryChangePending = true;
-        LogLines.Add($"Data directory set to {path}. Restart LincleLINK to apply.");
+        AddLogLine($"Data directory set to {path}. Restart LincleLINK to apply.");
 
         // The active directory is frozen at boot, so a restart is the only way the
         // change takes effect - say so explicitly, not just via the inline note.
@@ -424,16 +483,21 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         StatusLine = "Cancelling...";
     }
 
-    public async Task RunOperationAsync(Func<OperationContext, Task> operation)
+    public async Task RunOperationAsync(
+        string operationName,
+        Func<OperationContext, Task> operation)
     {
         IsBusy = true;
+        using var scope = _logger.BeginScope("Operation {Operation}", operationName);
+        _logger.LogInformation("Starting operation {Operation}", operationName);
+        var stopwatch = Stopwatch.StartNew();
         _taskbarProgress.BeginOperation();
         using var cts = new CancellationTokenSource();
         _operationCts = cts;
         CancelOperationCommand.NotifyCanExecuteChanged();
         try
         {
-            var log = ProgressBridge.Create<string>(LogLines.Add, batchSize: 100);
+            var log = ProgressBridge.Create<string>(AddLogLine, batchSize: 100);
             var status = ProgressBridge.Create<string>(line => StatusLine = line, batchSize: 200);
             var percent = ProgressBridge.Create<double>(p =>
             {
@@ -441,16 +505,30 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
                 _taskbarProgress.Report(p);
             });
             await operation(new OperationContext(log, status, percent, cts.Token));
+
+            stopwatch.Stop();
+            _logger.LogInformation(
+                "Operation {Operation} completed in {ElapsedMs} ms",
+                operationName, stopwatch.ElapsedMilliseconds);
         }
         catch (OperationCanceledException)
         {
-            LogLines.Add("Operation cancelled.");
+            stopwatch.Stop();
+            AddLogLine("Operation cancelled.");
             ReportOutcome("Operation cancelled");
+            _logger.LogInformation(
+                "Operation {Operation} cancelled after {ElapsedMs} ms",
+                operationName, stopwatch.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
-            LogLines.Add(ex.Message);
+            stopwatch.Stop();
+            AddLogLine(ex.Message);
             ReportOutcome($"⚠ {ex.Message}", isWarning: true);
+            _logger.LogError(
+                ex,
+                "Operation {Operation} failed after {ElapsedMs} ms",
+                operationName, stopwatch.ElapsedMilliseconds);
         }
         finally
         {
@@ -460,6 +538,16 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
             IsBusy = false;
             _taskbarProgress.EndOperation();
         }
+    }
+
+    /// <summary>
+    /// Single choke point for user-visible activity lines (issue #17 D5): timestamps
+    /// the line for the drawer and mirrors it into the diagnostic log at Debug.
+    /// </summary>
+    public void AddLogLine(string line)
+    {
+        LogLines.Add($"{DateTime.Now:HH:mm:ss} {line}");
+        _logger.LogDebug("Activity: {Line}", line);
     }
 
     public void ReportOutcome(string message, bool isWarning = false)
@@ -486,7 +574,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     {
         _themeManager.Apply(theme);
         SaveSettings(theme: theme);
-        LogLines.Add(theme switch
+        AddLogLine(theme switch
         {
             AppTheme.Dark => "Dark theme enabled",
             AppTheme.Light => "Light theme enabled",
@@ -525,13 +613,14 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     /// Persists a single setting change, preserving the other fields from the
     /// currently stored settings so startup seeding never clobbers them.
     /// </summary>
-    private void SaveSettings(AppTheme? theme = null, int? threads = null, string? dataDirectory = null)
+    private void SaveSettings(AppTheme? theme = null, int? threads = null, string? dataDirectory = null, bool? saveLogToFile = null)
     {
         var current = _settingsStore.Load();
         _settingsStore.Save(new AppSettings(
             theme ?? current.Theme,
             dataDirectory ?? current.DataDirectory,
-            threads ?? current.HashThreadCount));
+            threads ?? current.HashThreadCount,
+            saveLogToFile ?? current.SaveLogToFile));
     }
 
     /// <summary>Refreshes the library list and storage card together after an operation.</summary>
@@ -560,7 +649,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
                 string.Equals(i.InstanceName, selectedName, StringComparison.OrdinalIgnoreCase));
         }
 
-        LogLines.Add(LogMessages.LibraryRefreshed);
+        AddLogLine(LogMessages.LibraryRefreshed);
     }
 
     private void ApplyFilter()
@@ -626,7 +715,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
             // A transient drive-info failure (unplugged volume, statvfs error) must
             // not escape to the startup handler; degrade gracefully and leave the
             // last-known status fields in place.
-            LogLines.Add($"Could not refresh status: {ex.Message}");
+            AddLogLine($"Could not refresh status: {ex.Message}");
         }
     }
 }

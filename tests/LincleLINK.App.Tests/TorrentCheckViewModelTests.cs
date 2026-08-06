@@ -11,6 +11,7 @@ using LincleLINK.Core.Abstractions.Torrents;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
 using LincleLINK.Core.Domain.Torrents;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 
@@ -26,7 +27,9 @@ public sealed class TorrentCheckViewModelTests
     public TorrentCheckViewModelTests()
     {
         _host.LogLines.Returns(new ObservableCollection<string>());
-        _host.RunOperationAsync(Arg.Any<Func<OperationContext, Task>>())
+        _host.When(h => h.AddLogLine(Arg.Any<string>()))
+            .Do(ci => _host.LogLines.Add(ci.Arg<string>()!));
+        _host.RunOperationAsync(Arg.Any<string>(), Arg.Any<Func<OperationContext, Task>>())
             .Returns(ci => ci.Arg<Func<OperationContext, Task>>()!(new OperationContext(
                 new InlineProgress<string>(),
                 new InlineProgress<string>(),
@@ -43,7 +46,8 @@ public sealed class TorrentCheckViewModelTests
             repository ?? Substitute.For<IInstanceRepository>(),
             Substitute.For<IFileStore>(),
             Substitute.For<IHardLinker>(),
-            Substitute.For<IFileSystem>());
+            Substitute.For<IFileSystem>(),
+            NullLogger<TorrentService>.Instance);
         return new TorrentCheckViewModel(service, _dialogs, _preflight, _host);
     }
 
@@ -185,7 +189,7 @@ public sealed class TorrentCheckViewModelTests
 
         await _dialogs.Received(1).ErrorAsync(
             Arg.Is<string>(m => m != null && m.Contains("different drive")), Arg.Any<string>());
-        await _host.DidNotReceiveWithAnyArgs().RunOperationAsync(default!);
+        await _host.DidNotReceiveWithAnyArgs().RunOperationAsync(default!, default!);
         // Gates stay intact so the user can retry with a different folder.
         vm.PiecesVerified.Should().BeTrue();
     }

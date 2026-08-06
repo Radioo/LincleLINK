@@ -10,6 +10,7 @@ using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 
@@ -35,8 +36,8 @@ public sealed class AddInstanceViewModelTests
 
     private AddInstanceViewModel Create() =>
         new(
-            new InstanceService(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs),
-            _dialogs, _taskbarProgress, _fs, _preflight);
+            new InstanceService(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, NullLogger<InstanceService>.Instance),
+            _dialogs, _taskbarProgress, _fs, _preflight, NullLogger<AddInstanceViewModel>.Instance);
 
     private void StubDataPath()
     {
@@ -62,7 +63,7 @@ public sealed class AddInstanceViewModelTests
         await vm.CreateInstanceCommand.ExecuteAsync(null);
 
         closeRequested.Should().BeTrue();
-        vm.LogLines.Should().Contain(m => m.StartsWith(LogMessages.EntryAdded, StringComparison.Ordinal));
+        vm.LogLines.Should().Contain(m => m.Contains(LogMessages.EntryAdded, StringComparison.Ordinal));
         await _repository.Received(1).SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>());
     }
 

@@ -27,8 +27,18 @@ public interface IOperationHost
     /// <summary>The shared log panel lines collection.</summary>
     ObservableCollection<string> LogLines { get; }
 
-    /// <summary>Runs an operation on the thread pool, marshaling log/status/progress to the UI.</summary>
-    Task RunOperationAsync(Func<OperationContext, Task> operation);
+    /// <summary>
+    /// Runs an operation on the thread pool, marshaling log/status/progress to the UI.
+    /// <paramref name="operationName"/> is a short human-readable tag used as the
+    /// diagnostic-log scope and in start/duration/outcome events (issue #17 D4).
+    /// </summary>
+    Task RunOperationAsync(string operationName, Func<OperationContext, Task> operation);
+
+    /// <summary>
+    /// Appends a user-visible line to the activity feed with a timestamp prefix and
+    /// mirrors it into the diagnostic log (issue #17 D4/D5).
+    /// </summary>
+    void AddLogLine(string line);
 
     /// <summary>
     /// Posts an outcome line to the shell's activity bar (plan 15 D5), e.g.

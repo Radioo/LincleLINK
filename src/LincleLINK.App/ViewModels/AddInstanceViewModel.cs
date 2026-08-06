@@ -10,6 +10,7 @@ using LincleLINK.Core.Abstractions.Filesystem;
 using LincleLINK.Core.Abstractions.Linking;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace LincleLINK.App.ViewModels;
 
@@ -27,6 +28,7 @@ public partial class AddInstanceViewModel : ViewModelBase
     private readonly ITaskbarProgress _taskbarProgress;
     private readonly IFileSystem _fileSystem;
     private readonly IHardLinkPreflight _preflight;
+    private readonly ILogger<AddInstanceViewModel> _logger;
 
     public ObservableCollection<string> LogLines { get; } = [];
 
@@ -97,13 +99,15 @@ public partial class AddInstanceViewModel : ViewModelBase
         IDialogService dialogs,
         ITaskbarProgress taskbarProgress,
         IFileSystem fileSystem,
-        IHardLinkPreflight preflight)
+        IHardLinkPreflight preflight,
+        ILogger<AddInstanceViewModel> logger)
     {
         _service = service;
         _dialogs = dialogs;
         _taskbarProgress = taskbarProgress;
         _fileSystem = fileSystem;
         _preflight = preflight;
+        _logger = logger;
     }
 
     public CopyMoveMode Mode => IsReclaimChecked ? CopyMoveMode.Move : CopyMoveMode.Copy;
@@ -218,11 +222,12 @@ public partial class AddInstanceViewModel : ViewModelBase
     private async Task CreateInstanceAsync()
     {
         IsBusy = true;
+        _logger.LogInformation("Starting add-instance for '{InstanceName}'", InstanceName);
         _taskbarProgress.BeginOperation();
         using var cts = new CancellationTokenSource();
         _operationCts = cts;
         CancelOperationCommand.NotifyCanExecuteChanged();
-        var log = ProgressBridge.Create<string>(LogLines.Add, batchSize: 100);
+        var log = ProgressBridge.Create<string>(AddLogLine, batchSize: 100);
         var status = ProgressBridge.Create<string>(line => StatusLine = line, batchSize: 200);
         var percent = ProgressBridge.Create<double>(p =>
         {
@@ -238,24 +243,27 @@ public partial class AddInstanceViewModel : ViewModelBase
 
             if (result.Success)
             {
+                _logger.LogInformation("Add-instance for '{InstanceName}' completed", InstanceName);
                 CompletedSuccessfully = true;
                 RequestClose();
             }
             else if (result.Error is not null)
             {
+                _logger.LogWarning("Add-instance for '{InstanceName}' failed: {Error}", InstanceName, result.Error);
                 await _dialogs.ErrorAsync(result.Error, "Add folder to library");
             }
             else
             {
-                LogLines.Add("Operation cancelled.");
+                AddLogLine("Operation cancelled.");
             }
         }
         catch (OperationCanceledException)
         {
-            LogLines.Add("Operation cancelled.");
+            AddLogLine("Operation cancelled.");
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Add-instance for '{InstanceName}' failed", InstanceName);
             await _dialogs.ErrorAsync(ex.Message, "Add folder to library");
         }
         finally
@@ -266,6 +274,16 @@ public partial class AddInstanceViewModel : ViewModelBase
             Progress = 0;
             _taskbarProgress.EndOperation();
         }
+    }
+
+    /// <summary>
+    /// Appends a user-visible line to this panel's activity feed with a timestamp
+    /// prefix and mirrors it into the diagnostic log (issue #17 D4/D5).
+    /// </summary>
+    private void AddLogLine(string line)
+    {
+        LogLines.Add($"{DateTime.Now:HH:mm:ss} {line}");
+        _logger.LogDebug("Activity: {Line}", line);
     }
 
     [RelayCommand(CanExecute = nameof(CanCancelOperation))]

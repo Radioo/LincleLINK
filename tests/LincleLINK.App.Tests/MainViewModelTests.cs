@@ -1,5 +1,6 @@
 using FluentAssertions;
 using LincleLINK.App.Abstractions;
+using LincleLINK.App.Services;
 using LincleLINK.App.ViewModels;
 using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Disk;
@@ -13,6 +14,7 @@ using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Abstractions.Torrents;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 
@@ -34,21 +36,23 @@ public sealed class MainViewModelTests
     private readonly IHardLinkPreflight _preflight = Substitute.For<IHardLinkPreflight>();
 
     private MainViewModel CreateViewModel() => new(
-        new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _driveInfo, _dialogs),
-        new LinkingService(_fs, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _dialogs),
-        new UnusedFilesService(_store, _repository, _dialogs),
-        new LegacyImporter(_repository),
-        new TorrentService(Substitute.For<ITorrentSource>(), _repository, _store, Substitute.For<IHardLinker>(), _fs),
+        new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _driveInfo, _dialogs, NullLogger<InstanceService>.Instance),
+        new LinkingService(_fs, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _dialogs, NullLogger<LinkingService>.Instance),
+        new UnusedFilesService(_store, _repository, _dialogs, NullLogger<UnusedFilesService>.Instance),
+        new LegacyImporter(_repository, NullLogger<LegacyImporter>.Instance),
+        new TorrentService(Substitute.For<ITorrentSource>(), _repository, _store, Substitute.For<IHardLinker>(), _fs, NullLogger<TorrentService>.Instance),
         _repository,
-        new StatusService(_store, _repository, _driveInfo, _paths),
+        new StatusService(_store, _repository, _driveInfo, _paths, NullLogger<StatusService>.Instance),
         _dialogs,
         _themeManager,
         _settingsStore,
         _taskbarProgress,
         _preflight,
         () => new AddInstanceViewModel(
-            new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _driveInfo, _dialogs),
-            _dialogs, _taskbarProgress, _fs, _preflight));
+            new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _driveInfo, _dialogs, NullLogger<InstanceService>.Instance),
+            _dialogs, _taskbarProgress, _fs, _preflight, NullLogger<AddInstanceViewModel>.Instance),
+        NullLogger<MainViewModel>.Instance,
+        new DiagnosticLogOptions(Path.Combine(Path.GetTempPath(), "linclelink-testlogs", Guid.NewGuid().ToString("N"))));
 
     private void StubStatus(long dbSize = 0, long free = 1)
     {
@@ -78,7 +82,7 @@ public sealed class MainViewModelTests
         vm.DbSize.Should().Be("10 B");
         vm.Savings.Should().Be("0 B"); // (10 + 0) - 10
         vm.FreeSpace.Should().Be("500 B");
-        vm.LogLines.Should().Contain(LogMessages.LibraryRefreshed);
+        vm.LogLines.Should().Contain(l => l.Contains(LogMessages.LibraryRefreshed, StringComparison.Ordinal));
     }
 
     [Fact]
