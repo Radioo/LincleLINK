@@ -3,16 +3,25 @@ using System.Xml.Linq;
 using LincleLINK.Core.Abstractions.Filesystem;
 using LincleLINK.Core.Abstractions.Games;
 using LincleLINK.Core.Domain;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LincleLINK.Core.Infrastructure.Games;
 
 public sealed class GameVersionDetector : IGameVersionDetector
 {
     private readonly IFileSystem _fileSystem;
+    private readonly ILogger<GameVersionDetector> _logger;
 
     public GameVersionDetector(IFileSystem fileSystem)
+        : this(fileSystem, NullLogger<GameVersionDetector>.Instance)
+    {
+    }
+
+    public GameVersionDetector(IFileSystem fileSystem, ILogger<GameVersionDetector> logger)
     {
         _fileSystem = fileSystem;
+        _logger = logger;
     }
 
     // ── known game DLLs (family + model hint) ──────────────────────────
@@ -148,6 +157,10 @@ public sealed class GameVersionDetector : IGameVersionDetector
 
         var dataFolder = FindDataFolder(resolved.GameRootPath!, ct);
         var isGameRoot = IsGameRoot(rootPath, resolved.GameRootPath);
+
+        _logger.LogDebug(
+            "Game detection for {RootPath}: {Game} at {GameRoot}, data folder {DataFolder}, is game root {IsGameRoot}",
+            rootPath, resolved.Info.GameCode, resolved.GameRootPath, dataFolder, isGameRoot);
 
         return Task.FromResult(new DetectionResult(resolved.Info, resolved.GameRootPath, dataFolder, isGameRoot));
     }
@@ -401,6 +414,7 @@ public sealed class GameVersionDetector : IGameVersionDetector
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
+            _logger.LogWarning(e, "Could not enumerate files in {Directory} during game detection", dir);
             return [];
         }
     }
@@ -413,6 +427,7 @@ public sealed class GameVersionDetector : IGameVersionDetector
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
+            _logger.LogWarning(e, "Could not enumerate directories in {Directory} during game detection", dir);
             return [];
         }
     }

@@ -282,7 +282,8 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         {
             // A locked custom-logo file or a failed DB write must not take the
             // process down on the UI context; degrade and log instead.
-            LogLines.Add($"Could not change the logo: {ex.Message}");
+            AddLogLine($"Could not change the logo: {ex.Message}");
+            _logger.LogError(ex, "Could not change the custom logo for '{InstanceName}'", SelectedInstance?.InstanceName);
             ReportOutcome($"⚠ Could not change the logo", isWarning: true);
         }
     }
@@ -307,7 +308,8 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         }
         catch (Exception ex)
         {
-            LogLines.Add($"Could not set the custom image: {ex.Message}");
+            AddLogLine($"Could not set the custom image: {ex.Message}");
+            _logger.LogError(ex, "Could not set the custom image for '{InstanceName}'", SelectedInstance?.InstanceName);
             ReportOutcome($"⚠ Could not set the custom image", isWarning: true);
         }
     }
@@ -881,9 +883,10 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
                 SelectedUniqueSizeText = SizeFormatter.Format(size);
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // The figure is informational; never let it break selection.
+            _logger.LogDebug(ex, "Could not compute the unique size for {InstanceName}", entry.InstanceName);
             if (string.Equals(SelectedInstance?.InstanceName, entry.InstanceName, StringComparison.OrdinalIgnoreCase))
             {
                 SelectedUniqueSizeText = "-";

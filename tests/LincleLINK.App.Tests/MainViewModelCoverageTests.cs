@@ -200,7 +200,7 @@ public sealed class MainViewModelCoverageTests : IDisposable
 
         await act.Should().NotThrowAsync();
         vm.LastOutcomeIsWarning.Should().BeTrue();
-        vm.LogLines.Should().Contain(l => l.StartsWith("Could not change the logo"));
+        vm.LogLines.Should().Contain(l => l.Contains("Could not change the logo"));
     }
 
     [Fact]
@@ -218,7 +218,7 @@ public sealed class MainViewModelCoverageTests : IDisposable
 
         await act.Should().NotThrowAsync();
         vm.LastOutcomeIsWarning.Should().BeTrue();
-        vm.LogLines.Should().Contain(l => l.StartsWith("Could not set the custom image"));
+        vm.LogLines.Should().Contain(l => l.Contains("Could not set the custom image"));
     }
 
     [Fact]

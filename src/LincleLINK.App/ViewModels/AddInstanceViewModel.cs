@@ -248,6 +248,7 @@ public partial class AddInstanceViewModel : ViewModelBase
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Estimation is advisory only; the add operation will surface real errors.
+            _logger.LogDebug(ex, "Folder analysis failed for {Path}", path);
         }
         finally
         {
@@ -293,7 +294,12 @@ public partial class AddInstanceViewModel : ViewModelBase
             }
         }
         catch (OperationCanceledException) { }
-        catch { }
+        catch (Exception ex)
+        {
+            // Detection is best-effort UI candy; a failure must not block the add,
+            // but it should still land in the diagnostic log (issue #17 D3).
+            _logger.LogWarning(ex, "Game detection failed for {Path}", path);
+        }
     }
 
     [RelayCommand]

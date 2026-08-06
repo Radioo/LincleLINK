@@ -307,6 +307,7 @@ public sealed partial class InstanceService
         }
         catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Game detection failed for {DataPath}", request.DataPath);
             log?.Report($"Game detection failed for {request.DataPath}: {ex.Message}");
         }
 
