@@ -172,14 +172,17 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     partial void OnSaveLogToFileChanged(bool value)
     {
         SaveSettings(saveLogToFile: value);
-        FileLoggingSwitch.Enabled = value;
         OpenLogFolderCommand.NotifyCanExecuteChanged();
 
         if (_seedingSaveLogToFile)
         {
+            // Program.Main already seeded the live switch from the same settings;
+            // a VM seed must not re-touch the process-global switch.
             _seedingSaveLogToFile = false;
             return;
         }
+
+        FileLoggingSwitch.Enabled = value;
 
         if (value)
         {

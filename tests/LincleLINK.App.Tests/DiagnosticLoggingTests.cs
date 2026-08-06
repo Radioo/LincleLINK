@@ -193,8 +193,9 @@ public sealed class DiagnosticLoggingTests
             await vm.InitializeAsync();
 
             vm.SaveLogToFile.Should().BeTrue();
-            FileLoggingSwitch.Enabled.Should().BeTrue();
-            // Seeding must not add the user-flip activity line or header.
+            // Seeding reflects the persisted value but must not re-touch the live
+            // switch (Program.Main owns it) or add the user-flip activity line.
+            FileLoggingSwitch.Enabled.Should().BeFalse();
             vm.LogLines.Should().NotContain(l => l.Contains(LogMessages.DiagnosticLogEnabledPrefix));
         }
         finally
