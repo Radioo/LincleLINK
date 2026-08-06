@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using FluentAssertions;
 using LincleLINK.App.Abstractions;
 using LincleLINK.App.ViewModels;
@@ -26,12 +25,8 @@ public sealed class TorrentCheckViewModelTests
 
     public TorrentCheckViewModelTests()
     {
-        _host.LogLines.Returns(new ObservableCollection<string>());
-        _host.When(h => h.AddLogLine(Arg.Any<string>()))
-            .Do(ci => _host.LogLines.Add(ci.Arg<string>()!));
         _host.RunOperationAsync(Arg.Any<string>(), Arg.Any<Func<OperationContext, Task>>())
             .Returns(ci => ci.Arg<Func<OperationContext, Task>>()!(new OperationContext(
-                new InlineProgress<string>(),
                 new InlineProgress<string>(),
                 new InlineProgress<double>(),
                 CancellationToken.None)));
@@ -101,7 +96,7 @@ public sealed class TorrentCheckViewModelTests
     }
 
     [Fact]
-    public async Task CheckFiles_success_zero_matches_keeps_piece_gate_off_and_logs_hint()
+    public async Task CheckFiles_success_zero_matches_keeps_piece_gate_off_and_hints_inline()
     {
         var vm = CreateViewModel(
             SourceWithFiles(("contents/data.bin", 10)),
@@ -114,11 +109,11 @@ public sealed class TorrentCheckViewModelTests
 
         vm.FilesMatched.Should().BeFalse();
         vm.MatchedFiles.Should().BeEmpty();
-        _host.LogLines.Should().Contain(l => l.Contains(LogMessages.RelativePathHint));
+        vm.MatchSummary.Should().Contain("No files matched");
     }
 
     [Fact]
-    public async Task CheckFiles_failure_resets_piece_gate_and_logs_error()
+    public async Task CheckFiles_failure_resets_piece_gate_and_shows_error_dialog()
     {
         var source = Substitute.For<ITorrentSource>();
         source.LoadAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -133,7 +128,8 @@ public sealed class TorrentCheckViewModelTests
         await vm.CheckFilesCommand.ExecuteAsync(null);
 
         vm.FilesMatched.Should().BeFalse();
-        _host.LogLines.Should().Contain(l => l.Contains("v2"));
+        await _dialogs.Received(1).ErrorAsync(
+            Arg.Is<string>(m => m != null && m.Contains("v2")), "Check torrent files");
         vm.CheckPiecesCommand.CanExecute(null).Should().BeFalse();
     }
 

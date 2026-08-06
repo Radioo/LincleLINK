@@ -141,7 +141,7 @@ public partial class TorrentCheckViewModel : ViewModelBase
             {
                 if (result.Error is not null)
                 {
-                    _host.AddLogLine(result.Error);
+                    await _dialogs.ErrorAsync(result.Error, "Check torrent files");
                 }
 
                 FilesMatched = false;
@@ -155,12 +155,10 @@ public partial class TorrentCheckViewModel : ViewModelBase
                 MatchedFiles.Add(path);
             }
 
-            MatchSummary = $"{result.Matched} of {result.Total} files matched.";
+            MatchSummary = result.Matched > 0
+                ? $"{result.Matched} of {result.Total} files matched."
+                : "No files matched - check your relative path.";
             FilesMatched = result.Matched > 0;
-            if (result.Matched == 0)
-            {
-                _host.AddLogLine(LogMessages.RelativePathHint);
-            }
 
             UpdateHints();
         });
@@ -179,7 +177,7 @@ public partial class TorrentCheckViewModel : ViewModelBase
             {
                 if (result.Error is not null)
                 {
-                    _host.AddLogLine(result.Error);
+                    await _dialogs.ErrorAsync(result.Error, "Check torrent pieces");
                 }
 
                 PiecesVerified = false;
@@ -223,12 +221,11 @@ public partial class TorrentCheckViewModel : ViewModelBase
 
             if (result.Error is not null)
             {
-                _host.AddLogLine(result.Error);
+                await _dialogs.ErrorAsync(result.Error, "Link to torrent");
                 return;
             }
 
             LinkSummary = $"Linked {result.Linked} files, skipped {result.Skipped}.";
-            _host.ReportOutcome($"✓ Pre-fill finished: linked {result.Linked} files, skipped {result.Skipped}");
         });
 
         // Linked files now exist at the target, so previous match/verify results

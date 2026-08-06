@@ -187,11 +187,11 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         {
             Directory.CreateDirectory(LogDirectory);
             SerilogPipeline.WriteHeader();
-            AddLogLine($"{LogMessages.DiagnosticLogEnabledPrefix} {LogDirectory}");
+            _logger.LogInformation("{Prefix} {Directory}", LogMessages.DiagnosticLogEnabledPrefix, LogDirectory);
         }
         else
         {
-            AddLogLine(LogMessages.DiagnosticLogDisabled);
+            _logger.LogInformation(LogMessages.DiagnosticLogDisabled);
         }
     }
 
@@ -207,7 +207,6 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
             // A missing or broken platform launcher (e.g. xdg-open on a minimal
             // Linux install) must degrade to a warning, never crash the app
             // through the diagnostics button.
-            AddLogLine($"Could not open the log folder: {ex.Message}");
             _logger.LogWarning(ex, "Could not open the log folder {LogDirectory}", LogDirectory);
         }
     }
@@ -230,24 +229,6 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
 
     [ObservableProperty]
     private double _progress;
-
-    /// <summary>Transient one-line status shown in the activity bar while busy.</summary>
-    [ObservableProperty]
-    private string _statusLine = string.Empty;
-
-    /// <summary>Idle-state activity line: the last operation's outcome.</summary>
-    [ObservableProperty]
-    private string _lastOutcome = "Idle";
-
-    [ObservableProperty]
-    private bool _lastOutcomeIsWarning;
-
-    /// <summary>True while the activity-log drawer above the bar is expanded.</summary>
-    [ObservableProperty]
-    private bool _isLogOpen;
-
-    [RelayCommand]
-    private void ToggleLog() => IsLogOpen = !IsLogOpen;
 
     [RelayCommand]
     private void ToggleViewMode() => IsGridView = !IsGridView;
@@ -295,9 +276,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         {
             // A locked custom-logo file or a failed DB write must not take the
             // process down on the UI context; degrade and log instead.
-            AddLogLine($"Could not change the logo: {ex.Message}");
             _logger.LogError(ex, "Could not change the custom logo for '{InstanceName}'", SelectedInstance?.InstanceName);
-            ReportOutcome($"⚠ Could not change the logo", isWarning: true);
         }
     }
 
@@ -321,9 +300,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         }
         catch (Exception ex)
         {
-            AddLogLine($"Could not set the custom image: {ex.Message}");
             _logger.LogError(ex, "Could not set the custom image for '{InstanceName}'", SelectedInstance?.InstanceName);
-            ReportOutcome($"⚠ Could not set the custom image", isWarning: true);
         }
     }
 
@@ -439,14 +416,8 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         }
 
         vm.CloseRequested -= OnAddInstanceClosed;
-        var succeeded = vm.CompletedSuccessfully;
         AddInstance = null;
         IsAddPanelOpen = false;
-
-        if (succeeded)
-        {
-            ReportOutcome("✓ Added to library");
-        }
 
         _ = RefreshSafeAsync();
     }
@@ -461,7 +432,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         {
             // A transient storage failure right after the panel closes must not
             // become an unobserved task exception; degrade and log instead.
-            AddLogLine($"Could not refresh the library: {ex.Message}");
+            _logger.LogWarning(ex, "Could not refresh the library after adding an instance");
         }
     }
 
@@ -483,15 +454,14 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
             }
             catch (Exception ex)
             {
-                AddLogLine($"Could not remove the custom logo for {instanceName}: {ex.Message}");
+                _logger.LogWarning(ex, "Could not remove the custom logo for {InstanceName}", instanceName);
             }
 
-            AddLogLine($"Removed {instanceName} from the library (its files stay in storage).");
-            ReportOutcome($"✓ Removed {instanceName} from the library");
+            _logger.LogInformation("Removed {InstanceName} from the library (its files stay in storage)", instanceName);
         }
         else if (result.Cancelled)
         {
-            AddLogLine("Removal cancelled.");
+            _logger.LogInformation("Removal of {InstanceName} cancelled", instanceName);
             return;
         }
 
@@ -513,19 +483,17 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
                 instanceName, op.Log, op.Percent, op.CancellationToken);
             if (result.Cancelled)
             {
-                AddLogLine("Deploy cancelled.");
+                _logger.LogInformation("Deploy of {InstanceName} cancelled", instanceName);
             }
             else if (result.Error is not null)
             {
-                AddLogLine(result.Error);
+                await _dialogs.ErrorAsync(result.Error, "Deploy to folder");
             }
-            else
+            else if (result.Failed > 0)
             {
-                ReportOutcome(
-                    result.Failed > 0
-                        ? $"⚠ Deployed {result.Linked} files; {result.Failed} failed - see log"
-                        : $"✓ Deployed {result.Linked} files",
-                    isWarning: result.Failed > 0);
+                await _dialogs.ErrorAsync(
+                    $"Deployed {result.Linked} files; {result.Failed} failed.",
+                    "Deploy to folder");
             }
         });
     }
@@ -538,18 +506,14 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         await RunOperationAsync("Export storage files", async op =>
         {
             var result = await _linkingService.CopyHashedFilesAsync(
-                instanceName, op.Log, op.Percent, op.Status, op.CancellationToken);
+                instanceName, op.Log, op.Percent, status: null, op.CancellationToken);
             if (result.Cancelled)
             {
-                AddLogLine("Export cancelled.");
+                _logger.LogInformation("Export of {InstanceName} cancelled", instanceName);
             }
             else if (result.Error is not null)
             {
-                AddLogLine(result.Error);
-            }
-            else
-            {
-                ReportOutcome($"✓ Exported {result.Copied} files");
+                await _dialogs.ErrorAsync(result.Error, "Export storage files");
             }
         });
     }
@@ -560,16 +524,10 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         await RunOperationAsync("Clean up storage", async op =>
         {
             var result = await _unusedFilesService.CheckAndDeleteAsync(
-                op.Log, op.CancellationToken, threadCount: ThreadCount, status: op.Status);
+                op.Log, op.CancellationToken, threadCount: ThreadCount);
             if (result.Cancelled)
             {
-                AddLogLine("Storage cleanup cancelled.");
-            }
-            else
-            {
-                ReportOutcome(result.Found == 0
-                    ? "✓ Storage is clean"
-                    : $"✓ Deleted {result.Deleted} files from storage ({SizeFormatter.Format(result.FoundBytes)} freed)");
+                _logger.LogInformation("Storage cleanup cancelled");
             }
         });
 
@@ -583,7 +541,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
             "Select legacy DBInfo.xml", new FileType("Legacy DBInfo", ["*.xml"]));
         if (path is null)
         {
-            AddLogLine("Import cancelled.");
+            _logger.LogInformation("Legacy import cancelled");
             return;
         }
 
@@ -601,7 +559,6 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
             }
 
             op.Log.Report("Import finished.");
-            ReportOutcome($"✓ Imported {result.Imported.Count} entries");
         });
 
         await RefreshAllAsync();
@@ -619,7 +576,6 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         SaveSettings(dataDirectory: path);
         DataDirectory = path;
         DataDirectoryChangePending = true;
-        AddLogLine($"Data directory set to {path}. Restart LincleLINK to apply.");
 
         // The active directory is frozen at boot, so a restart is the only way the
         // change takes effect - say so explicitly, not just via the inline note.
@@ -634,11 +590,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
 
     /// <summary>Requests cancellation of the running operation (plan 14 D5).</summary>
     [RelayCommand(CanExecute = nameof(CanCancelOperation))]
-    private void CancelOperation()
-    {
-        _operationCts?.Cancel();
-        StatusLine = "Cancelling...";
-    }
+    private void CancelOperation() => _operationCts?.Cancel();
 
     public async Task RunOperationAsync(
         string operationName,
@@ -654,14 +606,14 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         CancelOperationCommand.NotifyCanExecuteChanged();
         try
         {
-            var log = ProgressBridge.Create<string>(AddLogLine, batchSize: 100);
-            var status = ProgressBridge.Create<string>(line => StatusLine = line, batchSize: 200);
+            var log = ProgressBridge.Create<string>(
+                line => _logger.LogDebug("Activity: {Line}", line), batchSize: 100);
             var percent = ProgressBridge.Create<double>(p =>
             {
                 Progress = p;
                 _taskbarProgress.Report(p);
             });
-            await operation(new OperationContext(log, status, percent, cts.Token));
+            await operation(new OperationContext(log, percent, cts.Token));
 
             stopwatch.Stop();
             _logger.LogInformation(
@@ -671,8 +623,6 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         catch (OperationCanceledException)
         {
             stopwatch.Stop();
-            AddLogLine("Operation cancelled.");
-            ReportOutcome("Operation cancelled");
             _logger.LogInformation(
                 "Operation {Operation} cancelled after {ElapsedMs} ms",
                 operationName, stopwatch.ElapsedMilliseconds);
@@ -680,33 +630,19 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         catch (Exception ex)
         {
             stopwatch.Stop();
-            AddLogLine(ex.Message);
-            ReportOutcome($"⚠ {ex.Message}", isWarning: true);
             _logger.LogError(
                 ex,
                 "Operation {Operation} failed after {ElapsedMs} ms",
                 operationName, stopwatch.ElapsedMilliseconds);
+            await _dialogs.ErrorAsync(ex.Message, "Operation failed");
         }
         finally
         {
             _operationCts = null;
             Progress = 0;
-            StatusLine = string.Empty;
             IsBusy = false;
             _taskbarProgress.EndOperation();
         }
-    }
-
-    /// <summary>
-    /// <see cref="IOperationHost"/> implementation; delegates to the shared
-    /// <see cref="ViewModelBase"/> helper.
-    /// </summary>
-    public void AddLogLine(string line) => AddLogLine(line, _logger);
-
-    public void ReportOutcome(string message, bool isWarning = false)
-    {
-        LastOutcome = message;
-        LastOutcomeIsWarning = isWarning;
     }
 
     // Distinct names required by the [RelayCommand(CanExecute=nameof(...))] source
@@ -727,12 +663,6 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     {
         _themeManager.Apply(theme);
         SaveSettings(theme: theme);
-        AddLogLine(theme switch
-        {
-            AppTheme.Dark => "Dark theme enabled",
-            AppTheme.Light => "Light theme enabled",
-            _ => "Following the system theme",
-        });
     }
 
     partial void OnThreadCountChanged(int value)
@@ -805,8 +735,6 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
             SelectedInstance = FilteredInstances.FirstOrDefault(i =>
                 string.Equals(i.InstanceName, selectedName, StringComparison.OrdinalIgnoreCase));
         }
-
-        AddLogLine(LogMessages.LibraryRefreshed);
     }
 
     /// <summary>
@@ -931,7 +859,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
             // A transient drive-info failure (unplugged volume, statvfs error) must
             // not escape to the startup handler; degrade gracefully and leave the
             // last-known status fields in place.
-            AddLogLine($"Could not refresh status: {ex.Message}");
+            _logger.LogWarning(ex, "Could not refresh status");
         }
     }
 }

@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using FluentAssertions;
 using LincleLINK.App.Abstractions;
 using LincleLINK.App.Logos;
@@ -50,19 +49,19 @@ public sealed class DiagnosticLoggingTests
     private readonly IDriveInfoProvider _driveInfo = Substitute.For<IDriveInfoProvider>();
     private readonly IAppPaths _paths = Substitute.For<IAppPaths>();
     private readonly LogoCatalog _logoCatalog = new();
+    private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
 
     private MainViewModel CreateViewModel(RecordingLoggerProvider provider, ISettingsStore settingsStore)
     {
-        var dialogs = Substitute.For<IDialogService>();
         return new MainViewModel(
-            new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), Substitute.For<IHardLinkPreflight>(), _repository, _driveInfo, dialogs, Substitute.For<IGameVersionDetector>(), NullLogger<InstanceService>.Instance),
-            new LinkingService(_fs, _store, Substitute.For<IHardLinker>(), Substitute.For<IHardLinkPreflight>(), _repository, dialogs, NullLogger<LinkingService>.Instance),
-            new UnusedFilesService(_store, _repository, dialogs, NullLogger<UnusedFilesService>.Instance),
+            new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), Substitute.For<IHardLinkPreflight>(), _repository, _driveInfo, _dialogs, Substitute.For<IGameVersionDetector>(), NullLogger<InstanceService>.Instance),
+            new LinkingService(_fs, _store, Substitute.For<IHardLinker>(), Substitute.For<IHardLinkPreflight>(), _repository, _dialogs, NullLogger<LinkingService>.Instance),
+            new UnusedFilesService(_store, _repository, _dialogs, NullLogger<UnusedFilesService>.Instance),
             new LegacyImporter(_repository, NullLogger<LegacyImporter>.Instance),
             new TorrentService(Substitute.For<ITorrentSource>(), _repository, _store, Substitute.For<IHardLinker>(), _fs, NullLogger<TorrentService>.Instance),
             _repository,
             new StatusService(_store, _repository, _driveInfo, _paths, NullLogger<StatusService>.Instance),
-            dialogs,
+            _dialogs,
             Substitute.For<IThemeManager>(),
             settingsStore,
             Substitute.For<ITaskbarProgress>(),
@@ -114,7 +113,7 @@ public sealed class DiagnosticLoggingTests
         var failure = provider.Logs.Single(l => l.Level == LogLevel.Error);
         failure.Exception.Should().BeSameAs(ex);
         failure.Scope.Should().Contain("Check unused");
-        vm.LogLines.Should().Contain(l => l.Contains("boom"));
+        await _dialogs.Received(1).ErrorAsync(ex.Message, "Operation failed");
     }
 
     [Fact]
@@ -127,20 +126,6 @@ public sealed class DiagnosticLoggingTests
 
         provider.Logs.Should().Contain(l =>
             l.Level == LogLevel.Information && l.Message.Contains("cancelled"));
-    }
-
-    // ── AddLogLine / activity mirror (D4/D5) ─────────────────────────────────
-
-    [Fact]
-    public void AddLogLine_timestamps_line_and_mirrors_to_diagnostic_log()
-    {
-        using var provider = new RecordingLoggerProvider();
-        var vm = CreateViewModel(provider, Substitute.For<ISettingsStore>());
-
-        vm.AddLogLine("hello");
-
-        vm.LogLines.Should().ContainSingle(l => Regex.IsMatch(l, @"^\d{2}:\d{2}:\d{2} hello$"));
-        provider.Logs.Should().Contain(l => l.Level == LogLevel.Debug && l.Message == "Activity: hello");
     }
 
     // ── Settings toggle (D2) ─────────────────────────────────────────────────
@@ -164,13 +149,15 @@ public sealed class DiagnosticLoggingTests
             saved.Should().NotBeNull();
             saved!.SaveLogToFile.Should().BeTrue();
             FileLoggingSwitch.Enabled.Should().BeTrue();
-            vm.LogLines.Should().Contain(l => l.Contains(LogMessages.DiagnosticLogEnabledPrefix));
+            provider.Logs.Should().Contain(l =>
+                l.Level == LogLevel.Information && l.Message.Contains(LogMessages.DiagnosticLogEnabledPrefix));
 
             vm.SaveLogToFile = false;
 
             saved.SaveLogToFile.Should().BeFalse();
             FileLoggingSwitch.Enabled.Should().BeFalse();
-            vm.LogLines.Should().Contain(l => l.Contains(LogMessages.DiagnosticLogDisabled));
+            provider.Logs.Should().Contain(l =>
+                l.Level == LogLevel.Information && l.Message.Contains(LogMessages.DiagnosticLogDisabled));
         }
         finally
         {
@@ -194,9 +181,10 @@ public sealed class DiagnosticLoggingTests
 
             vm.SaveLogToFile.Should().BeTrue();
             // Seeding reflects the persisted value but must not re-touch the live
-            // switch (Program.Main owns it) or add the user-flip activity line.
+            // switch (Program.Main owns it) or write the enable log line.
             FileLoggingSwitch.Enabled.Should().BeFalse();
-            vm.LogLines.Should().NotContain(l => l.Contains(LogMessages.DiagnosticLogEnabledPrefix));
+            provider.Logs.Should().NotContain(l =>
+                l.Message.Contains(LogMessages.DiagnosticLogEnabledPrefix));
         }
         finally
         {
@@ -228,7 +216,8 @@ public sealed class DiagnosticLoggingTests
             vm.SaveLogToFile = true;
 
             FileLoggingSwitch.Enabled.Should().BeTrue();
-            vm.LogLines.Should().Contain(l => l.Contains(LogMessages.DiagnosticLogEnabledPrefix));
+            provider.Logs.Should().Contain(l =>
+                l.Level == LogLevel.Information && l.Message.Contains(LogMessages.DiagnosticLogEnabledPrefix));
         }
         finally
         {

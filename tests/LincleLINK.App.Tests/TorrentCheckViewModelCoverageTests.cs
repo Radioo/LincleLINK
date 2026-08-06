@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.Security.Cryptography;
 using FluentAssertions;
 using LincleLINK.App.Abstractions;
@@ -34,12 +33,9 @@ public sealed class TorrentCheckViewModelCoverageTests
 
     public TorrentCheckViewModelCoverageTests()
     {
-        _host.LogLines.Returns(new ObservableCollection<string>());
-        _host.When(h => h.AddLogLine(Arg.Any<string>()))
-            .Do(ci => _host.LogLines.Add(ci.Arg<string>()!));
         _host.RunOperationAsync(Arg.Any<string>(), Arg.Any<Func<OperationContext, Task>>())
             .Returns(ci => ci.Arg<Func<OperationContext, Task>>()!(new OperationContext(
-                new InlineProgress<string>(), new InlineProgress<string>(), new InlineProgress<double>(), CancellationToken.None)));
+                new InlineProgress<string>(), new InlineProgress<double>(), CancellationToken.None)));
     }
 
     private TorrentCheckViewModel CreateViewModel() =>

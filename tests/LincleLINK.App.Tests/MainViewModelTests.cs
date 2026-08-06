@@ -17,6 +17,7 @@ using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Abstractions.Torrents;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -40,7 +41,7 @@ public sealed class MainViewModelTests
     private readonly IGameVersionDetector _detector = Substitute.For<IGameVersionDetector>();
     private readonly LogoCatalog _logoCatalog = new();
 
-    private MainViewModel CreateViewModel() => new(
+    private MainViewModel CreateViewModel(ILogger<MainViewModel>? logger = null) => new(
         new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _driveInfo, _dialogs, _detector, NullLogger<InstanceService>.Instance),
         new LinkingService(_fs, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _dialogs, NullLogger<LinkingService>.Instance),
         new UnusedFilesService(_store, _repository, _dialogs, NullLogger<UnusedFilesService>.Instance),
@@ -53,10 +54,10 @@ public sealed class MainViewModelTests
         _settingsStore,
         _taskbarProgress,
         _preflight,
-        () => new AddInstanceViewModel(
+            () => new AddInstanceViewModel(
             new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _driveInfo, _dialogs, _detector, NullLogger<InstanceService>.Instance),
             _dialogs, _taskbarProgress, _fs, _preflight, NullLogger<AddInstanceViewModel>.Instance, _detector),
-        NullLogger<MainViewModel>.Instance,
+        logger ?? NullLogger<MainViewModel>.Instance,
         new DiagnosticLogOptions(Path.Combine(Path.GetTempPath(), "linclelink-testlogs", Guid.NewGuid().ToString("N"))),
         _logoCatalog,
         _paths);
@@ -89,7 +90,6 @@ public sealed class MainViewModelTests
         vm.DbSize.Should().Be("10 B");
         vm.Savings.Should().Be("0 B"); // (10 + 0) - 10
         vm.FreeSpace.Should().Be("500 B");
-        vm.LogLines.Should().Contain(l => l.Contains(LogMessages.LibraryRefreshed, StringComparison.Ordinal));
     }
 
     [Fact]
@@ -171,17 +171,20 @@ public sealed class MainViewModelTests
         StubStatus();
         _repository.GetSummariesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromException<IReadOnlyList<InstanceListEntry>>(new IOException("db unavailable")));
-        var vm = CreateViewModel();
+        using var provider = new RecordingLoggerProvider();
+        var logger = LoggerFactory.Create(b => b.AddProvider(provider).SetMinimumLevel(LogLevel.Debug))
+            .CreateLogger<MainViewModel>();
+        var vm = CreateViewModel(logger);
 
         vm.OpenAddInstanceCommand.Execute(null);
         vm.AddInstance!.CloseCommand.Execute(null);
 
         // The refresh runs fire-and-forget; wait for the failed task to land.
         await AsyncWaits.AwaitUntilAsync(() =>
-            vm.LogLines.Any(m => m.Contains("Could not refresh the library")));
+            provider.Logs.Any(m => m.Message.Contains("Could not refresh the library")));
 
         vm.IsAddPanelOpen.Should().BeFalse();
-        vm.LogLines.Should().Contain(m => m.Contains("Could not refresh the library"));
+        provider.Logs.Should().Contain(m => m.Message.Contains("Could not refresh the library"));
     }
 
     [Fact]
@@ -217,20 +220,6 @@ public sealed class MainViewModelTests
         vm.SelectedNavIndex = 2;
         vm.IsSettingsPage.Should().BeTrue();
         vm.IsTorrentPage.Should().BeFalse();
-    }
-
-    [Fact]
-    public void ReportOutcome_sets_activity_line_and_warning_flag()
-    {
-        StubStatus();
-        var vm = CreateViewModel();
-
-        vm.ReportOutcome("✓ Deployed 10 files");
-        vm.LastOutcome.Should().Be("✓ Deployed 10 files");
-        vm.LastOutcomeIsWarning.Should().BeFalse();
-
-        vm.ReportOutcome("⚠ 3 failed", isWarning: true);
-        vm.LastOutcomeIsWarning.Should().BeTrue();
     }
 
     [Fact]
@@ -399,9 +388,8 @@ public sealed class MainViewModelTests
         saved.HashThreadCount.Should().Be(2);
         vm.DataDirectory.Should().Be("C:\\new-data");
         vm.DataDirectoryChangePending.Should().BeTrue();
-        vm.LogLines.Should().Contain(m => m.Contains("Restart"));
 
-        // The restart requirement must be explicit: a popup, not just a log line.
+        // The restart requirement must be explicit: a popup, not just an inline note.
         await _dialogs.Received(1).InfoAsync(
             Arg.Is<string>(m => m != null && m.Contains("Restart")),
             "Restart required");

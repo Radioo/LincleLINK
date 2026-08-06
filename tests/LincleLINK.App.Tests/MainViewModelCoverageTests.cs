@@ -17,6 +17,7 @@ using LincleLINK.Core.Abstractions.Storage;
 using LincleLINK.Core.Abstractions.Torrents;
 using LincleLINK.Core.Application;
 using LincleLINK.Core.Domain;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -24,8 +25,9 @@ using Xunit;
 namespace LincleLINK.App.Tests;
 
 /// <summary>
-/// Remaining <see cref="MainViewModel"/> branches: activity-bar commands, the
-/// logo picker flow, operation error/cancel handling, and refresh failure paths.
+/// Remaining <see cref="MainViewModel"/> branches: the logo picker flow, operation
+/// error/cancel handling (now surfaced via dialogs and the logger), and refresh
+/// failure paths.
 /// </summary>
 public sealed class MainViewModelCoverageTests : IDisposable
 {
@@ -47,7 +49,7 @@ public sealed class MainViewModelCoverageTests : IDisposable
 
     public void Dispose() => _temp.Dispose();
 
-    private MainViewModel CreateViewModel() => new(
+    private MainViewModel CreateViewModel(ILogger<MainViewModel>? logger = null) => new(
         new InstanceService(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, _detector, NullLogger<InstanceService>.Instance),
         new LinkingService(_fs, _store, _hardLinker, _preflight, _repository, _dialogs, NullLogger<LinkingService>.Instance),
         new UnusedFilesService(_store, _repository, _dialogs, NullLogger<UnusedFilesService>.Instance),
@@ -60,13 +62,12 @@ public sealed class MainViewModelCoverageTests : IDisposable
         _settingsStore,
         _taskbarProgress,
         _preflight,
-        () => new AddInstanceViewModel(
+            () => new AddInstanceViewModel(
             new InstanceService(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, _detector, NullLogger<InstanceService>.Instance),
             _dialogs, _taskbarProgress, _fs, _preflight, NullLogger<AddInstanceViewModel>.Instance, _detector),
-        NullLogger<MainViewModel>.Instance,
+        logger ?? NullLogger<MainViewModel>.Instance,
         new DiagnosticLogOptions(Path.Combine(_temp.Root, "logs")),
         _logoCatalog, _paths);
-
     private void StubEmptyLibrary()
     {
         _repository.GetSummariesAsync(Arg.Any<CancellationToken>()).Returns([]);
@@ -80,15 +81,10 @@ public sealed class MainViewModelCoverageTests : IDisposable
     private static InstanceListEntry Entry(string name = "X") => new(name, 0, 0, "0 B");
 
     [Fact]
-    public void Toggle_log_and_view_mode_flip_flags()
+    public void View_mode_toggle_flips_flag()
     {
         StubEmptyLibrary();
         var vm = CreateViewModel();
-
-        vm.ToggleLogCommand.Execute(null);
-        vm.IsLogOpen.Should().BeTrue();
-        vm.ToggleLogCommand.Execute(null);
-        vm.IsLogOpen.Should().BeFalse();
 
         vm.ToggleViewModeCommand.Execute(null);
         vm.IsGridView.Should().BeTrue();
@@ -199,8 +195,6 @@ public sealed class MainViewModelCoverageTests : IDisposable
         var act = async () => await vm.SetCustomLogoCommand.ExecuteAsync(new LogoEntry("k", "avares://x.png", "x"));
 
         await act.Should().NotThrowAsync();
-        vm.LastOutcomeIsWarning.Should().BeTrue();
-        vm.LogLines.Should().Contain(l => l.Contains("Could not change the logo"));
     }
 
     [Fact]
@@ -217,8 +211,6 @@ public sealed class MainViewModelCoverageTests : IDisposable
         var act = async () => await vm.SetCustomImageCommand.ExecuteAsync(null);
 
         await act.Should().NotThrowAsync();
-        vm.LastOutcomeIsWarning.Should().BeTrue();
-        vm.LogLines.Should().Contain(l => l.Contains("Could not set the custom image"));
     }
 
     [Fact]
@@ -259,18 +251,19 @@ public sealed class MainViewModelCoverageTests : IDisposable
         StubEmptyLibrary();
         _repository.GetSummariesAsync(Arg.Any<CancellationToken>()).Returns([Entry("X")]);
         _dialogs.PickFolderAsync(Arg.Any<string>()).Returns((string?)null);
-        var vm = CreateViewModel();
+        using var provider = new RecordingLoggerProvider();
+        var vm = CreateViewModel(LoggerFactory.Create(b => b.AddProvider(provider)).CreateLogger<MainViewModel>());
         await vm.InitializeAsync();
         vm.SelectedInstance = vm.Instances[0];
 
         await vm.LinkFilesCommand.ExecuteAsync(null);
 
-        vm.LogLines.Should().Contain(l => l.Contains("Deploy cancelled"));
+        provider.Logs.Should().Contain(l => l.Message.Contains("cancelled"));
         vm.IsBusy.Should().BeFalse();
     }
 
     [Fact]
-    public async Task Link_files_error_logs_the_error()
+    public async Task Link_files_error_shows_dialog()
     {
         StubEmptyLibrary();
         _repository.GetSummariesAsync(Arg.Any<CancellationToken>()).Returns([Entry("X")]);
@@ -282,11 +275,12 @@ public sealed class MainViewModelCoverageTests : IDisposable
 
         await vm.LinkFilesCommand.ExecuteAsync(null);
 
-        vm.LogLines.Should().Contain(l => l.Contains("not found"));
+        await _dialogs.Received(1).ErrorAsync(
+            Arg.Is<string>(m => m != null && m.Contains("not found")), "Deploy to folder");
     }
 
     [Fact]
-    public async Task Link_files_partial_failure_reports_warning()
+    public async Task Link_files_partial_failure_shows_dialog()
     {
         StubEmptyLibrary();
         _repository.GetSummariesAsync(Arg.Any<CancellationToken>()).Returns([Entry("X")]);
@@ -305,8 +299,8 @@ public sealed class MainViewModelCoverageTests : IDisposable
 
         await vm.LinkFilesCommand.ExecuteAsync(null);
 
-        vm.LastOutcome.Should().Contain("1 failed");
-        vm.LastOutcomeIsWarning.Should().BeTrue();
+        await _dialogs.Received(1).ErrorAsync(
+            Arg.Is<string>(m => m != null && m.Contains("1 failed")), "Deploy to folder");
     }
 
     [Fact]
@@ -315,17 +309,18 @@ public sealed class MainViewModelCoverageTests : IDisposable
         StubEmptyLibrary();
         _repository.GetSummariesAsync(Arg.Any<CancellationToken>()).Returns([Entry("X")]);
         _dialogs.PickFolderAsync(Arg.Any<string>()).Returns((string?)null);
-        var vm = CreateViewModel();
+        using var provider = new RecordingLoggerProvider();
+        var vm = CreateViewModel(LoggerFactory.Create(b => b.AddProvider(provider)).CreateLogger<MainViewModel>());
         await vm.InitializeAsync();
         vm.SelectedInstance = vm.Instances[0];
 
         await vm.CopyHashedCommand.ExecuteAsync(null);
 
-        vm.LogLines.Should().Contain(l => l.Contains("Export cancelled"));
+        provider.Logs.Should().Contain(l => l.Message.Contains("cancelled"));
     }
 
     [Fact]
-    public async Task Copy_hashed_success_reports_exported_count()
+    public async Task Copy_hashed_success_completes_without_error_dialog()
     {
         StubEmptyLibrary();
         _repository.GetSummariesAsync(Arg.Any<CancellationToken>()).Returns([Entry("X")]);
@@ -339,11 +334,12 @@ public sealed class MainViewModelCoverageTests : IDisposable
 
         await vm.CopyHashedCommand.ExecuteAsync(null);
 
-        vm.LastOutcome.Should().Contain("Exported 1 files");
+        await _dialogs.DidNotReceiveWithAnyArgs().ErrorAsync(default!, default!);
+        vm.IsBusy.Should().BeFalse();
     }
 
     [Fact]
-    public async Task CheckUnused_clean_reports_clean_storage()
+    public async Task CheckUnused_clean_shows_info_dialog()
     {
         StubEmptyLibrary();
         _store.GetAllHashedFileNamesAsync(Arg.Any<CancellationToken>()).Returns([]);
@@ -352,12 +348,11 @@ public sealed class MainViewModelCoverageTests : IDisposable
 
         await vm.CheckUnusedCommand.ExecuteAsync(null);
 
-        vm.LastOutcome.Should().Be("✓ Storage is clean");
         await _dialogs.Received(1).InfoAsync(Arg.Any<string>(), Arg.Any<string>());
     }
 
     [Fact]
-    public async Task CheckUnused_deleted_files_reports_freed_bytes()
+    public async Task CheckUnused_deleted_files_are_removed()
     {
         StubEmptyLibrary();
         _store.GetAllHashedFileNamesAsync(Arg.Any<CancellationToken>())
@@ -369,8 +364,7 @@ public sealed class MainViewModelCoverageTests : IDisposable
 
         await vm.CheckUnusedCommand.ExecuteAsync(null);
 
-        vm.LastOutcome.Should().Contain("Deleted 2 files");
-        vm.LastOutcome.Should().Contain("300 B");
+        await _store.Received(2).DeleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -378,11 +372,12 @@ public sealed class MainViewModelCoverageTests : IDisposable
     {
         StubEmptyLibrary();
         _dialogs.PickOpenFileAsync(Arg.Any<string>(), Arg.Any<FileType>()).Returns((string?)null);
-        var vm = CreateViewModel();
+        using var provider = new RecordingLoggerProvider();
+        var vm = CreateViewModel(LoggerFactory.Create(b => b.AddProvider(provider)).CreateLogger<MainViewModel>());
 
         await vm.ImportLegacyCommand.ExecuteAsync(null);
 
-        vm.LogLines.Should().Contain(l => l.Contains("Import cancelled"));
+        provider.Logs.Should().Contain(l => l.Message.Contains("Legacy import cancelled"));
     }
 
     [Fact]
@@ -404,28 +399,30 @@ public sealed class MainViewModelCoverageTests : IDisposable
             """);
         _dialogs.PickOpenFileAsync(Arg.Any<string>(), Arg.Any<FileType>()).Returns(xml);
         _repository.ExistsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(false);
-        var vm = CreateViewModel();
+        using var provider = new RecordingLoggerProvider();
+        var vm = CreateViewModel(
+            LoggerFactory.Create(b => b.AddProvider(provider).SetMinimumLevel(LogLevel.Debug)).CreateLogger<MainViewModel>());
 
         await vm.ImportLegacyCommand.ExecuteAsync(null);
 
-        vm.LastOutcome.Should().Contain("Imported 1 entries");
-        vm.LogLines.Should().Contain(l => l.Contains("Import finished"));
+        provider.Logs.Should().Contain(l => l.Message == "Activity: Imported A into the library.");
+        provider.Logs.Should().Contain(l => l.Message == "Activity: Import finished.");
     }
 
     [Fact]
     public async Task RunOperation_catches_cancellation_and_failures()
     {
         StubEmptyLibrary();
-        var vm = CreateViewModel();
+        using var provider = new RecordingLoggerProvider();
+        var vm = CreateViewModel(LoggerFactory.Create(b => b.AddProvider(provider)).CreateLogger<MainViewModel>());
 
         await vm.RunOperationAsync("Test op", _ => throw new OperationCanceledException());
-        vm.LastOutcome.Should().Contain("cancelled");
         vm.IsBusy.Should().BeFalse();
+        provider.Logs.Should().Contain(l => l.Message.Contains("cancelled"));
 
         await vm.RunOperationAsync("Test op", _ => throw new IOException("boom"));
-        vm.LastOutcome.Should().Contain("boom");
-        vm.LastOutcomeIsWarning.Should().BeTrue();
-        vm.LogLines.Should().Contain(l => l.Contains("boom"));
+        await _dialogs.Received(1).ErrorAsync("boom", "Operation failed");
+        vm.IsBusy.Should().BeFalse();
     }
 
     [Fact]
@@ -464,11 +461,12 @@ public sealed class MainViewModelCoverageTests : IDisposable
         StubEmptyLibrary();
         _store.GetTotalSizeAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromException<long>(new IOException("unplugged")));
-        var vm = CreateViewModel();
+        using var provider = new RecordingLoggerProvider();
+        var vm = CreateViewModel(LoggerFactory.Create(b => b.AddProvider(provider)).CreateLogger<MainViewModel>());
 
         await vm.RefreshStatusAsync();
 
-        vm.LogLines.Should().Contain(l => l.Contains("Could not refresh status"));
+        provider.Logs.Should().Contain(l => l.Message.Contains("Could not refresh status"));
     }
 
     [Fact]
@@ -550,7 +548,7 @@ public sealed class MainViewModelCoverageTests : IDisposable
     }
 
     [Fact]
-    public async Task Successful_add_reports_added_to_library()
+    public async Task Successful_add_closes_the_panel()
     {
         StubEmptyLibrary();
         _fs.DirectoryExists(Data).Returns(true);
@@ -572,11 +570,10 @@ public sealed class MainViewModelCoverageTests : IDisposable
         await panel.CreateInstanceCommand.ExecuteAsync(null);
 
         vm.IsAddPanelOpen.Should().BeFalse();
-        vm.LastOutcome.Should().Contain("Added to library");
     }
 
     [Fact]
-    public async Task Copy_hashed_error_logs_the_message()
+    public async Task Copy_hashed_error_shows_dialog()
     {
         StubEmptyLibrary();
         _repository.GetSummariesAsync(Arg.Any<CancellationToken>()).Returns([Entry("X")]);
@@ -588,7 +585,8 @@ public sealed class MainViewModelCoverageTests : IDisposable
 
         await vm.CopyHashedCommand.ExecuteAsync(null);
 
-        vm.LogLines.Should().Contain(l => l.Contains("not found"));
+        await _dialogs.Received(1).ErrorAsync(
+            Arg.Is<string>(m => m != null && m.Contains("not found")), "Export storage files");
     }
 
     [Fact]
@@ -598,11 +596,12 @@ public sealed class MainViewModelCoverageTests : IDisposable
         _store.GetAllHashedFileNamesAsync(Arg.Any<CancellationToken>()).Returns(["A".PadRight(32, 'A') + ".bin"]);
         _repository.GetAllHashedFileNamesAsync(Arg.Any<CancellationToken>()).Returns([]);
         _dialogs.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
-        var vm = CreateViewModel();
+        using var provider = new RecordingLoggerProvider();
+        var vm = CreateViewModel(LoggerFactory.Create(b => b.AddProvider(provider)).CreateLogger<MainViewModel>());
 
         await vm.CheckUnusedCommand.ExecuteAsync(null);
 
-        vm.LogLines.Should().Contain(l => l.Contains("Storage cleanup cancelled"));
+        provider.Logs.Should().Contain(l => l.Message.Contains("Storage cleanup cancelled"));
     }
 
     [Fact]
@@ -624,11 +623,13 @@ public sealed class MainViewModelCoverageTests : IDisposable
             """);
         _dialogs.PickOpenFileAsync(Arg.Any<string>(), Arg.Any<FileType>()).Returns(xml);
         _repository.ExistsAsync("A", Arg.Any<CancellationToken>()).Returns(true);
-        var vm = CreateViewModel();
+        using var provider = new RecordingLoggerProvider();
+        var vm = CreateViewModel(
+            LoggerFactory.Create(b => b.AddProvider(provider).SetMinimumLevel(LogLevel.Debug)).CreateLogger<MainViewModel>());
 
         await vm.ImportLegacyCommand.ExecuteAsync(null);
 
-        vm.LogLines.Should().Contain(l => l.Contains("already in the library"));
+        provider.Logs.Should().Contain(l => l.Message == "Activity: A is already in the library. Not importing.");
     }
 
     [Fact]
@@ -637,11 +638,17 @@ public sealed class MainViewModelCoverageTests : IDisposable
         StubEmptyLibrary();
         var gate = new TaskCompletionSource();
         var vm = CreateViewModel();
-        var run = vm.RunOperationAsync("Test op", _ => gate.Task);
+        CancellationToken? token = null;
+        var run = vm.RunOperationAsync("Test op", op =>
+        {
+            token = op.CancellationToken;
+            return gate.Task;
+        });
         await AsyncWaits.AwaitUntilAsync(() => vm.CancelOperationCommand.CanExecute(null));
 
         vm.CancelOperationCommand.Execute(null);
-        vm.StatusLine.Should().Be("Cancelling...");
+        token.Should().NotBeNull();
+        token!.Value.IsCancellationRequested.Should().BeTrue();
 
         gate.SetResult();
         await run;

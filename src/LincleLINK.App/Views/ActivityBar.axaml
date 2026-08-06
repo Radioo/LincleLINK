@@ -5,36 +5,16 @@
              x:DataType="vm:MainViewModel">
     <Border Background="{DynamicResource LLSidebar}"
             BorderBrush="{DynamicResource LLHairline}" BorderThickness="0,1,0,0">
-        <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="10" Margin="12,5">
+        <Grid ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="10" Margin="12,5">
 
-            <Panel Grid.Column="0" VerticalAlignment="Center">
-                <!-- Prefix trimming: long per-file paths keep their tail (the file
-                     being worked on) visible; the ellipsis eats the middle. -->
-                <TextBlock Text="{Binding StatusLine}" FontSize="12" Opacity="0.75"
-                           TextTrimming="PrefixCharacterEllipsis" IsVisible="{Binding IsBusy}" />
-                <Panel IsVisible="{Binding !IsBusy}">
-                    <TextBlock Text="{Binding LastOutcome}" FontSize="12" Opacity="0.7"
-                               TextTrimming="CharacterEllipsis"
-                               IsVisible="{Binding !LastOutcomeIsWarning}" />
-                    <TextBlock Text="{Binding LastOutcome}" FontSize="12"
-                               Foreground="{DynamicResource LLWarning}"
-                               TextTrimming="CharacterEllipsis"
-                               IsVisible="{Binding LastOutcomeIsWarning}" />
-                </Panel>
-            </Panel>
-
-            <ProgressBar Grid.Column="1" Width="170" Height="6" MinHeight="6"
+            <ProgressBar Grid.Column="0" Width="170" Height="6" MinHeight="6"
                          Value="{Binding Progress}" Minimum="0" Maximum="100"
                          VerticalAlignment="Center" IsVisible="{Binding IsBusy}" />
-            <TextBlock Grid.Column="2" Text="{Binding Progress, StringFormat={}{0:0}%}"
+            <TextBlock Grid.Column="1" Text="{Binding Progress, StringFormat={}{0:0}%}"
                        FontSize="12" Opacity="0.7" VerticalAlignment="Center" MinWidth="34"
                        TextAlignment="Right" IsVisible="{Binding IsBusy}" />
-            <Button Grid.Column="3" Content="Cancel" FontSize="12" Padding="10,3"
+            <Button Grid.Column="2" Content="Cancel" FontSize="12" Padding="10,3"
                     Command="{Binding CancelOperationCommand}" IsVisible="{Binding IsBusy}" />
-            <Button Grid.Column="4" Content="Activity log ▸" FontSize="12" Padding="10,3"
-                    Background="Transparent" BorderThickness="0"
-                    Foreground="{DynamicResource LLAccentText}" FontWeight="SemiBold"
-                    Command="{Binding ToggleLogCommand}" />
         </Grid>
     </Border>
 </UserControl>

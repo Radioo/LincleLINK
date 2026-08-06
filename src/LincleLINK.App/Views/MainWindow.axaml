@@ -12,7 +12,7 @@
     <!-- Hidden until a DataContext exists: the first-run flow shows this window
          (as a dialog owner) before the view model can be constructed, and unbound
          page-visibility bindings would render every page stacked. -->
-    <Grid RowDefinitions="*,Auto,Auto"
+    <Grid RowDefinitions="*,Auto"
           IsVisible="{Binding $self.DataContext, Converter={x:Static ObjectConverters.IsNotNull}}">
 
         <!-- ═════════ shell: sidebar | page area (plan 15 D1) ═════════ -->
@@ -44,15 +44,7 @@
             <views:LogoPicker IsVisible="{Binding IsLogoPickerOpen}" />
         </Panel>
 
-        <!-- ═════ log drawer ═════ -->
-        <Border Grid.Row="1" IsVisible="{Binding IsLogOpen}"
-                BorderBrush="{DynamicResource LLHairline}" BorderThickness="0,1,0,0">
-            <ListBox Height="160" FontSize="12"
-                     ItemsSource="{Binding LogLines}"
-                     behaviors:AutoScrollBehavior.AutoScrollToEnd="True" />
-        </Border>
-
         <!-- ═════ activity bar (plan 15 D5) ═════ -->
-        <views:ActivityBar Grid.Row="2" />
+        <views:ActivityBar Grid.Row="1" />
     </Grid>
 </Window>
