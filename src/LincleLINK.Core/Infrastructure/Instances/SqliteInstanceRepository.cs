@@ -42,6 +42,7 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
     {
         await using var context = await _contextFactory.CreateDbContextAsync(ct);
         var entities = await context.Instances
+            .AsSplitQuery()
             .Include(x => x.Files)
             .Include(x => x.Directories)
             .ToListAsync(ct);
@@ -104,6 +105,7 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
 
         await using var context = await _contextFactory.CreateDbContextAsync(ct);
         var entity = await context.Instances
+            .AsSplitQuery()
             .Include(x => x.Files)
             .Include(x => x.Directories)
             .FirstOrDefaultAsync(x => x.NameKey == key, ct);
@@ -168,6 +170,7 @@ public sealed class SqliteInstanceRepository : IInstanceRepository
 
         await using var context = await _contextFactory.CreateDbContextAsync(ct);
         var existing = await context.Instances
+            .AsSplitQuery()
             .Include(x => x.Files)
             .Include(x => x.Directories)
             .FirstOrDefaultAsync(x => x.NameKey == key, ct);
