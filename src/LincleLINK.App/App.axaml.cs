@@ -6,7 +6,6 @@ using LincleLINK.App.Composition;
 using LincleLINK.App.Services;
 using LincleLINK.App.ViewModels;
 using LincleLINK.App.Views;
-using LincleLINK.Core.Abstractions.Dialogs;
 using LincleLINK.Core.Abstractions.Settings;
 using LincleLINK.Core.Application;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +17,7 @@ namespace LincleLINK.App;
 public partial class App : Application
 {
     private ServiceProvider? _services;
+    private GlobalExceptionHandler? _exceptionHandler;
 
     public override void Initialize()
     {
@@ -29,11 +29,18 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            // Install the global exception handler before the bootstrapper runs so
+            // even composition-root failures route through it (issue #16 D1). It
+            // takes no DI dependencies; only the window/quit providers.
+            _exceptionHandler = new GlobalExceptionHandler(
+                () => desktop.MainWindow, () => desktop.Shutdown(1));
+            _exceptionHandler.Install();
+
             try
             {
                 desktop.MainWindow = new MainWindow();
 
-                _services = await AppBootstrapper.BuildAsync(() => desktop.MainWindow);
+                _services = await AppBootstrapper.BuildAsync(() => desktop.MainWindow, _exceptionHandler);
                 var logger = _services.GetRequiredService<ILogger<App>>();
                 logger.LogInformation("Bootstrap completed; starting the main window");
 
@@ -115,22 +122,19 @@ public partial class App : Application
     private async Task ReportStartupFailureAsync(
         IClassicDesktopStyleApplicationLifetime desktop, Exception ex)
     {
-        if (_services is { } services)
+        // The report window in fatal mode carries the full stack trace instead of
+        // a one-line message dialog (issue #16 D5); it completes when the user
+        // closes it (Quit / X / Esc), then the process shuts down cleanly.
+        if (_exceptionHandler is { } handler)
         {
             try
             {
-                if (desktop.MainWindow is { IsVisible: false } mainWindow)
-                {
-                    mainWindow.Show();
-                }
-
-                var dialogs = services.GetRequiredService<IDialogService>();
-                await dialogs.ErrorAsync($"LincleLINK could not start:\n\n{ex.Message}", "Startup failed");
+                await handler.PresentFatalAsync(ex);
             }
             catch
             {
-                // No UI to report through (dialog infrastructure not ready yet);
-                // the console line above remains the record.
+                // No UI to report through (dispatcher not available); the console
+                // line above remains the record.
             }
         }
 

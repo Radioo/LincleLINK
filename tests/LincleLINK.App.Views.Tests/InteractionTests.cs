@@ -293,6 +293,7 @@ public sealed class InteractionTests
             NullLogger<MainViewModel>.Instance,
             new DiagnosticLogOptions(Path.Combine(Path.GetTempPath(), "linclelink-view-logs", Guid.NewGuid().ToString("N"))),
             new LogoCatalog(),
-            paths);
+            paths,
+            Substitute.For<IExceptionReporter>());
     }
 }

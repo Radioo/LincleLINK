@@ -50,6 +50,7 @@ public sealed class DiagnosticLoggingTests
     private readonly IAppPaths _paths = Substitute.For<IAppPaths>();
     private readonly LogoCatalog _logoCatalog = new();
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
+    private readonly IExceptionReporter _exceptionReporter = Substitute.For<IExceptionReporter>();
 
     private MainViewModel CreateViewModel(RecordingLoggerProvider provider, ISettingsStore settingsStore)
     {
@@ -70,7 +71,8 @@ public sealed class DiagnosticLoggingTests
             LoggerFactory.Create(builder => builder.AddProvider(provider).SetMinimumLevel(LogLevel.Debug)).CreateLogger<MainViewModel>(),
             Options,
             _logoCatalog,
-            _paths);
+            _paths,
+            _exceptionReporter);
     }
 
     private void StubStatus()
@@ -113,7 +115,8 @@ public sealed class DiagnosticLoggingTests
         var failure = provider.Logs.Single(l => l.Level == LogLevel.Error);
         failure.Exception.Should().BeSameAs(ex);
         failure.Scope.Should().Contain("Check unused");
-        await _dialogs.Received(1).ErrorAsync(ex.Message, "Operation failed");
+        _exceptionReporter.Received(1).ReportUnexpected(ex);
+        await _dialogs.DidNotReceive().ErrorAsync(Arg.Any<string>(), Arg.Any<string>());
     }
 
     [Fact]

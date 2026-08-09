@@ -40,6 +40,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     private readonly DiagnosticLogOptions _logOptions;
     private readonly LogoCatalog _logoCatalog;
     private readonly IAppPaths _paths;
+    private readonly IExceptionReporter _exceptionReporter;
 
     /// <summary>Logo key → index in the built-in catalog, i.e. the supported-list order.</summary>
     private readonly Dictionary<string, int> _logoOrder;
@@ -323,7 +324,8 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         ILogger<MainViewModel> logger,
         DiagnosticLogOptions logOptions,
         LogoCatalog logoCatalog,
-        IAppPaths paths)
+        IAppPaths paths,
+        IExceptionReporter exceptionReporter)
     {
         _instanceService = instanceService;
         _linkingService = linkingService;
@@ -340,6 +342,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         _logOptions = logOptions;
         _logoCatalog = logoCatalog;
         _paths = paths;
+        _exceptionReporter = exceptionReporter;
 
         _logoOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < logoCatalog.AllLogos.Count; i++)
@@ -634,7 +637,11 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
                 ex,
                 "Operation {Operation} failed after {ElapsedMs} ms",
                 operationName, stopwatch.ElapsedMilliseconds);
-            await _dialogs.ErrorAsync(ex.Message, "Operation failed");
+
+            // Unexpected failures route to the report window (full stack trace)
+            // instead of a one-line message dialog (issue #16 D5). Expected /
+            // domain errors reported via the operation result keep ErrorAsync.
+            _exceptionReporter.ReportUnexpected(ex);
         }
         finally
         {

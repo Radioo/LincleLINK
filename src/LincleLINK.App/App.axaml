@@ -25,6 +25,7 @@
                     <SolidColorBrush x:Key="LLAccentText" Color="#B57B00" />
                     <SolidColorBrush x:Key="LLWarning" Color="#A66A00" />
                     <SolidColorBrush x:Key="LLDanger" Color="#C04A3A" />
+                    <SolidColorBrush x:Key="LLDangerSoft" Color="#F7E2DE" />
                     <SolidColorBrush x:Key="LLSuccess" Color="#2E8B57" />
                     <SolidColorBrush x:Key="LLVeil" Color="#59000000" />
                 </ResourceDictionary>
@@ -37,6 +38,7 @@
                     <SolidColorBrush x:Key="LLAccentText" Color="#FFCF5C" />
                     <SolidColorBrush x:Key="LLWarning" Color="#FFCF5C" />
                     <SolidColorBrush x:Key="LLDanger" Color="#FF8A75" />
+                    <SolidColorBrush x:Key="LLDangerSoft" Color="#3A2622" />
                     <SolidColorBrush x:Key="LLSuccess" Color="#5FC78A" />
                     <SolidColorBrush x:Key="LLVeil" Color="#8C000000" />
                 </ResourceDictionary>

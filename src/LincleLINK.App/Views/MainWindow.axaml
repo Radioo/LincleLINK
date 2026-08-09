@@ -12,11 +12,15 @@
     <!-- Hidden until a DataContext exists: the first-run flow shows this window
          (as a dialog owner) before the view model can be constructed, and unbound
          page-visibility bindings would render every page stacked. -->
-    <Grid RowDefinitions="*,Auto"
+    <Grid RowDefinitions="Auto,*,Auto"
           IsVisible="{Binding $self.DataContext, Converter={x:Static ObjectConverters.IsNotNull}}">
 
-        <!-- ═════════ shell: sidebar | page area (plan 15 D1) ═════════ -->
-        <Panel Grid.Row="0">
+        <!-- DEBUG-only dev menu (issue #16 D6): populated from code-behind under
+             #if DEBUG so it is compiled out of Release builds entirely. -->
+        <Panel Grid.Row="0" x:Name="DevMenuHost" />
+
+        <!-- ═════ shell: sidebar | page area (plan 15 D1) ═════ -->
+        <Panel Grid.Row="1">
             <Grid ColumnDefinitions="200,*">
 
                 <views:Sidebar Grid.Column="0" />
@@ -45,6 +49,6 @@
         </Panel>
 
         <!-- ═════ activity bar (plan 15 D5) ═════ -->
-        <views:ActivityBar Grid.Row="1" />
+        <views:ActivityBar Grid.Row="2" />
     </Grid>
 </Window>
