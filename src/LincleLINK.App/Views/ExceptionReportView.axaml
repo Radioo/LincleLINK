@@ -45,9 +45,10 @@
         </Border>
 
         <!-- ═════ stack trace: read-only, selectable, fills the resizable area ═════ -->
-        <TextBox Grid.Row="2" Text="{Binding DetailsText, Mode=OneWay}"
+        <TextBox Grid.Row="2" x:Name="DetailsBox" Text="{Binding DetailsText, Mode=OneWay}"
                  IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
                  FontFamily="Consolas, 'Cascadia Mono', monospace" FontSize="11"
+                 VerticalAlignment="Stretch" VerticalContentAlignment="Top"
                  Background="{DynamicResource LLSurface}"
                  BorderBrush="{DynamicResource LLHairline}"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
