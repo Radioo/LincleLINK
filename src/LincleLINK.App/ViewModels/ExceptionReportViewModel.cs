@@ -81,10 +81,9 @@ public partial class ExceptionReportViewModel : ViewModelBase
     /// <summary>Registers another occurrence while the report window is open (D4).</summary>
     public void AddException(Exception exception)
     {
-        if (!_accumulator.Add(exception))
-        {
-            return;
-        }
+        // Notify unconditionally: the overflow counter is displayed state, so even
+        // a dropped (over-the-cap) occurrence must refresh the overflow UI.
+        _accumulator.Add(exception);
 
         OnPropertyChanged(nameof(SummaryType));
         OnPropertyChanged(nameof(SummaryMessage));

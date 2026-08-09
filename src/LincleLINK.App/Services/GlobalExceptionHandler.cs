@@ -111,7 +111,12 @@ public sealed class GlobalExceptionHandler : IExceptionReporter
                 }
             });
 
-            closed.Task.Wait(TimeSpan.FromSeconds(2));
+            if (!closed.Task.Wait(TimeSpan.FromSeconds(2)))
+            {
+                // The dispatcher never ran the callback (or the window is still up
+                // while the process is dying): dump the full report as the record.
+                Console.Error.WriteLine(ExceptionReport.Format(exception, DateTimeOffset.UtcNow, 1));
+            }
         }
         catch
         {

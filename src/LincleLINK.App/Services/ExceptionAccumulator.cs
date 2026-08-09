@@ -44,7 +44,7 @@ public sealed class ExceptionAccumulator
 
     /// <summary>
     /// Registers another occurrence. Returns false when it was dropped for hitting
-    /// the cap (the overflow counter still grows) so callers can skip a UI refresh.
+    /// the cap (the overflow counter still grows).
     /// </summary>
     public bool Add(Exception exception)
     {
@@ -92,7 +92,7 @@ public sealed class ExceptionAccumulator
         if (HasOverflow)
         {
             sb.AppendLine();
-            sb.AppendLine($"…and {OverflowCount} more distinct errors (the {MaxDistinctExceptions}-exception cap was reached - copy the report for the full list)");
+            sb.AppendLine($"…and {OverflowCount} more distinct errors (the {MaxDistinctExceptions}-exception cap was reached - further exceptions were dropped)");
         }
 
         return sb.ToString().TrimEnd();

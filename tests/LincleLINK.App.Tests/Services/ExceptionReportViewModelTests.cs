@@ -86,6 +86,26 @@ public sealed class ExceptionReportViewModelTests
         report.Should().Contain("System.NullReferenceException: second");
     }
 
+    [Fact]
+    public void First_overflowed_exception_raises_overflow_property_changed()
+    {
+        var vm = Create(false, new InvalidOperationException("first"));
+        var changed = new List<string?>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        // Fill to the 10-exception cap: the initial one + 9 more.
+        for (var i = 0; i < ExceptionAccumulator.MaxDistinctExceptions - 1; i++)
+        {
+            vm.AddException(new InvalidOperationException($"error {i}"));
+        }
+
+        vm.AddException(new InvalidOperationException("over the cap"));
+
+        changed.Should().Contain(nameof(vm.OverflowText));
+        changed.Should().Contain(nameof(vm.DetailsText));
+        vm.OverflowText.Should().Be("…and 1 more distinct errors");
+    }
+
     private static ExceptionReportViewModel Create(bool isFatal, Exception? exception = null)
         => new(exception ?? new InvalidOperationException("boom"), isFatal, () => { });
 }
