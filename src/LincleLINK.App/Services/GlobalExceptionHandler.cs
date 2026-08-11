@@ -51,17 +51,19 @@ public sealed class GlobalExceptionHandler : IExceptionReporter
 
     /// <summary>
     /// Presents the report window in fatal mode and completes when the window is
-    /// closed (callers then shut the process down). If no UI can be shown it falls
-    /// back to <c>Console.Error</c> with the full formatted report.
+    /// closed (callers then shut the process down). If no window appears within a
+    /// short grace period it falls back to <c>Console.Error</c> with the full
+    /// formatted report.
     /// </summary>
     public Task PresentFatalAsync(Exception exception)
     {
         _isFatal = true;
         var closed = new TaskCompletionSource();
+        var shown = new TaskCompletionSource();
 
         if (Dispatcher.UIThread.CheckAccess())
         {
-            Present(exception, closed);
+            Present(exception, closed, shown);
         }
         else
         {
@@ -69,23 +71,25 @@ public sealed class GlobalExceptionHandler : IExceptionReporter
             {
                 try
                 {
-                    Present(exception, closed);
+                    Present(exception, closed, shown);
                 }
                 catch (Exception ex)
                 {
                     closed.TrySetException(ex);
+                    shown.TrySetException(ex);
                 }
             });
         }
 
-        return closed.Task;
+        return AwaitFatalPresentationAsync(exception, shown, closed);
     }
 
     /// <summary>
     /// Best-effort fatal presentation from a non-UI thread (AppDomain hook, where
-    /// the process is already doomed). Blocks briefly to give the window a chance
-    /// to appear; the <c>Console.Error</c> dump is the record when the dispatcher
-    /// is gone.
+    /// the process is already doomed). Waits a short time for the window to appear;
+    /// once shown it blocks until the window closes so the report stays readable
+    /// instead of the CLR terminating the app under it. The <c>Console.Error</c>
+    /// dump is the record when no window can be shown.
     /// </summary>
     public void PresentFatal(Exception exception)
     {
@@ -99,29 +103,54 @@ public sealed class GlobalExceptionHandler : IExceptionReporter
             }
 
             var closed = new TaskCompletionSource();
+            var shown = new TaskCompletionSource();
             Dispatcher.UIThread.Post(() =>
             {
                 try
                 {
-                    Present(exception, closed);
+                    Present(exception, closed, shown);
                 }
                 catch (Exception ex)
                 {
                     closed.TrySetException(ex);
+                    shown.TrySetException(ex);
                 }
             });
 
-            if (!closed.Task.Wait(TimeSpan.FromSeconds(2)))
+            if (!shown.Task.Wait(TimeSpan.FromSeconds(2)))
             {
-                // The dispatcher never ran the callback (or the window is still up
-                // while the process is dying): dump the full report as the record.
+                // The dispatcher never showed a window (or the pump is gone):
+                // dump the full report as the record.
                 Console.Error.WriteLine(ExceptionReport.Format(exception, DateTimeOffset.UtcNow, 1));
+                return;
             }
+
+            // Shown: keep the crashing thread blocked until the window closes.
+            closed.Task.Wait();
         }
         catch
         {
             Console.Error.WriteLine(ExceptionReport.Format(exception, DateTimeOffset.UtcNow, 1));
         }
+    }
+
+    private static async Task AwaitFatalPresentationAsync(
+        Exception exception, TaskCompletionSource shown, TaskCompletionSource closed)
+    {
+        try
+        {
+            await shown.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        catch (TimeoutException)
+        {
+            // No window came up (dispatcher gone or never pumped): the console
+            // report is the record.
+            Console.Error.WriteLine(ExceptionReport.Format(exception, DateTimeOffset.UtcNow, 1));
+            return;
+        }
+
+        // Shown: block until the window closes so the report stays readable.
+        await closed.Task;
     }
 
     private void OnDispatcherUnhandledException(object? sender, DispatcherUnhandledExceptionEventArgs e)
@@ -157,13 +186,13 @@ public sealed class GlobalExceptionHandler : IExceptionReporter
         }
     }
 
-    private void Present(Exception exception, TaskCompletionSource? closeSignal = null)
+    private void Present(Exception exception, TaskCompletionSource? closeSignal = null, TaskCompletionSource? shownSignal = null)
     {
         try
         {
             if (!Dispatcher.UIThread.CheckAccess())
             {
-                Dispatcher.UIThread.Post(() => Present(exception, closeSignal));
+                Dispatcher.UIThread.Post(() => Present(exception, closeSignal, shownSignal));
                 return;
             }
 
@@ -178,15 +207,17 @@ public sealed class GlobalExceptionHandler : IExceptionReporter
                 return;
             }
 
-            ShowWindow(exception, closeSignal);
+            ShowWindow(exception, closeSignal, shownSignal);
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine("Could not show the error report: " + ex);
+            closeSignal?.TrySetException(ex);
+            shownSignal?.TrySetException(ex);
         }
     }
 
-    private void ShowWindow(Exception exception, TaskCompletionSource? closeSignal)
+    private void ShowWindow(Exception exception, TaskCompletionSource? closeSignal, TaskCompletionSource? shownSignal)
     {
         var vm = new ExceptionReportViewModel(exception, _isFatal, _quit);
         var window = new Window
@@ -207,6 +238,8 @@ public sealed class GlobalExceptionHandler : IExceptionReporter
         // Continue (and Esc, its IsCancel binding) ask the view model to close;
         // close the window on CloseRequested, mirroring the DialogService pattern.
         vm.CloseRequested += (_, _) => window.Close();
+
+        window.Opened += (_, _) => shownSignal?.TrySetResult();
 
         window.Closed += (_, _) =>
         {
