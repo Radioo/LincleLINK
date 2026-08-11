@@ -50,6 +50,38 @@ public sealed class ExceptionReportViewModelTests
     }
 
     [Fact]
+    public void MakeFatal_flips_presentation_to_fatal()
+    {
+        var vm = Create(false);
+        var changed = new List<string?>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        vm.MakeFatal();
+
+        vm.IsFatal.Should().BeTrue();
+        vm.Title.Should().Be("LincleLINK could not start");
+        vm.Headline.Should().Be("LincleLINK has to close");
+        vm.Helper.Should().Contain("An error stopped the app from starting");
+        vm.NotFatal.Should().BeFalse();
+        vm.QuitIsDefault.Should().BeTrue();
+        changed.Should().Contain(nameof(vm.Headline));
+        changed.Should().Contain(nameof(vm.Helper));
+        changed.Should().Contain(nameof(vm.NotFatal));
+        changed.Should().Contain(nameof(vm.QuitIsDefault));
+    }
+
+    [Fact]
+    public void MakeFatal_is_a_no_op_when_already_fatal()
+    {
+        var vm = Create(true);
+
+        vm.MakeFatal();
+
+        vm.IsFatal.Should().BeTrue();
+        vm.Title.Should().Be("LincleLINK could not start");
+    }
+
+    [Fact]
     public void Summary_carries_type_and_message()
     {
         var vm = Create(false, new InvalidOperationException("boom"));

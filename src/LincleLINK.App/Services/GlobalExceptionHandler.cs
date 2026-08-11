@@ -24,6 +24,8 @@ public sealed class GlobalExceptionHandler : IExceptionReporter
     private readonly Action _quit;
 
     private ExceptionReportViewModel? _reportVm;
+    private Window? _window;
+    private readonly List<TaskCompletionSource> _pendingCloseSignals = [];
     private bool _installed;
     private bool _isFatal;
 
@@ -197,13 +199,29 @@ public sealed class GlobalExceptionHandler : IExceptionReporter
             }
 
             // One window at a time: while a report is open, further exceptions
-            // accumulate into it instead of spawning new windows (D4). A caller
-            // waiting on a close signal (fatal mode) is released immediately when
-            // the existing window already covers the report.
+            // accumulate into it instead of spawning new windows (D4). A fatal
+            // caller arriving while a recoverable report is open upgrades that
+            // window so the messaging and quit-on-close match, then stays blocked
+            // on its close signal until the window actually closes.
             if (_reportVm is not null)
             {
+                if (_isFatal && !_reportVm.IsFatal)
+                {
+                    _reportVm.MakeFatal();
+                    if (_window is not null)
+                    {
+                        _window.Title = _reportVm.Title;
+                    }
+                }
+
                 _reportVm.AddException(exception);
-                closeSignal?.TrySetResult();
+
+                if (closeSignal is not null)
+                {
+                    _pendingCloseSignals.Add(closeSignal);
+                }
+
+                shownSignal?.TrySetResult();
                 return;
             }
 
@@ -241,20 +259,41 @@ public sealed class GlobalExceptionHandler : IExceptionReporter
 
         window.Opened += (_, _) => shownSignal?.TrySetResult();
 
+        if (closeSignal is not null)
+        {
+            _pendingCloseSignals.Add(closeSignal);
+        }
+
         window.Closed += (_, _) =>
         {
-            // In fatal mode closing the window by any means (Quit, X, Esc) quits;
-            // recoverable mode only reports, so a close is just a dismiss.
-            if (_isFatal)
+            // Closing the window by any means (Quit, X, Esc) quits only when this
+            // window is fatal - fatality is per-window, so a report upgraded by
+            // MakeFatal quits even though it opened in recoverable mode.
+            if (vm.IsFatal)
             {
                 _quit();
             }
 
-            closeSignal?.TrySetResult();
-            _reportVm = null;
+            foreach (var signal in _pendingCloseSignals)
+            {
+                signal.TrySetResult();
+            }
+
+            _pendingCloseSignals.Clear();
+
+            if (ReferenceEquals(_reportVm, vm))
+            {
+                _reportVm = null;
+            }
+
+            if (ReferenceEquals(_window, window))
+            {
+                _window = null;
+            }
         };
 
         _reportVm = vm;
+        _window = window;
 
         var owner = _ownerProvider();
         if (owner is not null)

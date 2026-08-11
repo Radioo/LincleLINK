@@ -23,13 +23,15 @@ public partial class ExceptionReportViewModel : ViewModelBase
     private readonly Action _onQuit;
     private Window? _hostWindow;
 
-    public override string Title { get; }
+    public override string Title => _title;
+
+    private string _title;
 
     public override Size DialogSize => new(620, 480);
 
     public override Size DialogMinSize => new(520, 380);
 
-    public bool IsFatal { get; }
+    public bool IsFatal { get; private set; }
 
     public string Headline => IsFatal
         ? "LincleLINK has to close"
@@ -69,7 +71,7 @@ public partial class ExceptionReportViewModel : ViewModelBase
         _accumulator.Add(exception);
         _onQuit = onQuit;
         IsFatal = isFatal;
-        Title = isFatal ? "LincleLINK could not start" : "Unexpected error - LincleLINK";
+        _title = isFatal ? "LincleLINK could not start" : "Unexpected error - LincleLINK";
     }
 
     /// <summary>
@@ -77,6 +79,30 @@ public partial class ExceptionReportViewModel : ViewModelBase
     /// unlike the main window during startup failures).
     /// </summary>
     public void AttachWindow(Window window) => _hostWindow = window;
+
+    /// <summary>
+    /// Upgrades an open recoverable report to fatal mode when a fatal exception
+    /// arrives while it is showing (issue #16 D4): the headline, helper, buttons
+    /// and the quit-on-close behaviour all flip so the messaging matches the
+    /// process-dooming caller.
+    /// </summary>
+    public void MakeFatal()
+    {
+        if (IsFatal)
+        {
+            return;
+        }
+
+        IsFatal = true;
+        _title = "LincleLINK could not start";
+
+        OnPropertyChanged(nameof(IsFatal));
+        OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(Headline));
+        OnPropertyChanged(nameof(Helper));
+        OnPropertyChanged(nameof(NotFatal));
+        OnPropertyChanged(nameof(QuitIsDefault));
+    }
 
     /// <summary>Registers another occurrence while the report window is open (D4).</summary>
     public void AddException(Exception exception)
