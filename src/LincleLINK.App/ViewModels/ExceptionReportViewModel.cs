@@ -52,7 +52,7 @@ public partial class ExceptionReportViewModel : ViewModelBase
     public string DetailsText => _accumulator.BuildDetailsText();
 
     public string OverflowText => _accumulator.HasOverflow
-        ? $"…and {_accumulator.OverflowCount} more distinct errors"
+        ? ExceptionAccumulator.FormatOverflow(_accumulator.OverflowCount)
         : string.Empty;
 
     /// <summary>Same values that go into the copied Markdown report.</summary>

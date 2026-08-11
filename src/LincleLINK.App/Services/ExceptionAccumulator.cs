@@ -36,6 +36,10 @@ public sealed class ExceptionAccumulator
 
     public bool HasOverflow => _overflowCount > 0;
 
+    /// <summary>The overflow line, singular for exactly one dropped error.</summary>
+    public static string FormatOverflow(int count)
+        => count == 1 ? "…and 1 more distinct error" : $"…and {count} more distinct errors";
+
     public void Reset()
     {
         _items.Clear();
@@ -92,7 +96,7 @@ public sealed class ExceptionAccumulator
         if (HasOverflow)
         {
             sb.AppendLine();
-            sb.AppendLine($"…and {OverflowCount} more distinct errors (the {MaxDistinctExceptions}-exception cap was reached - further exceptions were dropped)");
+            sb.AppendLine($"{FormatOverflow(OverflowCount)} (the {MaxDistinctExceptions}-exception cap was reached - further exceptions were dropped)");
         }
 
         return sb.ToString().TrimEnd();

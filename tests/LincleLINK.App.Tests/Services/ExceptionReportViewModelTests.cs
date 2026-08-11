@@ -147,7 +147,7 @@ public sealed class ExceptionReportViewModelTests
 
         changed.Should().Contain(nameof(vm.OverflowText));
         changed.Should().Contain(nameof(vm.DetailsText));
-        vm.OverflowText.Should().Be("…and 1 more distinct errors");
+        vm.OverflowText.Should().Be("…and 1 more distinct error");
     }
 
     private static ExceptionReportViewModel Create(bool isFatal, Exception? exception = null)

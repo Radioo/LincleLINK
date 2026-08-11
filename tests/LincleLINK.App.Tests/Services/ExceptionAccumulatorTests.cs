@@ -93,6 +93,28 @@ public sealed class ExceptionAccumulatorTests
     }
 
     [Fact]
+    public void BuildDetailsText_uses_singular_for_one_dropped_error()
+    {
+        var accumulator = new ExceptionAccumulator();
+        for (var i = 0; i < ExceptionAccumulator.MaxDistinctExceptions + 1; i++)
+        {
+            accumulator.Add(new InvalidOperationException($"error {i}"));
+        }
+
+        var text = accumulator.BuildDetailsText();
+
+        text.Should().Contain("…and 1 more distinct error");
+        text.Should().NotContain("…and 1 more distinct errors");
+    }
+
+    [Fact]
+    public void FormatOverflow_singular_for_one_and_plural_otherwise()
+    {
+        ExceptionAccumulator.FormatOverflow(1).Should().Be("…and 1 more distinct error");
+        ExceptionAccumulator.FormatOverflow(2).Should().Be("…and 2 more distinct errors");
+    }
+
+    [Fact]
     public void Reset_clears_items_and_overflow()
     {
         var accumulator = new ExceptionAccumulator();
