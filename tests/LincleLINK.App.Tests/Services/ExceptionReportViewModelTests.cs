@@ -38,6 +38,18 @@ public sealed class ExceptionReportViewModelTests
     }
 
     [Fact]
+    public void ContinueCommand_raises_CloseRequested()
+    {
+        var vm = Create(false);
+        var closed = false;
+        vm.CloseRequested += (_, _) => closed = true;
+
+        vm.ContinueCommand.Execute(null);
+
+        closed.Should().BeTrue();
+    }
+
+    [Fact]
     public void Summary_carries_type_and_message()
     {
         var vm = Create(false, new InvalidOperationException("boom"));

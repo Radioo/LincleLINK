@@ -204,6 +204,10 @@ public sealed class GlobalExceptionHandler : IExceptionReporter
         ThemeManager.ApplyTitleBar(window);
         vm.AttachWindow(window);
 
+        // Continue (and Esc, its IsCancel binding) ask the view model to close;
+        // close the window on CloseRequested, mirroring the DialogService pattern.
+        vm.CloseRequested += (_, _) => window.Close();
+
         window.Closed += (_, _) =>
         {
             // In fatal mode closing the window by any means (Quit, X, Esc) quits;
