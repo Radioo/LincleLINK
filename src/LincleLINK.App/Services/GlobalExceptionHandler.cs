@@ -17,8 +17,22 @@ namespace LincleLINK.App.Services;
 /// </summary>
 public sealed class GlobalExceptionHandler : IExceptionReporter
 {
-    private static readonly WindowIcon AppIcon =
-        new(AssetLoader.Open(new Uri("avares://LincleLINK/Assets/LL_logo.ico")));
+    // Loaded lazily and guarded: this handler is installed before anything else
+    // runs, so a failure here must never throw at type-init and prevent the hooks
+    // from ever being registered. A null icon is acceptable (Window.Icon is nullable).
+    private static readonly Lazy<WindowIcon?> AppIcon = new(TryLoadAppIcon);
+
+    private static WindowIcon? TryLoadAppIcon()
+    {
+        try
+        {
+            return new WindowIcon(AssetLoader.Open(new Uri("avares://LincleLINK/Assets/LL_logo.ico")));
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
     private readonly Func<Window?> _ownerProvider;
     private readonly Action _quit;
@@ -248,7 +262,7 @@ public sealed class GlobalExceptionHandler : IExceptionReporter
             MinHeight = vm.DialogMinSize.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             CanResize = true,
-            Icon = AppIcon,
+            Icon = AppIcon.Value,
         };
         ThemeManager.ApplyTitleBar(window);
         vm.AttachWindow(window);
