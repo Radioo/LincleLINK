@@ -421,9 +421,17 @@ public sealed class MainViewModelCoverageTests : IDisposable
         vm.IsBusy.Should().BeFalse();
         provider.Logs.Should().Contain(l => l.Message.Contains("cancelled"));
 
-        var boom = new IOException("boom");
-        await vm.RunOperationAsync("Test op", _ => throw boom);
-        _exceptionReporter.Received(1).ReportUnexpected(boom);
+        var expected = new IOException("boom");
+        await vm.RunOperationAsync("Test op", _ => throw expected);
+        await _dialogs.Received(1).ErrorAsync(expected.Message, "Test op");
+        _exceptionReporter.DidNotReceive().ReportUnexpected(Arg.Any<Exception>());
+
+        _dialogs.ClearReceivedCalls();
+        _exceptionReporter.ClearReceivedCalls();
+
+        var unexpected = new InvalidOperationException("boom");
+        await vm.RunOperationAsync("Test op", _ => throw unexpected);
+        _exceptionReporter.Received(1).ReportUnexpected(unexpected);
         await _dialogs.DidNotReceive().ErrorAsync(Arg.Any<string>(), Arg.Any<string>());
         vm.IsBusy.Should().BeFalse();
     }

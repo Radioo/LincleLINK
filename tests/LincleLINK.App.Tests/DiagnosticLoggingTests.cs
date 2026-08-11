@@ -108,7 +108,7 @@ public sealed class DiagnosticLoggingTests
     {
         using var provider = new RecordingLoggerProvider();
         var vm = CreateViewModel(provider, Substitute.For<ISettingsStore>());
-        var ex = new IOException("boom");
+        var ex = new InvalidOperationException("boom");
 
         await vm.RunOperationAsync("Check unused", _ => throw ex);
 
@@ -117,6 +117,22 @@ public sealed class DiagnosticLoggingTests
         failure.Scope.Should().Contain("Check unused");
         _exceptionReporter.Received(1).ReportUnexpected(ex);
         await _dialogs.DidNotReceive().ErrorAsync(Arg.Any<string>(), Arg.Any<string>());
+    }
+
+    [Fact]
+    public async Task RunOperationAsync_logs_expected_failure_and_shows_friendly_dialog()
+    {
+        using var provider = new RecordingLoggerProvider();
+        var vm = CreateViewModel(provider, Substitute.For<ISettingsStore>());
+        var ex = new IOException("boom");
+
+        await vm.RunOperationAsync("Check unused", _ => throw ex);
+
+        var failure = provider.Logs.Single(l => l.Level == LogLevel.Error);
+        failure.Exception.Should().BeSameAs(ex);
+        failure.Scope.Should().Contain("Check unused");
+        await _dialogs.Received(1).ErrorAsync(ex.Message, "Check unused");
+        _exceptionReporter.DidNotReceive().ReportUnexpected(Arg.Any<Exception>());
     }
 
     [Fact]

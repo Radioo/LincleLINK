@@ -638,10 +638,20 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
                 "Operation {Operation} failed after {ElapsedMs} ms",
                 operationName, stopwatch.ElapsedMilliseconds);
 
-            // Unexpected failures route to the report window (full stack trace)
-            // instead of a one-line message dialog (issue #16 D5). Expected /
-            // domain errors reported via the operation result keep ErrorAsync.
-            _exceptionReporter.ReportUnexpected(ex);
+            // Expected environmental failures (locked file, permission denied,
+            // full disk: IOException and its subclasses, UnauthorizedAccessException)
+            // stay a one-line friendly dialog. Anything else is unexpected and gets
+            // the full crash-report window (issue #16 D5). Domain errors never reach
+            // here: they are returned via the operation result and already shown
+            // with ErrorAsync by the caller.
+            if (ex is IOException or UnauthorizedAccessException)
+            {
+                await _dialogs.ErrorAsync(ex.Message, operationName);
+            }
+            else
+            {
+                _exceptionReporter.ReportUnexpected(ex);
+            }
         }
         finally
         {
