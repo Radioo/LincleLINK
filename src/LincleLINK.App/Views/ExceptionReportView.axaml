@@ -67,7 +67,7 @@
                     Command="{Binding CopyReportCommand}" />
             <Button Content="Open GitHub issues…" Classes="Outline"
                     Command="{Binding OpenGitHubIssuesCommand}" />
-            <Button Content="Continue" MinWidth="90" IsDefault="True" IsCancel="True"
+            <Button Content="Continue" MinWidth="90" IsDefault="{Binding NotFatal}" IsCancel="True"
                     IsVisible="{Binding NotFatal}"
                     Command="{Binding ContinueCommand}" />
             <Button Content="Quit" Classes="Borderless" MinWidth="90"
