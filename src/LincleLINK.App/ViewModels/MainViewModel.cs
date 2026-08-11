@@ -641,9 +641,12 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
             // Expected environmental failures (locked file, permission denied,
             // full disk: IOException and its subclasses, UnauthorizedAccessException)
             // stay a one-line friendly dialog. Anything else is unexpected and gets
-            // the full crash-report window (issue #16 D5). Domain errors never reach
-            // here: they are returned via the operation result and already shown
-            // with ErrorAsync by the caller.
+            // the full crash-report window (issue #16 D5). IOException is a base
+            // class: subtypes like PathTooLongException and FileLoadException also
+            // match here, which is acceptable because they almost always surface
+            // from environmental conditions on a user-configured path. Domain errors
+            // never reach here: they are returned via the operation result and
+            // already shown with ErrorAsync by the caller.
             if (ex is IOException or UnauthorizedAccessException)
             {
                 await _dialogs.ErrorAsync(ex.Message, operationName);

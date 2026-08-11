@@ -131,7 +131,6 @@ public partial class ExceptionReportViewModel : ViewModelBase
 
         foreach (var extra in _accumulator.AdditionalExceptions())
         {
-            sb.AppendLine();
             sb.AppendLine("### Also occurred");
             sb.AppendLine();
             sb.AppendLine("```");

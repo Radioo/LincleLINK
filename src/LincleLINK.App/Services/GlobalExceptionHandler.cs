@@ -41,6 +41,10 @@ public sealed class GlobalExceptionHandler : IExceptionReporter
     private Window? _window;
     private readonly List<TaskCompletionSource> _pendingCloseSignals = [];
     private bool _installed;
+
+    // Set by fatal presentation methods before the VM exists so Present() knows to
+    // open a fatal window. Intentionally never reset on timeout paths because every
+    // caller (ReportStartupFailureAsync, AppDomain hook) terminates the process after.
     private bool _isFatal;
 
     public GlobalExceptionHandler(Func<Window?> ownerProvider, Action quit)
@@ -171,6 +175,12 @@ public sealed class GlobalExceptionHandler : IExceptionReporter
 
     private void OnDispatcherUnhandledException(object? sender, DispatcherUnhandledExceptionEventArgs e)
     {
+        if (e.Exception is OutOfMemoryException or StackOverflowException)
+        {
+            // Unrecoverable: let the process terminate naturally.
+            return;
+        }
+
         // Recoverable: marking the exception handled keeps the dispatcher loop running.
         e.Handled = true;
         Present(e.Exception);
@@ -287,6 +297,8 @@ public sealed class GlobalExceptionHandler : IExceptionReporter
             {
                 _quit();
             }
+
+            _isFatal = false;
 
             foreach (var signal in _pendingCloseSignals)
             {
