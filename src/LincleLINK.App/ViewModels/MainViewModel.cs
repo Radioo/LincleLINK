@@ -40,6 +40,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     private readonly DiagnosticLogOptions _logOptions;
     private readonly LogoCatalog _logoCatalog;
     private readonly IAppPaths _paths;
+    private readonly IExceptionReporter _exceptionReporter;
 
     /// <summary>Logo key → index in the built-in catalog, i.e. the supported-list order.</summary>
     private readonly Dictionary<string, int> _logoOrder;
@@ -323,7 +324,8 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         ILogger<MainViewModel> logger,
         DiagnosticLogOptions logOptions,
         LogoCatalog logoCatalog,
-        IAppPaths paths)
+        IAppPaths paths,
+        IExceptionReporter exceptionReporter)
     {
         _instanceService = instanceService;
         _linkingService = linkingService;
@@ -340,6 +342,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         _logOptions = logOptions;
         _logoCatalog = logoCatalog;
         _paths = paths;
+        _exceptionReporter = exceptionReporter;
 
         _logoOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < logoCatalog.AllLogos.Count; i++)
@@ -634,7 +637,24 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
                 ex,
                 "Operation {Operation} failed after {ElapsedMs} ms",
                 operationName, stopwatch.ElapsedMilliseconds);
-            await _dialogs.ErrorAsync(ex.Message, "Operation failed");
+
+            // Expected environmental failures (locked file, permission denied,
+            // full disk: IOException and its subclasses, UnauthorizedAccessException)
+            // stay a one-line friendly dialog. Anything else is unexpected and gets
+            // the full crash-report window (issue #16 D5). IOException is a base
+            // class: subtypes like PathTooLongException and FileLoadException also
+            // match here, which is acceptable because they almost always surface
+            // from environmental conditions on a user-configured path. Domain errors
+            // never reach here: they are returned via the operation result and
+            // already shown with ErrorAsync by the caller.
+            if (ex is IOException or UnauthorizedAccessException)
+            {
+                await _dialogs.ErrorAsync(ex.Message, operationName);
+            }
+            else
+            {
+                _exceptionReporter.ReportUnexpected(ex);
+            }
         }
         finally
         {

@@ -46,6 +46,7 @@ public sealed class MainViewModelCoverageTests : IDisposable
     private readonly IGameVersionDetector _detector = Substitute.For<IGameVersionDetector>();
     private readonly LogoCatalog _logoCatalog = new();
     private readonly TempDir _temp = new();
+    private readonly IExceptionReporter _exceptionReporter = Substitute.For<IExceptionReporter>();
 
     public void Dispose() => _temp.Dispose();
 
@@ -67,7 +68,7 @@ public sealed class MainViewModelCoverageTests : IDisposable
             _dialogs, _taskbarProgress, _fs, _preflight, NullLogger<AddInstanceViewModel>.Instance, _detector),
         logger ?? NullLogger<MainViewModel>.Instance,
         new DiagnosticLogOptions(Path.Combine(_temp.Root, "logs")),
-        _logoCatalog, _paths);
+        _logoCatalog, _paths, _exceptionReporter);
     private void StubEmptyLibrary()
     {
         _repository.GetSummariesAsync(Arg.Any<CancellationToken>()).Returns([]);
@@ -420,8 +421,18 @@ public sealed class MainViewModelCoverageTests : IDisposable
         vm.IsBusy.Should().BeFalse();
         provider.Logs.Should().Contain(l => l.Message.Contains("cancelled"));
 
-        await vm.RunOperationAsync("Test op", _ => throw new IOException("boom"));
-        await _dialogs.Received(1).ErrorAsync("boom", "Operation failed");
+        var expected = new IOException("boom");
+        await vm.RunOperationAsync("Test op", _ => throw expected);
+        await _dialogs.Received(1).ErrorAsync(expected.Message, "Test op");
+        _exceptionReporter.DidNotReceive().ReportUnexpected(Arg.Any<Exception>());
+
+        _dialogs.ClearReceivedCalls();
+        _exceptionReporter.ClearReceivedCalls();
+
+        var unexpected = new InvalidOperationException("boom");
+        await vm.RunOperationAsync("Test op", _ => throw unexpected);
+        _exceptionReporter.Received(1).ReportUnexpected(unexpected);
+        await _dialogs.DidNotReceive().ErrorAsync(Arg.Any<string>(), Arg.Any<string>());
         vm.IsBusy.Should().BeFalse();
     }
 

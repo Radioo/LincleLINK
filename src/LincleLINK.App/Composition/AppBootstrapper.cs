@@ -19,7 +19,9 @@ namespace LincleLINK.App.Composition;
 
 public static class AppBootstrapper
 {
-    public static async Task<ServiceProvider> BuildAsync(Func<Window?> ownerProvider)
+    public static async Task<ServiceProvider> BuildAsync(
+        Func<Window?> ownerProvider,
+        GlobalExceptionHandler exceptionHandler)
     {
         var settingsFile = AppConfig.SettingsFile;
 
@@ -74,6 +76,12 @@ public static class AppBootstrapper
         services.AddLincleLINKCore();
         services.AddSingleton<IAppPaths>(paths);
         services.AddSingleton<LogoCatalog>();
+
+        // The global exception handler is created once by App before the
+        // bootstrapper runs (so bootstrap failures still route through it) and is
+        // shared here so operation hosts can hand exceptions to the report window.
+        services.AddSingleton(exceptionHandler);
+        services.AddSingleton<IExceptionReporter>(exceptionHandler);
 
         RegisterSharedServices(services, settingsFile, ownerProvider);
 

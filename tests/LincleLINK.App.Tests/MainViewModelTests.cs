@@ -60,7 +60,8 @@ public sealed class MainViewModelTests
         logger ?? NullLogger<MainViewModel>.Instance,
         new DiagnosticLogOptions(Path.Combine(Path.GetTempPath(), "linclelink-testlogs", Guid.NewGuid().ToString("N"))),
         _logoCatalog,
-        _paths);
+        _paths,
+        Substitute.For<IExceptionReporter>());
 
     private void StubStatus(long dbSize = 0, long free = 1)
     {

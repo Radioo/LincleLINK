@@ -1,0 +1,101 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LincleLINK.App.ViewModels"
+             x:Class="LincleLINK.App.Views.ExceptionReportView"
+             x:DataType="vm:ExceptionReportViewModel">
+    <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="14">
+
+        <!-- ═════ header: glyph + headline (issue #16 D2, variant A) ═════ -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12">
+            <Border Width="40" Height="40" CornerRadius="20"
+                    Background="{DynamicResource LLDangerSoft}"
+                    VerticalAlignment="Center">
+                <TextBlock Text="!" FontSize="20" FontWeight="Bold"
+                           Foreground="{DynamicResource LLDanger}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <StackPanel Spacing="2" VerticalAlignment="Center" MaxWidth="520">
+                <TextBlock Text="{Binding Headline}" FontSize="15.5" FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="{Binding Helper}" FontSize="12.5" Opacity="0.7"
+                           TextWrapping="Wrap" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- ═════ summary card: danger rail + type/message/badge ═════ -->
+        <Border Grid.Row="1" Background="{DynamicResource LLCard}"
+                BorderBrush="{DynamicResource LLHairline}" BorderThickness="1"
+                CornerRadius="6">
+            <Grid ColumnDefinitions="3,*">
+                <Rectangle Grid.Column="0" Fill="{DynamicResource LLDanger}" />
+                <StackPanel Grid.Column="1" Margin="12,10" Spacing="2">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <SelectableTextBlock Text="{Binding SummaryType}"
+                                   FontFamily="Consolas, 'Cascadia Mono', monospace"
+                                   FontSize="12" Foreground="{DynamicResource LLDanger}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding OccurrencesText}" FontSize="12"
+                                   Foreground="{DynamicResource LLDanger}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                    <SelectableTextBlock Text="{Binding SummaryMessage}" FontSize="13"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ═════ stack trace: read-only, selectable, fills the resizable area ═════ -->
+        <TextBox Grid.Row="2" x:Name="DetailsBox" Classes="CodeTrace"
+                 Text="{Binding DetailsText, Mode=OneWay}"
+                 IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
+                 FontFamily="Consolas, 'Cascadia Mono', monospace" FontSize="11"
+                 VerticalAlignment="Stretch" VerticalContentAlignment="Top"
+                 Background="{DynamicResource LLSurface}"
+                 BorderBrush="{DynamicResource LLHairline}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                 ScrollViewer.VerticalScrollBarVisibility="Visible">
+            <!-- Semi's theme swaps the border background on :pointerover/:pressed,
+                 which flickers between the hover color and the normal one while
+                 drag-selecting. Re-assert the fixed brushes with a higher-specificity
+                 selector so the code surface stays constant (issue #16 D2). -->
+            <TextBox.Styles>
+                <Style Selector="TextBox.CodeTrace:pointerover /template/ Border#PART_ContentPresenterBorder">
+                    <Setter Property="Background" Value="{DynamicResource LLSurface}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource LLHairline}" />
+                </Style>
+                <Style Selector="TextBox.CodeTrace:pressed /template/ Border#PART_ContentPresenterBorder">
+                    <Setter Property="Background" Value="{DynamicResource LLSurface}" />
+                </Style>
+                <Style Selector="TextBox.CodeTrace:focus /template/ Border#PART_ContentPresenterBorder">
+                    <Setter Property="BorderBrush" Value="{DynamicResource LLHairline}" />
+                </Style>
+            </TextBox.Styles>
+        </TextBox>
+
+        <!-- ═════ environment strip ═════ -->
+        <Border Grid.Row="3" BorderBrush="{DynamicResource LLHairline}"
+                BorderThickness="0,1,0,0" Padding="0,8,0,0">
+            <TextBlock Text="{Binding EnvironmentStrip}" FontSize="11" Opacity="0.7" />
+        </Border>
+
+        <!-- ═════ actions ═════ -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Spacing="8">
+            <Button Content="{Binding CopyButtonText}" Classes="Primary" MinWidth="110"
+                    Command="{Binding CopyReportCommand}" />
+            <Button Content="Open GitHub issues…" Classes="Outline"
+                    Command="{Binding OpenGitHubIssuesCommand}" />
+            <Button Content="Continue" MinWidth="90" IsDefault="{Binding NotFatal}" IsCancel="True"
+                    IsVisible="{Binding NotFatal}"
+                    Command="{Binding ContinueCommand}" />
+            <Button Content="Quit" Classes="Borderless" MinWidth="90"
+                    IsVisible="{Binding NotFatal}"
+                    Command="{Binding QuitCommand}" />
+            <Button Content="Quit" Classes="Danger Outline" MinWidth="90"
+                    IsDefault="{Binding QuitIsDefault}"
+                    IsVisible="{Binding IsFatal}"
+                    Command="{Binding QuitCommand}" />
+        </StackPanel>
+
+    </Grid>
+</UserControl>
