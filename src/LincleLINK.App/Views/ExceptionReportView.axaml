@@ -45,14 +45,29 @@
         </Border>
 
         <!-- ═════ stack trace: read-only, selectable, fills the resizable area ═════ -->
-        <TextBox Grid.Row="2" x:Name="DetailsBox" Text="{Binding DetailsText, Mode=OneWay}"
+        <TextBox Grid.Row="2" x:Name="DetailsBox" Classes="CodeTrace"
+                 Text="{Binding DetailsText, Mode=OneWay}"
                  IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
                  FontFamily="Consolas, 'Cascadia Mono', monospace" FontSize="11"
                  VerticalAlignment="Stretch" VerticalContentAlignment="Top"
                  Background="{DynamicResource LLSurface}"
                  BorderBrush="{DynamicResource LLHairline}"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                 ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                 ScrollViewer.VerticalScrollBarVisibility="Visible">
+            <!-- Semi's theme swaps the border background on :pointerover/:pressed,
+                 which flickers between the hover color and the normal one while
+                 drag-selecting. Re-assert the fixed brushes with a higher-specificity
+                 selector so the code surface stays constant (issue #16 D2). -->
+            <TextBox.Styles>
+                <Style Selector="TextBox.CodeTrace:pointerover /template/ Border#PART_ContentPresenterBorder">
+                    <Setter Property="Background" Value="{DynamicResource LLSurface}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource LLHairline}" />
+                </Style>
+                <Style Selector="TextBox.CodeTrace:pressed /template/ Border#PART_ContentPresenterBorder">
+                    <Setter Property="Background" Value="{DynamicResource LLSurface}" />
+                </Style>
+            </TextBox.Styles>
+        </TextBox>
 
         <!-- ═════ environment strip ═════ -->
         <Border Grid.Row="3" BorderBrush="{DynamicResource LLHairline}"
