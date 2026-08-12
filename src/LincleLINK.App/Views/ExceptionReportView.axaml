@@ -47,12 +47,12 @@
         <!-- ═════ stack trace: read-only, selectable, fills the resizable area ═════ -->
         <TextBox Grid.Row="2" x:Name="DetailsBox" Classes="CodeTrace"
                  Text="{Binding DetailsText, Mode=OneWay}"
-                 IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
+                 IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
                  FontFamily="Consolas, 'Cascadia Mono', monospace" FontSize="11"
                  VerticalAlignment="Stretch" VerticalContentAlignment="Top"
                  Background="{DynamicResource LLSurface}"
                  BorderBrush="{DynamicResource LLHairline}"
-                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 ScrollViewer.HorizontalScrollBarVisibility="Auto"
                  ScrollViewer.VerticalScrollBarVisibility="Visible">
             <!-- Semi's theme swaps the border background on :pointerover/:pressed,
                  which flickers between the hover color and the normal one while
