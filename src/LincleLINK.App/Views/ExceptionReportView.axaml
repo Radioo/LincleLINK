@@ -66,6 +66,9 @@
                 <Style Selector="TextBox.CodeTrace:pressed /template/ Border#PART_ContentPresenterBorder">
                     <Setter Property="Background" Value="{DynamicResource LLSurface}" />
                 </Style>
+                <Style Selector="TextBox.CodeTrace:focus /template/ Border#PART_ContentPresenterBorder">
+                    <Setter Property="BorderBrush" Value="{DynamicResource LLHairline}" />
+                </Style>
             </TextBox.Styles>
         </TextBox>
 
