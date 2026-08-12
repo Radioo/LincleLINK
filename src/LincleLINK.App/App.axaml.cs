@@ -23,6 +23,7 @@ public partial class App : Application
     {
         AvaloniaXamlLoader.Load(this);
         BrandTheme.Apply(this);
+        SemiLocale.Apply(this);
     }
 
     public override async void OnFrameworkInitializationCompleted()
