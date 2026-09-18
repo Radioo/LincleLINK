@@ -22,6 +22,16 @@ public interface IFileSystem
     bool DirectoryExists(string path);
     void CreateDirectory(string path);
 
+    /// <summary>Last write time of a file, in UTC. Blocks.</summary>
+    DateTime GetLastWriteTimeUtc(string path);
+
+    /// <summary>
+    /// The direct children of one directory, links reported as links and never
+    /// followed. Throws when the directory can't be read, so a caller walking a
+    /// tree decides per directory what a failure means. Blocks.
+    /// </summary>
+    IReadOnlyList<FileSystemEntry> ListDirectory(string path);
+
     /// <summary>Returns full paths, optionally recursive. Blocks.</summary>
     IReadOnlyList<string> EnumerateFiles(string root, bool recursive);
     IReadOnlyList<string> EnumerateDirectories(string root, bool recursive);

@@ -82,32 +82,39 @@ public sealed partial class LinkingService
             return new LinkResult(false, notFound, 0, 0, 0, []);
         }
 
+        // The UI never freezes (CLAUDE.md). An entry can hold 150k files, so every
+        // disk touch below runs on the thread pool. After an await the method is back
+        // on the caller's (UI) thread, which is where the conflict question belongs
+        // and where none of the folder, delete or link loops may run.
         var errors = new List<string>();
-        int linked = 0;
-        int skippedExisting = 0;
 
-        // 1. Create the directory structure (v2 order: dirs first).
-        foreach (var dir in instance.DirectoryList)
+        // 1. Create the directory structure (v2 order: dirs first), then
+        // 2. count the conflicts: Replace / Skip existing / Cancel (plan 14 §3).
+        log?.Report($"Preparing {target}...");
+        var dupes = await Task.Run(() =>
         {
-            ct.ThrowIfCancellationRequested();
-
-            if (!PathNormalizer.IsSafeRelativePath(dir))
+            foreach (var dir in instance.DirectoryList)
             {
-                LogSkippedUnsafeDirectory(dir);
-                errors.Add($"Skipped unsafe directory path '{dir}'.");
-                continue;
+                ct.ThrowIfCancellationRequested();
+
+                if (!PathNormalizer.IsSafeRelativePath(dir))
+                {
+                    LogSkippedUnsafeDirectory(dir);
+                    errors.Add($"Skipped unsafe directory path '{dir}'.");
+                    continue;
+                }
+
+                var targetDir = PathNormalizer.ToPlatformSeparators(Path.Combine(target, dir));
+                _fileSystem.CreateDirectory(targetDir);
             }
 
-            var targetDir = PathNormalizer.ToPlatformSeparators(Path.Combine(target, dir));
-            _fileSystem.CreateDirectory(targetDir);
-        }
+            return instance.FileList.Count(f =>
+                TryBuildTargetPath(target, f.RelativePath, f.FileName, out var p)
+                && _fileSystem.FileExists(p));
+        }, ct);
 
-        // 2. Conflict detection: Replace / Skip existing / Cancel (plan 14 §3).
         var skipExisting = false;
-        var dupes = instance.FileList.Count(f =>
-            TryBuildTargetPath(target, f.RelativePath, f.FileName, out var p)
-            && _fileSystem.FileExists(p));
-
+        var replaceExisting = false;
         if (dupes > 0)
         {
             var choice = await _dialogs.AskConflictAsync(
@@ -121,10 +128,20 @@ public sealed partial class LinkingService
             }
 
             skipExisting = choice == ConflictChoice.Skip;
-            if (choice == ConflictChoice.Replace)
+            replaceExisting = choice == ConflictChoice.Replace;
+        }
+
+        return await Task.Run(() =>
+        {
+            int linked = 0;
+            int skippedExisting = 0;
+
+            if (replaceExisting)
             {
+                log?.Report($"Removing {dupes} existing files...");
                 foreach (var file in instance.FileList)
                 {
+                    ct.ThrowIfCancellationRequested();
                     if (TryBuildTargetPath(target, file.RelativePath, file.FileName, out var existing)
                         && _fileSystem.FileExists(existing))
                     {
@@ -132,46 +149,46 @@ public sealed partial class LinkingService
                     }
                 }
             }
-        }
 
-        // 3. Link each file; per-file failures log and continue.
-        log?.Report($"Deploying {instanceName}...");
-        var progress = ProgressStep.Over(instance.FileList.Count);
-        int index = 0;
+            // 3. Link each file; per-file failures log and continue.
+            log?.Report($"Deploying {instanceName}...");
+            var progress = ProgressStep.Over(instance.FileList.Count);
+            int index = 0;
 
-        foreach (var file in instance.FileList)
-        {
-            ct.ThrowIfCancellationRequested();
-
-            if (!TryBuildTargetPath(target, file.RelativePath, file.FileName, out var targetPath))
+            foreach (var file in instance.FileList)
             {
-                LogSkippedUnsafeFile(file.FileName);
-                errors.Add($"{file.FileName}: unsafe path skipped.");
-                continue;
+                ct.ThrowIfCancellationRequested();
+
+                if (!TryBuildTargetPath(target, file.RelativePath, file.FileName, out var targetPath))
+                {
+                    LogSkippedUnsafeFile(file.FileName);
+                    errors.Add($"{file.FileName}: unsafe path skipped.");
+                    continue;
+                }
+
+                if (skipExisting && _fileSystem.FileExists(targetPath))
+                {
+                    LogFileSkippedExisting(file.FileName, targetPath);
+                    skippedExisting++;
+                }
+                else if (_hardLinker.TryCreateLink(_store.GetPath(file.HashedFileName), targetPath, out var error))
+                {
+                    LogFileLinked(file.FileName, targetPath);
+                    linked++;
+                }
+                else
+                {
+                    LogLinkFailed(file.FileName, error ?? "unknown error");
+                    errors.Add($"{file.FileName}: {error}");
+                }
+
+                percent?.Report(progress.Report(ref index));
             }
 
-            if (skipExisting && _fileSystem.FileExists(targetPath))
-            {
-                LogFileSkippedExisting(file.FileName, targetPath);
-                skippedExisting++;
-            }
-            else if (_hardLinker.TryCreateLink(_store.GetPath(file.HashedFileName), targetPath, out var error))
-            {
-                LogFileLinked(file.FileName, targetPath);
-                linked++;
-            }
-            else
-            {
-                LogLinkFailed(file.FileName, error ?? "unknown error");
-                errors.Add($"{file.FileName}: {error}");
-            }
-
-            percent?.Report(progress.Report(ref index));
-        }
-
-        LogLinkingCompleted(instanceName, linked, errors.Count, skippedExisting, target);
-        ReportSummary(log, linked, skippedExisting, errors);
-        return new LinkResult(false, null, linked, errors.Count, skippedExisting, errors);
+            LogLinkingCompleted(instanceName, linked, errors.Count, skippedExisting, target);
+            ReportSummary(log, linked, skippedExisting, errors);
+            return new LinkResult(false, null, linked, errors.Count, skippedExisting, errors);
+        }, ct);
     }
 
     /// <summary>
@@ -220,37 +237,44 @@ public sealed partial class LinkingService
             return new CopyHashedResult(false, notFound, 0, 0);
         }
 
-        int copied = 0;
-        int alreadyExisted = 0;
-        var progress = ProgressStep.Over(instance.FileList.Count);
-        int index = 0;
-
-        foreach (var file in instance.FileList)
+        // The UI never freezes (CLAUDE.md). The copy itself is real async I/O, but
+        // started from the UI thread every await would come back to it, and a rerun
+        // into a folder that already holds the files is one existence check per file
+        // there with no await in between: 150k stats on the UI thread.
+        return await Task.Run(async () =>
         {
-            ct.ThrowIfCancellationRequested();
+            int copied = 0;
+            int alreadyExisted = 0;
+            var progress = ProgressStep.Over(instance.FileList.Count);
+            int index = 0;
 
-            var destination = Path.Combine(dest, file.HashedFileName);
-            if (_fileSystem.FileExists(destination))
+            foreach (var file in instance.FileList)
             {
-                alreadyExisted++;
-                status?.Report($"{destination} already exists.");
-            }
-            else
-            {
-                await _store.CopyFromStoreAsync(file.HashedFileName, destination, ct);
-                LogFileCopied(file.HashedFileName, destination);
-                copied++;
-                status?.Report($"Exported {file.HashedFileName}");
+                ct.ThrowIfCancellationRequested();
+
+                var destination = Path.Combine(dest, file.HashedFileName);
+                if (_fileSystem.FileExists(destination))
+                {
+                    alreadyExisted++;
+                    status?.Report($"{destination} already exists.");
+                }
+                else
+                {
+                    await _store.CopyFromStoreAsync(file.HashedFileName, destination, ct);
+                    LogFileCopied(file.HashedFileName, destination);
+                    copied++;
+                    status?.Report($"Exported {file.HashedFileName}");
+                }
+
+                percent?.Report(progress.Report(ref index));
             }
 
-            percent?.Report(progress.Report(ref index));
-        }
-
-        LogCopyCompleted(instanceName, copied, alreadyExisted, dest);
-        log?.Report(alreadyExisted > 0
-            ? $"Exported {copied} files. {alreadyExisted} already existed and were skipped."
-            : $"Exported {copied} files.");
-        return new CopyHashedResult(false, null, copied, alreadyExisted);
+            LogCopyCompleted(instanceName, copied, alreadyExisted, dest);
+            log?.Report(alreadyExisted > 0
+                ? $"Exported {copied} files. {alreadyExisted} already existed and were skipped."
+                : $"Exported {copied} files.");
+            return new CopyHashedResult(false, null, copied, alreadyExisted);
+        }, ct);
     }
 
     /// <summary>

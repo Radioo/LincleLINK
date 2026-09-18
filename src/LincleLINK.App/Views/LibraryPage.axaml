@@ -40,6 +40,9 @@
                     <DataGrid.ContextMenu>
                         <ContextMenu x:DataType="vm:MainViewModel">
                             <MenuItem Header="Deploy to folder..." Command="{Binding LinkFilesCommand}" />
+                            <MenuItem Header="Update..." Command="{Binding UpdateInstanceCommand}" />
+                            <MenuItem Header="Browse files..." Command="{Binding BrowseFilesCommand}" />
+                            <MenuItem Header="Duplicate..." Command="{Binding OpenDuplicateCommand}" />
                             <MenuItem Header="Export storage files..." Command="{Binding CopyHashedCommand}" />
                             <Separator />
                             <MenuItem Header="Remove from library" Command="{Binding DeleteInstanceCommand}" />
@@ -122,6 +125,15 @@
                             <Button Classes="Primary" HorizontalAlignment="Stretch"
                                     Content="Deploy to folder..." Command="{Binding LinkFilesCommand}"
                                     ToolTip.Tip="Recreate this entry anywhere on the same drive using hard links - no extra disk space" />
+                            <Button HorizontalAlignment="Stretch"
+                                    Content="Update..." Command="{Binding UpdateInstanceCommand}"
+                                    ToolTip.Tip="Drop new files onto this entry to add or replace files - deployed folders are not touched" />
+                            <Button HorizontalAlignment="Stretch"
+                                    Content="Browse files..." Command="{Binding BrowseFilesCommand}"
+                                    ToolTip.Tip="See this entry's files and folders as a tree" />
+                            <Button HorizontalAlignment="Stretch"
+                                    Content="Duplicate..." Command="{Binding OpenDuplicateCommand}"
+                                    ToolTip.Tip="Create a new entry with the same files, for example as the base of a new version - no extra disk space" />
                             <Button HorizontalAlignment="Stretch"
                                     Content="Export storage files..." Command="{Binding CopyHashedCommand}"
                                     ToolTip.Tip="Copy this entry's files out of storage under their hashed names" />

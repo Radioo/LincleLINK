@@ -33,6 +33,70 @@ public sealed class LinkingServiceTests
         ],
         ["sub"]);
 
+    /// <summary>Stands in for the UI thread: a posted continuation runs with this context current.</summary>
+    private sealed class CallerContext : SynchronizationContext
+    {
+        public override void Post(SendOrPostCallback d, object? state)
+        {
+            var previous = Current;
+            SetSynchronizationContext(this);
+            try
+            {
+                d(state);
+            }
+            finally
+            {
+                SetSynchronizationContext(previous);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task A_deploy_touches_the_disk_off_the_callers_thread_and_asks_its_questions_on_it()
+    {
+        // The UI never freezes (CLAUDE.md): an entry can hold 150k files, and
+        // creating folders, checking for conflicts, deleting and hard-linking that
+        // many on the calling thread blocks the window and its progress bar.
+        var onCaller = new System.Collections.Concurrent.ConcurrentBag<string>();
+        var askedOnCaller = new System.Collections.Concurrent.ConcurrentBag<bool>();
+        void Note(string what)
+        {
+            if (SynchronizationContext.Current is CallerContext)
+            {
+                onCaller.Add(what);
+            }
+        }
+
+        _dialogs.PickFolderAsync(Arg.Any<string>()).Returns("C:\\target");
+        _repository.GetAsync("inst", Arg.Any<CancellationToken>()).Returns(SampleInstance());
+        _fs.When(f => f.CreateDirectory(Arg.Any<string>())).Do(_ => Note("create directory"));
+        _fs.FileExists(Arg.Any<string>()).Returns(_ => { Note("file exists"); return true; });
+        _fs.DeleteFile(Arg.Any<string>()).Returns(_ => { Note("delete"); return true; });
+        _hardLinker.TryCreateLink(Arg.Any<string>(), Arg.Any<string>(), out Arg.Any<string?>())
+            .Returns(_ => { Note("link"); return true; });
+        _dialogs.AskConflictAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(_ =>
+        {
+            askedOnCaller.Add(SynchronizationContext.Current is CallerContext);
+            return ConflictChoice.Replace;
+        });
+
+        var previous = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(new CallerContext());
+        LinkResult result;
+        try
+        {
+            result = await CreateService().LinkInstanceAsync("inst", ct: TestContext.Current.CancellationToken);
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previous);
+        }
+
+        result.Linked.Should().Be(2);
+        onCaller.Should().BeEmpty();
+        askedOnCaller.Should().Equal(true);
+    }
+
     [Fact]
     public async Task Folder_pick_cancelled_returns_cancelled_without_work()
     {

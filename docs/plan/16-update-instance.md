@@ -1,6 +1,7 @@
 # 16 - Update, Duplicate and the file browser (M10)
 
-Status: **Approved design, not started**. Vocabulary is defined in `CONTEXT.md`
+Status: **Built**, steps 1 to 8 of section 13. Differences from this text as built are
+listed in section 14. Vocabulary is defined in `CONTEXT.md`
 (Instance, Storage, Deploy, Update, Source, Destination, Removal, Pending changes,
 Duplicate). The path rule is recorded in `docs/adr/0001-case-insensitive-instance-paths.md`.
 
@@ -128,10 +129,32 @@ already copied stays in Storage unreferenced and the existing cleanup removes it
 
 ## 10. Game detection over an Instance (D10)
 
-- A read-only `IFileSystem` view maps Instance paths to their Storage files, so
-  `IGameVersionDetector` can run against an Instance plus its Pending changes.
+Amended while building step 8: the add flow recommends adding only a game's data
+folder, so the files a game is identified by (`prop/ea3-config.xml`, the game DLL)
+usually are not inside an Instance. Detection over the Instance alone would find
+nothing for those entries.
+
+- A read-only `IFileSystem` view (`PlannedInstanceFileSystem`) maps Instance paths to
+  their Storage files, and to the Source's file on disk for content a Source brings,
+  so `IGameVersionDetector` can run against an Instance plus its Pending changes.
+- Order: an Instance that holds identity files speaks for itself and is detected
+  through that view. If it holds none, or only a game DLL without a date code, the
+  normal detector runs on each dropped folder on disk, latest Source first, with the
+  same walk-up Add does. A result from a dropped folder counts only when its game
+  code matches the entry's current game, or the entry has none.
+- Only Sources that change the entry are asked. Loose dropped files give no folder to
+  detect from, because the detector also looks into a start folder's subfolders, and
+  for a file picked out of Downloads those are unrelated neighbours.
+- Changes that touch no identity file and bring no Source detect nothing. Finding
+  nothing never clears a tag, and a result without a date code never replaces a tag
+  that has one.
 - The preview shows the outcome before Apply, for example
-  "Detected version: 2026031800 -> 2026091700".
+  "Detected version: 2026031800 -> 2026091700", with "(found next to the dropped
+  folder)" when that is where it came from. A checkbox next to it is ticked by
+  default; unticked, the entry keeps its tag. The tick resets when a different
+  version is detected.
+- Apply waits for the detection of the current plan and saves exactly the version
+  shown. It does not detect again.
 - A custom logo stays as it is.
 
 ## 11. Tree control (D11)
@@ -181,3 +204,35 @@ the dialog.
 6. Apply for Updates, low disk check.
 7. Destinations, drop onto folder rows, exclusions.
 8. Detection over an Instance.
+
+## 14. As built: differences from the text above
+
+- Exact statuses (replaced versus identical) fill in when a Source finishes hashing,
+  not file by file. Reloading a large tree per file would reset the list's scroll
+  position over and over. Until then a file at an existing path shows "checking".
+- Skipped links and unreadable files or folders are listed under their Source in the
+  source list, not as rows in the tree.
+- "Remove from entry" on a path that a Source also fills leaves the Source's content
+  out too. In the planner a Source wins over a Removal, so the removal alone would
+  show nothing. "Restore" takes both back.
+- Apply refuses a Source file whose size or write time changed after it was hashed,
+  because content copied under a stale hash would sit in Storage under the wrong name.
+- Apply and the Destination box refuse rooted and `..` paths, which Deploy would
+  reject later.
+- The whole dialog takes drops, and the Delete key stages the selection. A drop on a
+  file row lands in that file's folder.
+- A folder of a legacy entry that is missing from its directory list disappears from
+  the preview once all its files are removed. Deploy never created such a folder
+  either, so the preview is accurate.
+- Still open from section 1: both dialogs keep their own busy flag behind the modal
+  veil, as Add does, instead of setting the shell's `IsBusy`. From section 8: Add
+  still collects directories case-sensitively, which only matters on Linux and macOS.
+- Found on the way and fixed since: `FileStore` wrote straight to the final hash name,
+  so a cancelled copy left a partial file that later adds would trust. Copies now
+  stream into an `incoming-<guid>.lincletmp` file and take their name only when
+  complete. Section 9's "content already copied stays in Storage" still holds for
+  whole files; a copy that was cut off leaves nothing.
+- Section 9 step 3 is gone: detection runs for the preview, not inside Apply, and
+  Apply saves the version the user saw and accepted (section 10).
+- Game codes are compared literally. An entry tagged `LDJ` does not take a version
+  from a dropped folder that says `TDJ`, although both are the same game series.

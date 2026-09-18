@@ -21,6 +21,7 @@
 - File-scoped namespaces; namespaces by layer (`LincleLINK.Core.Domain`, `LincleLINK.App.ViewModels`, …).
 - Services depend on ports (`Abstractions/`), never on UI; VMs stay thin binding shells; dialogs go through `IDialogService`.
 - Async commands use `IProgress<T>` + `CancellationToken`; no `async void`.
+- **The UI never freezes, and everything that takes time shows a progress indicator.** Nothing slow (database, disk, hashing, anything sized by an entry's file count) runs on the UI thread; `await` alone does not move it, and SQLite's async calls are synchronous underneath. Full rule and checklist: `CLAUDE.md`.
 - Data layout: user data lives under a data dir (default CWD, configurable via settings `DataDirectory`), `db/` + `instance/`; settings in the per-OS config dir (`03`).
 
 ## Gotchas

@@ -8,7 +8,15 @@ namespace LincleLINK.App.Abstractions;
 public sealed record OperationContext(
     IProgress<string> Log,
     IProgress<double> Percent,
-    CancellationToken CancellationToken);
+    CancellationToken CancellationToken)
+{
+    /// <summary>
+    /// What the operation is doing right now, shown next to the shell's progress
+    /// bar and not kept: per-file lines belong here, outcomes in <see cref="Log"/>.
+    /// Log lines show there too, so an operation that only logs is never silent.
+    /// </summary>
+    public IProgress<string> Status { get; init; } = Log;
+}
 
 /// <summary>
 /// Shared operation host for child view models that need the main window's busy
@@ -22,9 +30,12 @@ public interface IOperationHost
     bool IsBusy { get; }
 
     /// <summary>
-    /// Runs an operation on the thread pool, marshaling log/status/progress to the UI.
-    /// <paramref name="operationName"/> is a short human-readable tag used as the
-    /// diagnostic-log scope and in start/duration/outcome events (issue #17 D4).
+    /// Runs an operation with the shell busy, showing its name, status and progress
+    /// in the activity bar. The operation starts on the calling (UI) thread, because
+    /// it may open dialogs; the services it calls move their own work to the thread
+    /// pool (CLAUDE.md: the UI never freezes). <paramref name="operationName"/> is a
+    /// short human-readable tag, also used as the diagnostic-log scope and in
+    /// start/duration/outcome events (issue #17 D4).
     /// </summary>
     Task RunOperationAsync(string operationName, Func<OperationContext, Task> operation);
 }

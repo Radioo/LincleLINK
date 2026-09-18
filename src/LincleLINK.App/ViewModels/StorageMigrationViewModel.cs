@@ -41,7 +41,7 @@ public partial class StorageMigrationViewModel : ViewModelBase
         try
         {
             var log = ProgressBridge.Create<string>(line => AddLogLine(line, _logger), batchSize: 100);
-            var percent = ProgressBridge.Create<double>(p => Progress = p);
+            var percent = ProgressBridge.CreatePercent(p => Progress = p);
             var result = await Task.Run(() => _migration.MigrateAsync(log, percent));
 
             Status = result.Errors.Count == 0

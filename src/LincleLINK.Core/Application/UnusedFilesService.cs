@@ -45,8 +45,15 @@ public sealed partial class UnusedFilesService
         // Compute the unused set off the caller's (UI) thread: the db/ directory
         // scan plus building a HashSet of every referenced hash over ~1M rows must
         // never block the interface. Dialogs below run back on the caller context.
+        // The scan of db/ and of every entry's file rows has no steps to count.
+        status?.Report("Looking for files in storage that no entry uses...");
         var (unused, unusedBytes) = await Task.Run(async () =>
         {
+            // Not content, so not part of the question below: what an interrupted
+            // copy left behind simply goes. Operations run one at a time, so no
+            // copy is in progress now.
+            await _store.DeleteLeftoverTempFilesAsync(ct);
+
             var all = await _store.GetAllHashedFileNamesAsync(ct);
             var referenced = (await _repository.GetAllHashedFileNamesAsync(ct))
                 .ToHashSet(StringComparer.Ordinal);

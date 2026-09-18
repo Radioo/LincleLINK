@@ -27,6 +27,43 @@ public sealed class FileSystemTests : IDisposable
     }
 
     [Fact]
+    public void ListDirectory_returns_only_direct_children_with_sizes_and_write_times()
+    {
+        var file = _temp.CreateFile("a.txt", [1, 2, 3, 4, 5]);
+        _temp.CreateFile("sub/b.txt");
+
+        var entries = _fs.ListDirectory(_temp.Root);
+
+        entries.Select(e => (e.Name, e.IsDirectory, e.LinkTarget)).Should().BeEquivalentTo(
+            [("a.txt", false, (string?)null), ("sub", true, null)]);
+        var listed = entries.Single(e => !e.IsDirectory);
+        listed.FullPath.Should().Be(file);
+        listed.Length.Should().Be(new FileInfo(file).Length);
+        listed.LastWriteTimeUtc.Should().Be(_fs.GetLastWriteTimeUtc(file));
+    }
+
+    [Fact]
+    public void ListDirectory_reports_a_directory_link_without_following_it()
+    {
+        _temp.CreateFile("real/inside.txt");
+        var link = Path.Combine(_temp.Root, "link");
+        try
+        {
+            Directory.CreateSymbolicLink(link, Path.Combine(_temp.Root, "real"));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Windows without Developer Mode can't create symlinks; nothing to check then.
+            return;
+        }
+
+        var entry = _fs.ListDirectory(_temp.Root).Single(e => e.Name == "link");
+
+        entry.IsDirectory.Should().BeTrue();
+        entry.LinkTarget.Should().NotBeNull();
+    }
+
+    [Fact]
     public void EnumerateDirectories_is_recursive()
     {
         _temp.CreateFile("a/b/c.txt");

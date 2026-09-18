@@ -178,14 +178,24 @@ public partial class AddInstanceViewModel : ViewModelBase
         _gameRootPath = null;
         _dataFolderName = null;
 
-        if (string.IsNullOrWhiteSpace(path) || !_fileSystem.DirectoryExists(path))
+        if (string.IsNullOrWhiteSpace(path))
         {
             return;
         }
 
         try
         {
+            // Up before the first disk access, which is not made from here: this
+            // runs on every change of the folder box, and a path on a network share
+            // can take seconds to answer whether it exists (CLAUDE.md: the UI never
+            // freezes, and everything that takes time shows progress).
             IsCalculatingSize = true;
+
+            if (!await Task.Run(() => _fileSystem.DirectoryExists(path), cts.Token)
+                || cts.Token.IsCancellationRequested)
+            {
+                return;
+            }
 
             var reason = await Task.Run(() => _preflight.CheckLinkTo(path), cts.Token);
             if (cts.Token.IsCancellationRequested)
@@ -318,8 +328,18 @@ public partial class AddInstanceViewModel : ViewModelBase
         _operationCts = cts;
         CancelOperationCommand.NotifyCanExecuteChanged();
         var log = ProgressBridge.Create<string>(line => AddLogLine(line, _logger), batchSize: 100);
-        var status = ProgressBridge.Create<string>(line => StatusLine = line, batchSize: 200);
-        var percent = ProgressBridge.Create<double>(p =>
+        // Once cancelling, the line says so until the add has wound down: work
+        // already under way keeps reporting and must not take "Cancelling..." back.
+        var status = ProgressBridge.Create<string>(
+            line =>
+            {
+                if (!cts.IsCancellationRequested)
+                {
+                    StatusLine = line;
+                }
+            },
+            batchSize: 200);
+        var percent = ProgressBridge.CreatePercent(p =>
         {
             Progress = p;
             _taskbarProgress.Report(p);

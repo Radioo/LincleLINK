@@ -44,6 +44,28 @@
                 </Border>
             </Panel>
 
+            <!-- ═════ files dialog (plan 16 D4) ═════ -->
+            <Panel IsVisible="{Binding InstanceFiles, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Border Background="{DynamicResource LLVeil}" />
+                <Border Margin="40,28" MaxWidth="1100"
+                        Background="{DynamicResource LLSurface}"
+                        BorderBrush="{DynamicResource LLHairline}" BorderThickness="1"
+                        CornerRadius="10" BoxShadow="0 0 24 0 #40000000">
+                    <ContentControl Content="{Binding InstanceFiles}" />
+                </Border>
+            </Panel>
+
+            <!-- ═════ duplicate dialog (plan 16 D3) ═════ -->
+            <Panel IsVisible="{Binding DuplicateDialog, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Border Background="{DynamicResource LLVeil}" />
+                <Border HorizontalAlignment="Center" VerticalAlignment="Center" Width="420"
+                        Background="{DynamicResource LLSurface}"
+                        BorderBrush="{DynamicResource LLHairline}" BorderThickness="1"
+                        CornerRadius="10" BoxShadow="0 0 24 0 #40000000">
+                    <ContentControl Content="{Binding DuplicateDialog}" />
+                </Border>
+            </Panel>
+
             <!-- ═════ logo picker overlay ═════ -->
             <views:LogoPicker IsVisible="{Binding IsLogoPickerOpen}" />
         </Panel>

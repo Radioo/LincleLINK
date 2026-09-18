@@ -27,11 +27,27 @@ public sealed partial class LegacyImporter
         _logger = logger;
     }
 
-    public async Task<LegacyImportResult> ImportAsync(string xmlPath, CancellationToken ct = default)
+    public Task<LegacyImportResult> ImportAsync(string xmlPath, CancellationToken ct = default)
+        => ImportAsync(xmlPath, null, null, ct);
+
+    /// <summary>
+    /// Runs on the thread pool whatever thread calls (CLAUDE.md: the UI never
+    /// freezes): a v1 database lists every file of every entry, so the XML can be
+    /// hundreds of megabytes to parse and convert. Parsing has no steps to count
+    /// and is named through <paramref name="status"/>; the entries then count up
+    /// through <paramref name="percent"/>.
+    /// </summary>
+    public Task<LegacyImportResult> ImportAsync(
+        string xmlPath, IProgress<string>? status, IProgress<double>? percent, CancellationToken ct = default)
+        => Task.Run(() => ImportCoreAsync(xmlPath, status, percent, ct), ct);
+
+    private async Task<LegacyImportResult> ImportCoreAsync(
+        string xmlPath, IProgress<string>? status, IProgress<double>? percent, CancellationToken ct)
     {
         var imported = new List<string>();
         var skipped = new List<string>();
 
+        status?.Report($"Reading {Path.GetFileName(xmlPath)}...");
         DBInfo? info;
         try
         {
@@ -54,11 +70,16 @@ public sealed partial class LegacyImporter
             return new LegacyImportResult(imported, skipped);
         }
 
+        var progress = ProgressStep.Over(info.InstanceList.Count);
+        var index = 0;
         foreach (var legacy in info.InstanceList)
         {
+            ct.ThrowIfCancellationRequested();
+            status?.Report($"Importing {legacy.InstanceName} ({legacy.InstanceFiles.Count} files)...");
             if (await _repository.ExistsAsync(legacy.InstanceName, ct))
             {
                 skipped.Add(legacy.InstanceName);
+                percent?.Report(progress.Report(ref index));
                 continue;
             }
 
@@ -78,6 +99,7 @@ public sealed partial class LegacyImporter
             var instance = Instance.Create(legacy.InstanceName, files, dirs);
             await _repository.SaveAsync(instance, ct);
             imported.Add(legacy.InstanceName);
+            percent?.Report(progress.Report(ref index));
         }
 
         LogImportCompleted(xmlPath, imported.Count, skipped.Count);

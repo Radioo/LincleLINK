@@ -79,6 +79,18 @@ public sealed class DialogService : IDialogService, IAppDialogHost
         return result.Count > 0 ? result[0].TryGetLocalPath() : null;
     }
 
+    public async Task<IReadOnlyList<string>> PickOpenFilesAsync(string title)
+    {
+        var storage = GetStorageProvider();
+        var result = await storage.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = title,
+            AllowMultiple = true,
+        });
+
+        return result.Select(f => f.TryGetLocalPath()).Where(p => p is not null).Select(p => p!).ToList();
+    }
+
     /// <summary>
     /// Hosts a view model's view (resolved via the app ViewLocator) in a modal
     /// window. The window is user-resizable with a fixed default size, so content

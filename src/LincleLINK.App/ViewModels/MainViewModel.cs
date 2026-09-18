@@ -36,6 +36,8 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     private readonly ISettingsStore _settingsStore;
     private readonly ITaskbarProgress _taskbarProgress;
     private readonly Func<AddInstanceViewModel> _addInstanceFactory;
+    private readonly Func<InstanceFilesViewModel> _instanceFilesFactory;
+    private readonly Func<DuplicateInstanceViewModel> _duplicateInstanceFactory;
     private readonly ILogger<MainViewModel> _logger;
     private readonly DiagnosticLogOptions _logOptions;
     private readonly LogoCatalog _logoCatalog;
@@ -81,7 +83,10 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         nameof(OpenAddInstanceCommand),
         nameof(DeleteInstanceCommand),
         nameof(LinkFilesCommand),
-        nameof(CopyHashedCommand))]
+        nameof(CopyHashedCommand),
+        nameof(BrowseFilesCommand),
+        nameof(UpdateInstanceCommand),
+        nameof(OpenDuplicateCommand))]
     private InstanceListEntry? _selectedInstance;
 
     partial void OnSelectedInstanceChanged(InstanceListEntry? value)
@@ -120,6 +125,16 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
 
     [ObservableProperty]
     private bool _isAddPanelOpen;
+
+    // ── files dialog (plan 16 D4) ──────────────────────────────────────────
+
+    /// <summary>The open files dialog, or null. The shell shows it as an in-window overlay.</summary>
+    [ObservableProperty]
+    private InstanceFilesViewModel? _instanceFiles;
+
+    /// <summary>The open duplicate dialog (plan 16 D3), or null.</summary>
+    [ObservableProperty]
+    private DuplicateInstanceViewModel? _duplicateDialog;
 
     // ── settings / status ──────────────────────────────────────────────────
 
@@ -222,6 +237,9 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         nameof(DeleteInstanceCommand),
         nameof(LinkFilesCommand),
         nameof(CopyHashedCommand),
+        nameof(BrowseFilesCommand),
+        nameof(UpdateInstanceCommand),
+        nameof(OpenDuplicateCommand),
         nameof(CheckUnusedCommand),
         nameof(ImportLegacyCommand),
         nameof(ChangeDataDirectoryCommand),
@@ -229,7 +247,24 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     private bool _isBusy;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsProgressIndeterminate))]
     private double _progress;
+
+    /// <summary>The running operation, e.g. "Deploy to folder"; empty when idle.</summary>
+    [ObservableProperty]
+    private string _operationName = string.Empty;
+
+    /// <summary>What the running operation is doing right now; empty when idle.</summary>
+    [ObservableProperty]
+    private string _operationStatus = string.Empty;
+
+    /// <summary>
+    /// Everything that takes time shows progress (CLAUDE.md). An operation has
+    /// nothing to count before its first percent (reading a torrent, listing a
+    /// folder, asking the database) and after its last (one big save). A bar stuck
+    /// at 0% or 100% looks hung, so it runs indeterminate and the status says why.
+    /// </summary>
+    public bool IsProgressIndeterminate => Progress <= 0 || Progress >= 100;
 
     [RelayCommand]
     private void ToggleViewMode() => IsGridView = !IsGridView;
@@ -262,8 +297,9 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
 
             if (logo is null)
             {
-                // reset to auto
-                LogoCatalog.DeleteCustomLogo(_paths.DataDirectory, name.ToLowerInvariant());
+                // reset to auto; the file delete doesn't belong on the UI thread
+                var dataDirectory = _paths.DataDirectory;
+                await Task.Run(() => LogoCatalog.DeleteCustomLogo(dataDirectory, name.ToLowerInvariant()));
                 await _repository.SetCustomLogoAsync(name, null);
             }
             else
@@ -294,7 +330,9 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
             var picked = await _dialogs.PickOpenFileAsync("Select image", new Core.Abstractions.Dialogs.FileType("Images", ["*.png", "*.jpg", "*.jpeg"]));
             if (picked is null) return;
 
-            LogoCatalog.SaveCustomLogo(_paths.DataDirectory, name.ToLowerInvariant(), picked);
+            // A file copy, possibly from a slow drive: not on the UI thread.
+            var dataDirectory = _paths.DataDirectory;
+            await Task.Run(() => LogoCatalog.SaveCustomLogo(dataDirectory, name.ToLowerInvariant(), picked));
             await _repository.SetCustomLogoAsync(name, "custom");
 
             await RefreshInstancesAsync();
@@ -321,6 +359,8 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         ITaskbarProgress taskbarProgress,
         IHardLinkPreflight hardLinkPreflight,
         Func<AddInstanceViewModel> addInstanceFactory,
+        Func<InstanceFilesViewModel> instanceFilesFactory,
+        Func<DuplicateInstanceViewModel> duplicateInstanceFactory,
         ILogger<MainViewModel> logger,
         DiagnosticLogOptions logOptions,
         LogoCatalog logoCatalog,
@@ -338,6 +378,8 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         _settingsStore = settingsStore;
         _taskbarProgress = taskbarProgress;
         _addInstanceFactory = addInstanceFactory;
+        _instanceFilesFactory = instanceFilesFactory;
+        _duplicateInstanceFactory = duplicateInstanceFactory;
         _logger = logger;
         _logOptions = logOptions;
         _logoCatalog = logoCatalog;
@@ -439,6 +481,119 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         }
     }
 
+    // ── files dialog (plan 16 D4) ─────────────────────────────────────────
+
+    [RelayCommand(CanExecute = nameof(CanBrowseFiles))]
+    private Task BrowseFilesAsync() => OpenInstanceFilesAsync(updating: false);
+
+    /// <summary>The same dialog as "Browse files", opened with the drop zone showing.</summary>
+    [RelayCommand(CanExecute = nameof(CanBrowseFiles))]
+    private Task UpdateInstanceAsync() => OpenInstanceFilesAsync(updating: true);
+
+    private async Task OpenInstanceFilesAsync(bool updating)
+    {
+        if (InstanceFiles is not null)
+        {
+            return;
+        }
+
+        var vm = _instanceFilesFactory();
+        vm.ThreadCount = ThreadCount;
+        vm.IsUpdating = updating;
+        vm.CloseRequested += OnInstanceFilesClosed;
+        InstanceFiles = vm;
+        try
+        {
+            await vm.LoadAsync(SelectedInstance!.InstanceName);
+        }
+        catch (Exception ex)
+        {
+            // An empty tree over a veil would look like an entry with no files.
+            _logger.LogError(ex, "Could not load the files of '{InstanceName}'", vm.InstanceName);
+            await _dialogs.ErrorAsync(ex.Message, "Browse files");
+            OnInstanceFilesClosed(vm, EventArgs.Empty);
+        }
+    }
+
+    private void OnInstanceFilesClosed(object? sender, EventArgs e)
+    {
+        if (sender is not InstanceFilesViewModel vm)
+        {
+            return;
+        }
+
+        vm.CloseRequested -= OnInstanceFilesClosed;
+        InstanceFiles = null;
+
+        if (vm.Applied)
+        {
+            // File count, size, unique size and the storage card all moved.
+            _ = RefreshSafeAsync();
+            _ = LoadUniqueSizeAsync(SelectedInstance);
+        }
+    }
+
+    // ── duplicate (plan 16 D3) ────────────────────────────────────────────
+
+    [RelayCommand(CanExecute = nameof(CanDuplicateInstance))]
+    private void OpenDuplicate()
+    {
+        if (DuplicateDialog is not null)
+        {
+            return;
+        }
+
+        var vm = _duplicateInstanceFactory();
+        vm.CloseRequested += OnDuplicateInstanceClosed;
+        vm.Start(SelectedInstance!.InstanceName);
+        DuplicateDialog = vm;
+    }
+
+    private void OnDuplicateInstanceClosed(object? sender, EventArgs e)
+    {
+        if (sender is not DuplicateInstanceViewModel vm)
+        {
+            return;
+        }
+
+        vm.CloseRequested -= OnDuplicateInstanceClosed;
+        DuplicateDialog = null;
+
+        if (vm.CreatedName is { } createdName)
+        {
+            _ = ShowDuplicateAsync(vm.SourceName, createdName);
+        }
+    }
+
+    private async Task ShowDuplicateAsync(string sourceName, string createdName)
+    {
+        try
+        {
+            // A custom image lives in a file keyed by the entry name, so the copy
+            // needs its own file or it would show no logo. A file copy, so not here
+            // on the UI thread.
+            var dataDirectory = _paths.DataDirectory;
+            await Task.Run(() => LogoCatalog.CopyCustomLogo(
+                dataDirectory, sourceName.ToLowerInvariant(), createdName.ToLowerInvariant()));
+        }
+        catch (Exception ex)
+        {
+            // The copy still exists and works; it only falls back to no image.
+            _logger.LogWarning(ex, "Could not copy the custom logo to '{InstanceName}'", createdName);
+        }
+
+        try
+        {
+            await RefreshAllAsync();
+            SelectedInstance = FilteredInstances.FirstOrDefault(i =>
+                string.Equals(i.InstanceName, createdName, StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not show the duplicate '{InstanceName}' in the library", createdName);
+        }
+    }
+
     // ── library operations ────────────────────────────────────────────────
 
     [RelayCommand(CanExecute = nameof(CanDeleteInstance))]
@@ -453,7 +608,8 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
             // same-named instance would inherit the wrong image.
             try
             {
-                LogoCatalog.DeleteCustomLogo(_paths.DataDirectory, instanceName.ToLowerInvariant());
+                var dataDirectory = _paths.DataDirectory;
+                await Task.Run(() => LogoCatalog.DeleteCustomLogo(dataDirectory, instanceName.ToLowerInvariant()));
             }
             catch (Exception ex)
             {
@@ -509,7 +665,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         await RunOperationAsync("Export storage files", async op =>
         {
             var result = await _linkingService.CopyHashedFilesAsync(
-                instanceName, op.Log, op.Percent, status: null, op.CancellationToken);
+                instanceName, op.Log, op.Percent, op.Status, op.CancellationToken);
             if (result.Cancelled)
             {
                 _logger.LogInformation("Export of {InstanceName} cancelled", instanceName);
@@ -527,7 +683,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         await RunOperationAsync("Clean up storage", async op =>
         {
             var result = await _unusedFilesService.CheckAndDeleteAsync(
-                op.Log, op.CancellationToken, threadCount: ThreadCount);
+                op.Log, op.CancellationToken, threadCount: ThreadCount, status: op.Status);
             if (result.Cancelled)
             {
                 _logger.LogInformation("Storage cleanup cancelled");
@@ -550,7 +706,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
 
         await RunOperationAsync("Import legacy DBInfo", async op =>
         {
-            var result = await _legacyImporter.ImportAsync(path);
+            var result = await _legacyImporter.ImportAsync(path, op.Status, op.Percent, op.CancellationToken);
             foreach (var name in result.Imported)
             {
                 op.Log.Report($"Imported {name} into the library.");
@@ -593,13 +749,32 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
 
     /// <summary>Requests cancellation of the running operation (plan 14 D5).</summary>
     [RelayCommand(CanExecute = nameof(CanCancelOperation))]
-    private void CancelOperation() => _operationCts?.Cancel();
+    private void CancelOperation()
+    {
+        _operationCts?.Cancel();
+
+        // Stays until the operation has wound down: work already under way keeps
+        // reporting for a moment, and those lines must not take this one back.
+        OperationStatus = "Cancelling...";
+    }
+
+    private bool IsCancelling => _operationCts is { IsCancellationRequested: true };
+
+    private void ShowStatus(string line)
+    {
+        if (!IsCancelling)
+        {
+            OperationStatus = line;
+        }
+    }
 
     public async Task RunOperationAsync(
         string operationName,
         Func<OperationContext, Task> operation)
     {
         IsBusy = true;
+        OperationName = operationName;
+        OperationStatus = $"{operationName}...";
         using var scope = _logger.BeginScope("Operation {Operation}", operationName);
         _logger.LogInformation("Starting operation {Operation}", operationName);
         var stopwatch = Stopwatch.StartNew();
@@ -610,13 +785,22 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         try
         {
             var log = ProgressBridge.Create<string>(
-                line => _logger.LogDebug("Activity: {Line}", line), batchSize: 100);
-            var percent = ProgressBridge.Create<double>(p =>
+                line =>
+                {
+                    _logger.LogDebug("Activity: {Line}", line);
+                    ShowStatus(line);
+                },
+                batchSize: 100);
+
+            // Per-file lines arrive by the thousand; batched, the bar shows the
+            // latest one and the UI thread is never flooded.
+            var status = ProgressBridge.Create<string>(ShowStatus, batchSize: 200);
+            var percent = ProgressBridge.CreatePercent(p =>
             {
                 Progress = p;
                 _taskbarProgress.Report(p);
             });
-            await operation(new OperationContext(log, percent, cts.Token));
+            await operation(new OperationContext(log, percent, cts.Token) { Status = status });
 
             stopwatch.Stop();
             _logger.LogInformation(
@@ -660,6 +844,8 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         {
             _operationCts = null;
             Progress = 0;
+            OperationName = string.Empty;
+            OperationStatus = string.Empty;
             IsBusy = false;
             _taskbarProgress.EndOperation();
         }
@@ -670,6 +856,8 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     private bool CanLinkFiles() => CanOperateWithSelection();
     private bool CanCopyHashed() => CanOperateWithSelection();
     private bool CanDeleteInstance() => CanOperateWithSelection();
+    private bool CanBrowseFiles() => CanOperateWithSelection();
+    private bool CanDuplicateInstance() => CanOperateWithSelection();
     private bool CanCheckUnused() => CanOperate();
     private bool CanImportLegacy() => CanOperate();
     private bool CanChangeDataDirectory() => CanOperate();
@@ -737,15 +925,22 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     public async Task RefreshInstancesAsync()
     {
         var all = await _repository.GetSummariesAsync();
+
+        // Resolving a custom image asks the disk whether its file exists, once per
+        // entry that has one; with the sorting it runs off the UI thread, which
+        // only swaps the finished list in.
+        var ordered = await Task.Run(() => all
+            .OrderBy(LogoSortTier)
+            .ThenBy(LogoCatalogIndex)
+            .ThenBy(e => e.InstanceName, NaturalStringComparer.Instance)
+            .Select(summary => summary with { LogoUri = ResolveLogoPath(summary) })
+            .ToList());
         var selectedName = SelectedInstance?.InstanceName;
 
         Instances.Clear();
-        foreach (var summary in all
-                     .OrderBy(LogoSortTier)
-                     .ThenBy(LogoCatalogIndex)
-                     .ThenBy(e => e.InstanceName, NaturalStringComparer.Instance))
+        foreach (var summary in ordered)
         {
-            Instances.Add(summary with { LogoUri = ResolveLogoPath(summary) });
+            Instances.Add(summary);
         }
 
         ApplyFilter();

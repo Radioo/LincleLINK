@@ -27,6 +27,11 @@ public sealed record LinkToTorrentResult(bool Success, string? Error, int Linked
 /// <summary>
 /// Torrent-aware linking (plan 07). Stateless: all inputs travel in requests and all
 /// results come back explicitly. Only files whose pieces all match are linked.
+///
+/// The UI never freezes (CLAUDE.md): parsing a torrent, matching it against an
+/// entry, hashing pieces and creating links all run on the thread pool, whatever
+/// thread calls in. Every operation names its first phase, which has no steps to
+/// count, and reports a percentage for the rest.
 /// </summary>
 public sealed partial class TorrentService
 {
@@ -53,12 +58,20 @@ public sealed partial class TorrentService
         _logger = logger;
     }
 
-    public async Task<CheckFilesResult> CheckFilesAsync(
+    public Task<CheckFilesResult> CheckFilesAsync(
         TorrentCheckRequest request,
         IProgress<string>? log = null,
         IProgress<double>? percent = null,
         CancellationToken ct = default)
+        => Task.Run(() => CheckFilesCoreAsync(request, log, percent, ct), ct);
+
+    private async Task<CheckFilesResult> CheckFilesCoreAsync(
+        TorrentCheckRequest request,
+        IProgress<string>? log,
+        IProgress<double>? percent,
+        CancellationToken ct)
     {
+        log?.Report($"Reading {Path.GetFileName(request.TorrentPath)}...");
         var (torrent, error) = await LoadAsync(request.TorrentPath, ct);
         if (torrent is null)
         {
@@ -72,6 +85,7 @@ public sealed partial class TorrentService
         }
 
         var relativePrefix = PathNormalizer.Canonicalize(request.RelativePath);
+        var index = IndexByPath(instance);
         var matched = new List<string>();
         var progress = ProgressStep.Over(torrent.Files.Count);
         int fileIndex = 0;
@@ -89,7 +103,7 @@ public sealed partial class TorrentService
 
             var relQ = relativePrefix.Length == 0 ? full : full[relativePrefix.Length..].TrimStart('/');
 
-            var hit = MatchInstanceFile(file, relQ, instance);
+            var hit = MatchInstanceFile(file, relQ, index);
 
             if (hit is not null)
             {
@@ -104,12 +118,22 @@ public sealed partial class TorrentService
         return new CheckFilesResult(true, null, matched.Count, torrent.Files.Count, matched);
     }
 
-    public async Task<CheckPiecesResult> CheckPiecesAsync(
+    public Task<CheckPiecesResult> CheckPiecesAsync(
         TorrentCheckRequest request,
         IProgress<string>? log = null,
         IProgress<double>? percent = null,
         CancellationToken ct = default)
+        => Task.Run(() => CheckPiecesCoreAsync(request, log, percent, ct), ct);
+
+    // The verifier hashes every piece between its reads. Started from the UI thread,
+    // each of its awaits would come back there and hash gigabytes on it.
+    private async Task<CheckPiecesResult> CheckPiecesCoreAsync(
+        TorrentCheckRequest request,
+        IProgress<string>? log,
+        IProgress<double>? percent,
+        CancellationToken ct)
     {
+        log?.Report($"Reading {Path.GetFileName(request.TorrentPath)}...");
         var (torrent, error) = await LoadAsync(request.TorrentPath, ct);
         if (torrent is null)
         {
@@ -148,11 +172,18 @@ public sealed partial class TorrentService
         return new CheckPiecesResult(true, null, false, matched, total, result.BadPieceIndices, result.Files);
     }
 
-    public async Task<LinkToTorrentResult> LinkToTorrentAsync(
+    public Task<LinkToTorrentResult> LinkToTorrentAsync(
         LinkToTorrentRequest request,
         IProgress<string>? log = null,
         IProgress<double>? percent = null,
         CancellationToken ct = default)
+        => Task.Run(() => LinkToTorrent(request, log, percent, ct), ct);
+
+    private LinkToTorrentResult LinkToTorrent(
+        LinkToTorrentRequest request,
+        IProgress<string>? log,
+        IProgress<double>? percent,
+        CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.DownloadPath))
         {
@@ -226,6 +257,7 @@ public sealed partial class TorrentService
         string relativePrefix)
     {
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        var index = IndexByPath(instance);
 
         foreach (var file in torrent.Files)
         {
@@ -237,7 +269,7 @@ public sealed partial class TorrentService
 
             var relQ = relativePrefix.Length == 0 ? full : full[relativePrefix.Length..].TrimStart('/');
 
-            var hit = MatchInstanceFile(file, relQ, instance);
+            var hit = MatchInstanceFile(file, relQ, index);
 
             if (hit is not null)
             {
@@ -256,10 +288,33 @@ public sealed partial class TorrentService
     private static InstanceFile? MatchInstanceFile(
         Domain.Torrents.TorrentFileData file,
         string relQ,
-        Instance instance)
-        => instance.FileList.FirstOrDefault(f =>
-            string.Equals(PathNormalizer.Canonicalize(f.RelativePath + "/" + f.FileName), relQ, StringComparison.Ordinal)
-            && f.FileSize == file.Length);
+        Dictionary<string, List<InstanceFile>> index)
+        => index.TryGetValue(relQ, out var candidates)
+            ? candidates.FirstOrDefault(f => f.FileSize == file.Length)
+            : null;
+
+    /// <summary>
+    /// The entry's files by canonical path, each list in the entry's own order, so
+    /// the first file with the right size still wins. Scanning the whole file list
+    /// per torrent file is 15 billion path comparisons for a game: hours, where
+    /// this takes a moment.
+    /// </summary>
+    private static Dictionary<string, List<InstanceFile>> IndexByPath(Instance instance)
+    {
+        var index = new Dictionary<string, List<InstanceFile>>(instance.FileList.Count, StringComparer.Ordinal);
+        foreach (var file in instance.FileList)
+        {
+            var path = PathNormalizer.Canonicalize(file.RelativePath + "/" + file.FileName);
+            if (!index.TryGetValue(path, out var sameName))
+            {
+                index[path] = sameName = [];
+            }
+
+            sameName.Add(file);
+        }
+
+        return index;
+    }
 
     private async Task<(Domain.Torrents.TorrentData? Torrent, string? Error)> LoadAsync(string torrentPath, CancellationToken ct)
     {

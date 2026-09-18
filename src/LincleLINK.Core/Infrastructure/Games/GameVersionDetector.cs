@@ -140,6 +140,14 @@ public sealed class GameVersionDetector : IGameVersionDetector
     private static readonly string[] PropMarkerFiles =
         ["bootstrap.xml", "avs-config.xml", "share-config.xml", "avs-config_debug.xml"];
 
+    public Task<DetectionResult> DetectAsync(IFileSystem fileSystem, string rootPath, CancellationToken ct = default)
+        => new GameVersionDetector(fileSystem, _logger).DetectAsync(rootPath, ct);
+
+    public bool IsIdentityFile(string fileName)
+        => KnownDlls.ContainsKey(fileName)
+           || Ea3ConfigFileNames.Contains(fileName, StringComparer.OrdinalIgnoreCase)
+           || string.Equals(fileName, "bootstrap.xml", StringComparison.OrdinalIgnoreCase);
+
     public Task<DetectionResult> DetectAsync(string rootPath, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();

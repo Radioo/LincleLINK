@@ -57,6 +57,13 @@ public sealed class MainViewModelTests
             () => new AddInstanceViewModel(
             new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _driveInfo, _dialogs, _detector, NullLogger<InstanceService>.Instance),
             _dialogs, _taskbarProgress, _fs, _preflight, NullLogger<AddInstanceViewModel>.Instance, _detector),
+        () => new InstanceFilesViewModel(
+            _repository, _store, _dialogs,
+            new InstanceUpdateService(_fs, _hasher, _store, _repository, _driveInfo, _paths, _dialogs, _detector, NullLogger<InstanceUpdateService>.Instance),
+            _taskbarProgress, NullLogger<InstanceFilesViewModel>.Instance),
+        () => new DuplicateInstanceViewModel(
+            new InstanceService(_fs, _hasher, _store, Substitute.For<IHardLinker>(), _preflight, _repository, _driveInfo, _dialogs, _detector, NullLogger<InstanceService>.Instance),
+            NullLogger<DuplicateInstanceViewModel>.Instance),
         logger ?? NullLogger<MainViewModel>.Instance,
         new DiagnosticLogOptions(Path.Combine(Path.GetTempPath(), "linclelink-testlogs", Guid.NewGuid().ToString("N"))),
         _logoCatalog,
@@ -149,6 +156,96 @@ public sealed class MainViewModelTests
         vm.OpenAddInstanceCommand.Execute(null);
 
         vm.AddInstance.Should().BeSameAs(first);
+    }
+
+    [Fact]
+    public async Task BrowseFiles_opens_the_files_dialog_for_the_selected_entry_until_it_closes()
+    {
+        StubStatus();
+        _repository.GetSummariesAsync(Arg.Any<CancellationToken>()).Returns([new InstanceListEntry("A", 1, 10, "10 B")]);
+        _repository.GetAsync("A", Arg.Any<CancellationToken>()).Returns(
+            Instance.Create("A", [new InstanceFile("a.bin", "", 10, "AA.bin")], []));
+        var vm = CreateViewModel();
+        await vm.InitializeAsync();
+        vm.SelectedInstance = vm.FilteredInstances[0];
+
+        await vm.BrowseFilesCommand.ExecuteAsync(null);
+
+        vm.InstanceFiles.Should().NotBeNull();
+        vm.InstanceFiles!.InstanceName.Should().Be("A");
+        vm.InstanceFiles.Tree.Rows.Should().ContainSingle();
+
+        vm.InstanceFiles.CloseCommand.Execute(null);
+
+        vm.InstanceFiles.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Update_opens_the_files_dialog_with_the_drop_zone_and_the_hash_thread_setting()
+    {
+        StubStatus();
+        _repository.GetSummariesAsync(Arg.Any<CancellationToken>()).Returns([new InstanceListEntry("A", 1, 10, "10 B")]);
+        _repository.GetAsync("A", Arg.Any<CancellationToken>()).Returns(
+            Instance.Create("A", [new InstanceFile("a.bin", "", 10, "AA.bin")], []));
+        _settingsStore.Load().Returns(new AppSettings(AppTheme.Light, "C:\\data", 2));
+        var vm = CreateViewModel();
+        await vm.InitializeAsync();
+        vm.ThreadCount = 1;
+        vm.SelectedInstance = vm.FilteredInstances[0];
+
+        await vm.UpdateInstanceCommand.ExecuteAsync(null);
+
+        vm.InstanceFiles!.IsUpdating.Should().BeTrue();
+        vm.InstanceFiles.ThreadCount.Should().Be(1);
+
+        await vm.BrowseFilesCommand.ExecuteAsync(null);
+        vm.InstanceFiles.IsUpdating.Should().BeTrue("the open dialog stays as it is");
+    }
+
+    [Fact]
+    public async Task BrowseFiles_reports_a_load_failure_and_closes_the_dialog()
+    {
+        StubStatus();
+        _repository.GetSummariesAsync(Arg.Any<CancellationToken>()).Returns([new InstanceListEntry("A", 1, 10, "10 B")]);
+        _repository.GetAsync("A", Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<Instance?>(new IOException("database is locked")));
+        var vm = CreateViewModel();
+        await vm.InitializeAsync();
+        vm.SelectedInstance = vm.FilteredInstances[0];
+
+        await vm.BrowseFilesCommand.ExecuteAsync(null);
+
+        await _dialogs.Received(1).ErrorAsync("database is locked", "Browse files");
+        vm.InstanceFiles.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Duplicate_creates_the_copy_with_its_custom_image_and_selects_it()
+    {
+        using var temp = new TempDir();
+        StubStatus();
+        _paths.DataDirectory.Returns(temp.Root);
+        var image = Path.Combine(temp.Root, "picked.png");
+        await File.WriteAllBytesAsync(image, [1, 2, 3], TestContext.Current.CancellationToken);
+        LogoCatalog.SaveCustomLogo(temp.Root, "a", image);
+
+        var entries = new List<InstanceListEntry> { new("A", 1, 10, "10 B") { CustomLogoSource = "custom" } };
+        _repository.GetSummariesAsync(Arg.Any<CancellationToken>()).Returns(_ => entries.ToList());
+        _repository.GetAsync("A", Arg.Any<CancellationToken>()).Returns(
+            Instance.Create("A", [new InstanceFile("a.bin", "", 10, "AA.bin")], []));
+        _repository.When(r => r.SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>()))
+            .Do(call => entries.Add(InstanceListEntry.From(call.Arg<Instance>()!) with { CustomLogoSource = "custom" }));
+        var vm = CreateViewModel();
+        await vm.InitializeAsync();
+        vm.SelectedInstance = vm.FilteredInstances[0];
+
+        vm.OpenDuplicateCommand.Execute(null);
+        vm.DuplicateDialog!.NewName.Should().Be("A - copy");
+        await vm.DuplicateDialog.DuplicateCommand.ExecuteAsync(null);
+
+        await AsyncWaits.AwaitUntilAsync(() => vm.SelectedInstance?.InstanceName == "A - copy");
+        vm.DuplicateDialog.Should().BeNull();
+        LogoCatalog.GetCustomLogoFilePath(temp.Root, "a - copy").Should().NotBeNull();
     }
 
     [Fact]

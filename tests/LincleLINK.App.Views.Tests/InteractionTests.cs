@@ -290,6 +290,13 @@ public sealed class InteractionTests
                     Substitute.For<LincleLINK.Core.Abstractions.Linking.IHardLinker>(), preflight,
                     repository, driveInfo, dialogs, detector, NullLogger<LincleLINK.Core.Application.InstanceService>.Instance),
                 dialogs, Substitute.For<ITaskbarProgress>(), fs, preflight, NullLogger<AddInstanceViewModel>.Instance, detector),
+            () => new InstanceFilesViewModel(
+                repository, store, dialogs,
+                new LincleLINK.Core.Application.InstanceUpdateService(fs,
+                    Substitute.For<LincleLINK.Core.Abstractions.Hashing.IFileHasher>(), store, repository, driveInfo, paths,
+                    dialogs, detector, NullLogger<LincleLINK.Core.Application.InstanceUpdateService>.Instance),
+                Substitute.For<ITaskbarProgress>(), NullLogger<InstanceFilesViewModel>.Instance),
+            () => throw new InvalidOperationException("duplicate dialog factory not exercised here"),
             NullLogger<MainViewModel>.Instance,
             new DiagnosticLogOptions(Path.Combine(Path.GetTempPath(), "linclelink-view-logs", Guid.NewGuid().ToString("N"))),
             new LogoCatalog(),

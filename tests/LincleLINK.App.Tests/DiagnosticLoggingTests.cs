@@ -68,6 +68,8 @@ public sealed class DiagnosticLoggingTests
             Substitute.For<ITaskbarProgress>(),
             Substitute.For<IHardLinkPreflight>(),
             () => throw new InvalidOperationException("add-instance factory not exercised here"),
+            () => throw new InvalidOperationException("files dialog factory not exercised here"),
+            () => throw new InvalidOperationException("duplicate dialog factory not exercised here"),
             LoggerFactory.Create(builder => builder.AddProvider(provider).SetMinimumLevel(LogLevel.Debug)).CreateLogger<MainViewModel>(),
             Options,
             _logoCatalog,
