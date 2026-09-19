@@ -253,6 +253,15 @@ public sealed class InstanceFilesStagingTests
     {
         var vm = await OpenAsync();
 
+        // Hold the Storage lookup back, so the time before the figure is known is
+        // always there and not only on a slow machine.
+        using var storageAnswers = new ManualResetEventSlim();
+        _store.Exists(Arg.Any<string>()).Returns(_ =>
+        {
+            storageAnswers.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+            return false;
+        });
+
         await vm.AddPathsAsync(["/drop/pack"]);
 
         var source = vm.Sources.Should().ContainSingle().Which;
@@ -260,8 +269,15 @@ public sealed class InstanceFilesStagingTests
         source.IsHashing.Should().BeFalse();
         Row(vm, "bm2dx.dll").Status.Should().Be(PlannedStatus.Replaced);
         Row(vm, "new.bin").Status.Should().Be(PlannedStatus.Added);
-        await TestHelpers.AsyncWaits.AwaitUntilAsync(() => vm.ChangesSummary.Contains("new to storage"));
+
+        // The figure arrives after a background Storage lookup. Until then the summary
+        // says so, in words that include "new to storage", so waiting for those words
+        // alone would not wait at all.
+        vm.ChangesSummary.Should().Contain("1 added").And.Contain("1 replaced").And.Contain("Working out");
+        storageAnswers.Set();
+        await TestHelpers.AsyncWaits.AwaitUntilAsync(() => vm.ChangesSummary.Contains("B new to storage"));
         vm.ChangesSummary.Should().Contain("1 added").And.Contain("1 replaced").And.Contain("127 B new to storage");
+        vm.ChangesSummary.Should().NotContain("Working out");
 
         await vm.ApplyCommand.ExecuteAsync(null);
 

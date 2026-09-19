@@ -7,6 +7,14 @@ namespace LincleLINK.App.Tests;
 
 public sealed class FileTreeViewModelTests
 {
+    /// <summary>
+    /// Wall-clock allowance for one expand or collapse of 50k rows. The single range
+    /// change asserted next to it is the real guard; the clock only catches a fall back
+    /// to row-by-row changes, which costs far more than this. Wide on purpose: a CI
+    /// runner with coverage instrumentation is several times slower than a desktop.
+    /// </summary>
+    private static readonly TimeSpan RangeChangeBudget = TimeSpan.FromSeconds(10);
+
     private static InstanceFile File(string directory, string name, long size = 1)
         => new(name, directory, size, $"{directory}/{name}.hash");
 
@@ -75,7 +83,7 @@ public sealed class FileTreeViewModelTests
 
         clock.Restart();
         tree.Expand(sound);
-        clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(1));
+        clock.Elapsed.Should().BeLessThan(RangeChangeBudget);
 
         changes.Should().ContainSingle();
         changes[0].Action.Should().Be(System.Collections.Specialized.NotifyCollectionChangedAction.Add);
@@ -85,7 +93,7 @@ public sealed class FileTreeViewModelTests
         changes.Clear();
         clock.Restart();
         tree.Collapse(sound);
-        clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(1));
+        clock.Elapsed.Should().BeLessThan(RangeChangeBudget);
 
         changes.Should().ContainSingle();
         changes[0].Action.Should().Be(System.Collections.Specialized.NotifyCollectionChangedAction.Remove);

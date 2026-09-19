@@ -55,7 +55,12 @@ public sealed class FileTreeViewTests
 
             tree.Rows.Should().HaveCount(50_003);
             realized.Should().BeInRange(5, 100, "only the rows on screen should get a container");
-            clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(1));
+
+            // The guard against a non-virtualized list is the realized count above. The
+            // clock only backs it up against a path that builds a container per row,
+            // which takes minutes, so the bound is wide: a CI runner with coverage
+            // instrumentation needed 1.8 s for what takes 0.3 s on a desktop.
+            clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(15));
         });
     }
 
