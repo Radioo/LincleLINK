@@ -70,6 +70,9 @@ public partial class InstanceFilesViewModel : ViewModelBase
         _updates = updates;
         _taskbarProgress = taskbarProgress;
         _logger = logger;
+
+        Tree.Rows.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasNoTreeMatches));
+        Sources.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasSources));
     }
 
     public FileTreeViewModel Tree { get; } = new();
@@ -91,7 +94,7 @@ public partial class InstanceFilesViewModel : ViewModelBase
 
     /// <summary>File count and size of the entry after Apply, shown under its name.</summary>
     [ObservableProperty]
-    private string _summary = string.Empty;
+    private string _summary = "Loading...";
 
     /// <summary>What Apply would do, in words; empty when nothing is staged.</summary>
     [ObservableProperty]
@@ -120,8 +123,17 @@ public partial class InstanceFilesViewModel : ViewModelBase
     /// <summary>The entry's file list is being read from the database.</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ApplyCommand))]
-    [NotifyPropertyChangedFor(nameof(Activity), nameof(HasActivity))]
-    private bool _isLoading;
+    [NotifyPropertyChangedFor(nameof(Activity), nameof(HasActivity), nameof(HasNoTreeMatches))]
+    private bool _isLoading = true; // from the moment it exists: the shell shows the dialog before it starts the load
+
+    /// <summary>The load finished and the entry holds no files and no folders. Never true while loading.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNoTreeMatches))]
+    private bool _isEntryEmpty;
+
+    /// <summary>The entry has content, but the filter box or "changes only" hides all of it.</summary>
+    public bool HasNoTreeMatches
+        => !IsLoading && !IsEntryEmpty && Tree.Rows.Count == 0 && (Tree.ChangesOnly || Tree.Filter.Trim().Length > 0);
 
     /// <summary>The preview is being planned and its tree built; what is on screen is about to be replaced.</summary>
     [ObservableProperty]
@@ -148,6 +160,13 @@ public partial class InstanceFilesViewModel : ViewModelBase
             : string.Empty;
 
     public bool HasActivity => Activity.Length > 0;
+
+    /// <summary>Once something is staged the drop zone shrinks to one line: its explanation has done its job.</summary>
+    public bool HasSources => Sources.Count > 0;
+
+    /// <summary>Label of the switch above the tree that hides what stays as it is, with the number of changes.</summary>
+    [ObservableProperty]
+    private string _changesOnlyLabel = "Show only changes";
 
     /// <summary>Whether the drop zone and source list show. "Update..." opens the dialog with it on.</summary>
     [ObservableProperty]
@@ -464,6 +483,13 @@ public partial class InstanceFilesViewModel : ViewModelBase
 
             HasPendingChanges = prepared.HasChanges;
             ChangesSummary = Describe(stats, bytesNewToStorage: null);
+            ChangesOnlyLabel = $"Show only changes ({stats.Changes})";
+            if (!prepared.HasChanges)
+            {
+                // Nothing left to narrow down to; an empty tree would look like a fault.
+                Tree.ChangesOnly = false;
+            }
+            IsEntryEmpty = plan.Files.Count == 0 && plan.Directories.All(d => d.Length == 0) && sources.Count == 0;
 
             if (plan.CanApply && stats.BringsContent)
             {
@@ -500,6 +526,10 @@ public partial class InstanceFilesViewModel : ViewModelBase
         int RemovedDirectories)
     {
         public bool BringsContent => Count(PlannedStatus.Added) > 0 || Count(PlannedStatus.Replaced) > 0;
+
+        /// <summary>Files the Pending changes add, replace, remove or may still replace.</summary>
+        public int Changes
+            => Count(PlannedStatus.Added) + Count(PlannedStatus.Replaced) + Count(PlannedStatus.Removed) + Count(PlannedStatus.Pending);
 
         public int Count(PlannedStatus status) => Counts.GetValueOrDefault(status);
 

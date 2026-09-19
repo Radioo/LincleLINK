@@ -19,8 +19,12 @@
                 <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="14" RowSpacing="10">
                     <StackPanel Grid.Row="0" Grid.Column="0" Spacing="4">
                         <TextBlock Text="Library entry to pre-fill from" FontSize="12" Opacity="0.7" />
+                        <!-- An empty dropdown says nothing: while the library loads, and
+                             when it has no entries, the picker says which it is. -->
                         <ComboBox ItemsSource="{Binding Instances}"
                                   SelectedItem="{Binding TorrentCheck.TorrentInstance, Mode=TwoWay}"
+                                  PlaceholderText="{Binding EntryPickerPlaceholder}"
+                                  IsEnabled="{Binding HasEntries}"
                                   HorizontalAlignment="Stretch">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate x:DataType="domain:InstanceListEntry">

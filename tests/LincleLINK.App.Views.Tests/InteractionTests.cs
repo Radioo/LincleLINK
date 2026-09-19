@@ -250,11 +250,12 @@ public sealed class InteractionTests
         });
     }
 
-    private static MainViewModel BuildMainViewModel()
+    internal static MainViewModel BuildMainViewModel(
+        LincleLINK.Core.Abstractions.Instances.IInstanceRepository? repositoryOverride = null)
     {
         var fs = Substitute.For<LincleLINK.Core.Abstractions.Filesystem.IFileSystem>();
         var preflight = Substitute.For<LincleLINK.Core.Abstractions.Linking.IHardLinkPreflight>();
-        var repository = Substitute.For<LincleLINK.Core.Abstractions.Instances.IInstanceRepository>();
+        var repository = repositoryOverride ?? Substitute.For<LincleLINK.Core.Abstractions.Instances.IInstanceRepository>();
         var driveInfo = Substitute.For<LincleLINK.Core.Abstractions.Disk.IDriveInfoProvider>();
         var dialogs = Substitute.For<LincleLINK.Core.Abstractions.Dialogs.IDialogService>();
         var detector = Substitute.For<LincleLINK.Core.Abstractions.Games.IGameVersionDetector>();

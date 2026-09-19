@@ -46,6 +46,26 @@ public sealed partial class StagedSourceViewModel : ObservableObject
 
     public string IssuesText => string.Join(Environment.NewLine, Issues.Select(i => $"{i.Path}: {i.Message}"));
 
+    /// <summary>
+    /// One line for the source row, e.g. "3 items were left out: link (Skipped, link to
+    /// D:\x), ...". The full list is the tooltip (<see cref="IssuesText"/>): a list of
+    /// its own would need a scroll container, and only the file tree scrolls.
+    /// </summary>
+    public string IssuesSummary
+    {
+        get
+        {
+            if (Issues.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            var first = string.Join(", ", Issues.Take(2).Select(i => $"{i.Path} ({i.Message})"));
+            var more = Issues.Count > 2 ? $", and {Issues.Count - 2} more" : string.Empty;
+            return $"{Issues.Count} {(Issues.Count == 1 ? "item was" : "items were")} left out: {first}{more}";
+        }
+    }
+
     /// <summary>Only a single dropped folder can stay a subfolder; other Sources have no folder of their own.</summary>
     public bool HasTopFolder => _scanned.TopFolder is not null;
 
@@ -91,6 +111,7 @@ public sealed partial class StagedSourceViewModel : ObservableObject
         OnPropertyChanged(nameof(Issues));
         OnPropertyChanged(nameof(HasIssues));
         OnPropertyChanged(nameof(IssuesText));
+        OnPropertyChanged(nameof(IssuesSummary));
         IsHashing = false;
     }
 

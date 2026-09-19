@@ -10,7 +10,7 @@
              line says what it is doing, so it never sits at a silent 0%. -->
         <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="10" Margin="12,5">
 
-            <ProgressBar Grid.Column="0" Width="170" Height="6" MinHeight="6"
+            <ProgressBar Grid.Column="0" Width="170" MinWidth="0" Height="6" MinHeight="6"
                          Value="{Binding Progress}" Minimum="0" Maximum="100"
                          IsIndeterminate="{Binding IsProgressIndeterminate}"
                          VerticalAlignment="Center" IsVisible="{Binding IsBusy}" />

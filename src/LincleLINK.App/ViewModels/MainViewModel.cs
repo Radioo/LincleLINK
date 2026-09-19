@@ -95,6 +95,54 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         SelectedLogoUri = value?.LogoUri;
     }
 
+    // ── loading states ─────────────────────────────────────────────────────
+    //
+    // Every view begins in its loading state (CLAUDE.md). "Nothing here" is a
+    // result, and a result exists only once a load has finished: an empty state
+    // bound to "no items" alone also shows before the first load, and flashes at
+    // startup for as long as the first query takes.
+
+    /// <summary>True from construction until the first library load has finished, well or badly.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsLibraryEmpty), nameof(HasNoFilterMatches), nameof(EntryCountText), nameof(EntryPickerPlaceholder))]
+    private bool _isLibraryLoading = true;
+
+    /// <summary>Why the library could not be loaded while there is nothing on screen; empty otherwise.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasLibraryLoadError), nameof(IsLibraryEmpty))]
+    private string _libraryLoadError = string.Empty;
+
+    public bool HasLibraryLoadError => LibraryLoadError.Length > 0;
+
+    public bool HasEntries => Instances.Count > 0;
+
+    /// <summary>A load finished and found nothing. The only thing the "your library is empty" state may follow.</summary>
+    public bool IsLibraryEmpty => !IsLibraryLoading && !HasLibraryLoadError && Instances.Count == 0;
+
+    /// <summary>There are entries, but the filter box hides all of them.</summary>
+    public bool HasNoFilterMatches => !IsLibraryLoading && Instances.Count > 0 && FilteredInstances.Count == 0;
+
+    public string EntryCountText
+        => IsLibraryLoading ? "Loading..." : $"{Instances.Count} {(Instances.Count == 1 ? "entry" : "entries")}";
+
+    /// <summary>What an entry picker says while it has nothing selected, e.g. on the torrent page.</summary>
+    public string EntryPickerPlaceholder
+        => IsLibraryLoading ? "Loading entries..."
+            : Instances.Count == 0 ? "No entries in the library yet"
+            : "Select an entry";
+
+    /// <summary>True until the storage card has its first figures, or has failed to get them.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SavingsHeadline))]
+    private bool _isStatusLoading = true;
+
+    private bool _statusFailed;
+
+    public string SavingsHeadline
+        => IsStatusLoading ? "Measuring storage..."
+            : _statusFailed ? "Storage could not be measured"
+            : $"Saving {Savings}";
+
     [ObservableProperty]
     private string _filterText = string.Empty;
 
@@ -145,16 +193,16 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
     public int MaxThreadCount => Environment.ProcessorCount;
 
     [ObservableProperty]
-    private string _dbSize = string.Empty;
+    private string _dbSize = "...";
 
     [ObservableProperty]
-    private string _librarySize = string.Empty;
+    private string _librarySize = "...";
 
     [ObservableProperty]
     private string _savings = string.Empty;
 
     [ObservableProperty]
-    private string _freeSpace = string.Empty;
+    private string _freeSpace = "...";
 
     /// <summary>Storage as a share of the un-deduplicated library total, 0..100 (sidebar bar).</summary>
     [ObservableProperty]
@@ -924,6 +972,29 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
 
     public async Task RefreshInstancesAsync()
     {
+        try
+        {
+            await RefreshInstancesCoreAsync();
+            LibraryLoadError = string.Empty;
+        }
+        catch (Exception ex) when (Instances.Count == 0)
+        {
+            // With nothing on screen the page has to say why, or it would show an
+            // empty library that isn't one. Set before the loading flag drops, so
+            // the empty state never shows in between.
+            LibraryLoadError = ex.Message;
+            throw;
+        }
+        finally
+        {
+            // A spinner that never ends is no better than a wrong empty state.
+            IsLibraryLoading = false;
+            NotifyLibraryStateChanged();
+        }
+    }
+
+    private async Task RefreshInstancesCoreAsync()
+    {
         var all = await _repository.GetSummariesAsync();
 
         // Resolving a custom image asks the disk whether its file exists, once per
@@ -1026,6 +1097,31 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
         {
             SelectedInstance = null;
         }
+
+        NotifyLibraryStateChanged();
+    }
+
+    /// <summary>
+    /// The library's states are told after a list has been rebuilt, never while:
+    /// a rebuild clears the list first, and a state that followed the collection
+    /// would report "empty" for that moment.
+    /// </summary>
+    private void NotifyLibraryStateChanged()
+    {
+        OnPropertyChanged(nameof(HasEntries));
+        OnPropertyChanged(nameof(IsLibraryEmpty));
+        OnPropertyChanged(nameof(HasNoFilterMatches));
+        OnPropertyChanged(nameof(EntryCountText));
+        OnPropertyChanged(nameof(EntryPickerPlaceholder));
+    }
+
+    [RelayCommand]
+    private async Task RetryLibraryLoadAsync()
+    {
+        LibraryLoadError = string.Empty;
+        IsLibraryLoading = true;
+        NotifyLibraryStateChanged();
+        await RefreshSafeAsync();
     }
 
     private async Task LoadUniqueSizeAsync(InstanceListEntry? entry)
@@ -1068,6 +1164,7 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
             Savings = summary.SavingsString;
             FreeSpace = summary.FreeSpaceString;
             StorageSharePercent = summary.StorageShare * 100;
+            _statusFailed = false;
         }
         catch (Exception ex)
         {
@@ -1075,6 +1172,18 @@ public partial class MainViewModel : ViewModelBase, IOperationHost
             // not escape to the startup handler; degrade gracefully and leave the
             // last-known status fields in place.
             _logger.LogWarning(ex, "Could not refresh status");
+
+            // With no last-known figures the card would measure forever: say it failed.
+            if (IsStatusLoading)
+            {
+                _statusFailed = true;
+                DbSize = LibrarySize = FreeSpace = "-";
+            }
+        }
+        finally
+        {
+            IsStatusLoading = false;
+            OnPropertyChanged(nameof(SavingsHeadline));
         }
     }
 }

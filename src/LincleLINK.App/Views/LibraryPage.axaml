@@ -6,11 +6,22 @@
              x:DataType="vm:MainViewModel">
     <Grid RowDefinitions="Auto,*">
 
-        <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="10" Margin="0,0,0,10">
+        <Grid Grid.Row="0" ColumnSpacing="10" Margin="0,0,0,10">
+            <!-- The minimum belongs to the column, not to the box: a box with a MinWidth
+                 in a star column that gets narrower than it spills over its neighbours
+                 (ProgressLayoutTests lays this out at the minimum window width). -->
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" MinWidth="170" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" Text="Library" FontSize="19" FontWeight="Bold" VerticalAlignment="Center" />
-            <TextBlock Grid.Column="1" Text="{Binding Instances.Count, StringFormat={}{0} entries}"
+            <TextBlock Grid.Column="1" Text="{Binding EntryCountText}"
                        Opacity="0.6" FontSize="12" VerticalAlignment="Center" />
-            <TextBox Grid.Column="2" MinWidth="170" PlaceholderText="Filter entries..."
+            <TextBox Grid.Column="2" PlaceholderText="Filter entries..."
                      Text="{Binding FilterText, Mode=TwoWay}" />
             <Button Grid.Column="3" Padding="8,4" Background="Transparent" BorderThickness="0"
                     Command="{Binding ToggleViewModeCommand}"
@@ -26,7 +37,7 @@
         </Grid>
 
         <Panel Grid.Row="1">
-            <Grid ColumnDefinitions="*,250" ColumnSpacing="12" IsVisible="{Binding !!Instances.Count}">
+            <Grid ColumnDefinitions="*,250" ColumnSpacing="12" IsVisible="{Binding HasEntries}">
 
                 <DataGrid x:Name="LibraryGrid" Grid.Column="0"
                           ItemsSource="{Binding FilteredInstances}"
@@ -63,6 +74,11 @@
                         <DataGridTextColumn Header="Size" Binding="{Binding TotalFileSizeString}" SortMemberPath="TotalFileSize" Width="1*" />
                     </DataGrid.Columns>
                 </DataGrid>
+
+                <!-- entries exist, the filter hides all of them -->
+                <TextBlock Grid.Column="0" Text="No entries match the filter." Opacity="0.6" FontSize="13"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           IsVisible="{Binding HasNoFilterMatches}" />
 
                 <ScrollViewer Grid.Column="0" IsVisible="{Binding IsGridView}">
                     <ItemsControl ItemsSource="{Binding FilteredInstances}">
@@ -149,8 +165,25 @@
                 </Panel>
             </Grid>
 
+            <!-- The page begins here (CLAUDE.md: every view begins in its loading
+                 state). The empty state below is a result, and may only follow a
+                 load that finished and found nothing. -->
+            <StackPanel IsVisible="{Binding IsLibraryLoading}"
+                        VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10" Width="220">
+                <ProgressBar IsIndeterminate="True" MinWidth="0" />
+                <TextBlock Text="Loading your library..." Opacity="0.7" FontSize="13" HorizontalAlignment="Center" />
+            </StackPanel>
+
+            <!-- the first load failed: not an empty library, and not a spinner forever -->
+            <StackPanel IsVisible="{Binding HasLibraryLoadError}"
+                        VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10" MaxWidth="460">
+                <TextBlock Text="The library could not be loaded" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                <TextBlock Text="{Binding LibraryLoadError}" TextWrapping="Wrap" Opacity="0.7" TextAlignment="Center" FontSize="13" />
+                <Button Content="Try again" Command="{Binding RetryLibraryLoadCommand}" HorizontalAlignment="Center" />
+            </StackPanel>
+
             <!-- empty state -->
-            <StackPanel IsVisible="{Binding !Instances.Count}"
+            <StackPanel IsVisible="{Binding IsLibraryEmpty}"
                         VerticalAlignment="Center" HorizontalAlignment="Center"
                         Spacing="12" MaxWidth="460">
                 <TextBlock Text="Your library is empty" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />

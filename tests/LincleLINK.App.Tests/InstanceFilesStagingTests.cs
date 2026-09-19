@@ -272,6 +272,26 @@ public sealed class InstanceFilesStagingTests
     }
 
     [Fact]
+    public async Task The_changes_only_switch_says_how_many_changes_there_are_and_hides_the_rest()
+    {
+        var vm = await OpenAsync();
+        vm.HasSources.Should().BeFalse();
+
+        await vm.AddPathsAsync(["/drop/pack"]);
+        await vm.StageRemovalAsync([Row(vm, "a.mp4")]);
+
+        // 1 added, 1 replaced, 1 removed.
+        vm.HasSources.Should().BeTrue();
+        vm.ChangesOnlyLabel.Should().Be("Show only changes (3)");
+
+        vm.Tree.ChangesOnly = true;
+        vm.Tree.ExpandAll();
+
+        vm.Tree.Rows.Where(r => !r.IsDirectory).Select(r => r.Name)
+            .Should().BeEquivalentTo("bm2dx.dll", "new.bin", "a.mp4");
+    }
+
+    [Fact]
     public async Task Unticking_a_source_file_keeps_it_out_and_restore_brings_it_back()
     {
         var vm = await OpenAsync();
