@@ -144,12 +144,25 @@ public sealed class InstanceFilesStagingTests
         var vm = await OpenAsync();
         await vm.StageRemovalAsync([Row(vm, "readme.txt")]);
 
+        // Looked at in the moment the flag goes up, which is on this thread and before
+        // the thread pool gets the work. Looking after the call returns is a race: a
+        // plan of three files can be done before the caller reaches its await, and the
+        // call then returns with the flag already down again.
+        string? activityWhilePlanning = null;
+        bool? applyWhilePlanning = null;
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(InstanceFilesViewModel.IsPlanning) && vm.IsPlanning)
+            {
+                activityWhilePlanning = vm.Activity;
+                applyWhilePlanning = vm.ApplyCommand.CanExecute(null);
+            }
+        };
+
         var restaging = vm.StageRemovalAsync([Row(vm, "a.mp4")]);
 
-        // Planning and tree building are under way on the thread pool.
-        vm.IsPlanning.Should().BeTrue();
-        vm.Activity.Should().Be("Updating the preview...");
-        vm.ApplyCommand.CanExecute(null).Should().BeFalse("what is on screen is about to be replaced");
+        activityWhilePlanning.Should().Be("Updating the preview...", "the flag goes up before the call returns");
+        applyWhilePlanning.Should().BeFalse("what is on screen is about to be replaced");
 
         await restaging;
         await Settled(vm);
