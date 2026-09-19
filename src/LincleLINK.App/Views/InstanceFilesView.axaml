@@ -1,0 +1,187 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LincleLINK.App.ViewModels"
+             xmlns:views="using:LincleLINK.App.Views"
+             x:Class="LincleLINK.App.Views.InstanceFilesView"
+             x:DataType="vm:InstanceFilesViewModel"
+             DragDrop.AllowDrop="True">
+    <UserControl.Styles>
+        <Style Selector="Border.DropZone">
+            <Setter Property="BorderBrush" Value="{DynamicResource LLHairline}" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.DropZone.Hot">
+            <Setter Property="BorderBrush" Value="{DynamicResource LLAccentText}" />
+            <Setter Property="Background" Value="{DynamicResource LLAccentSoft}" />
+        </Style>
+    </UserControl.Styles>
+
+    <!-- Files dialog of one library entry (plan 16 D4). Hosted by the shell as an
+         in-window overlay, so it carries its own title and close affordance. The
+         whole dialog takes drops; a drop on a folder row lands in that folder. -->
+    <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto,Auto,Auto">
+
+        <!-- One header line: name, size, filter, close. Every line saved up here is a
+             row more of the tree, which is what the dialog is for. -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,240,Auto" ColumnSpacing="12" Margin="0,0,0,10">
+            <TextBlock Grid.Column="0" Text="{Binding InstanceName}" FontSize="16" FontWeight="SemiBold"
+                       MaxWidth="420" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            <TextBlock Grid.Column="1" Text="{Binding Summary}" Opacity="0.6" FontSize="12"
+                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            <TextBox Grid.Column="2" PlaceholderText="Filter files and folders..." VerticalAlignment="Center"
+                     Text="{Binding Tree.Filter, Mode=TwoWay}" />
+            <Button Grid.Column="3" Content="✕" Padding="8,3" Background="Transparent" BorderThickness="0"
+                    VerticalAlignment="Center" Command="{Binding CloseCommand}" ToolTip.Tip="Close" />
+        </Grid>
+
+        <!-- sources (plan 16 D5) -->
+        <Button Grid.Row="2" Content="Update..." HorizontalAlignment="Left" Margin="0,0,0,10"
+                Command="{Binding StartUpdatingCommand}" IsVisible="{Binding !IsUpdating}"
+                ToolTip.Tip="Add or replace files in this entry - you can also drop files anywhere on this dialog" />
+
+        <!-- No scroll container here, ever: only the file tree scrolls. The section
+             stays small instead: the drop zone drops its explanation once something
+             is staged, and a source is one line that wraps when the window is narrow
+             (ProgressLayoutTests checks that nothing here scrolls or is cut off). -->
+        <StackPanel Grid.Row="2" Spacing="6" Margin="0,0,0,10" IsVisible="{Binding IsUpdating}">
+            <Border x:Name="DropZone" Classes="DropZone" BorderThickness="1" CornerRadius="8" Padding="12,8">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                        <TextBlock Text="Drop files or folders here" FontWeight="SemiBold" FontSize="13" />
+                        <TextBlock TextWrapping="Wrap" Opacity="0.7" FontSize="12"
+                                   IsVisible="{Binding !HasSources}"
+                                   Text="A single dropped folder counts as the entry's root, so its contents merge into the entry. Drop onto a folder in the tree below to put the files there instead. Nothing changes until you press Apply." />
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Add folder..." Command="{Binding AddFolderCommand}" VerticalAlignment="Center" />
+                    <Button Grid.Column="2" Content="Add files..." Command="{Binding AddFilesCommand}" VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+
+            <ItemsControl ItemsSource="{Binding Sources}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:StagedSourceViewModel">
+                        <Border Background="{DynamicResource LLCard}" BorderBrush="{DynamicResource LLHairline}"
+                                BorderThickness="1" CornerRadius="6" Padding="10,4" Margin="0,0,0,4">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <!-- One line: what was dropped, where it lands, how much it is
+                                     and how far its hashing is. Wraps, so a narrow window or
+                                     a wide font gives a second line and never an overlap. -->
+                                <WrapPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Label}" FontWeight="SemiBold" FontSize="12" Margin="0,4,8,4"
+                                               MaxWidth="260" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                    <TextBlock Text="→" FontSize="12" Opacity="0.6" Margin="0,4,8,4" VerticalAlignment="Center" />
+                                    <TextBox Width="180" FontSize="12" Margin="0,2,12,2" VerticalAlignment="Center"
+                                             PlaceholderText="entry root"
+                                             Text="{Binding Destination, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                             ToolTip.Tip="Folder inside the entry where these files land, e.g. modules. Empty means the entry's root. You can also drop onto a folder in the tree." />
+                                    <CheckBox Content="Keep as subfolder" FontSize="12" Margin="0,2,12,2" VerticalAlignment="Center"
+                                              IsChecked="{Binding KeepTopFolder, Mode=TwoWay}"
+                                              IsVisible="{Binding HasTopFolder}"
+                                              ToolTip.Tip="Put the dropped folder itself into the destination, the way a file manager would, instead of merging its contents" />
+                                    <TextBlock Text="{Binding Contents}" Opacity="0.6" FontSize="12" Margin="0,4,12,4"
+                                               VerticalAlignment="Center" />
+                                    <!-- MinWidth=0 is load-bearing on every bar here: the themed
+                                         ProgressBar has a default MinWidth of 200 that beats Width,
+                                         so the bar spills out of its place and text lands on top of
+                                         it (ProgressLayoutTests). -->
+                                    <ProgressBar Width="90" MinWidth="0" Minimum="0" Maximum="100" Value="{Binding HashProgress}"
+                                                 Margin="0,4,8,4" IsVisible="{Binding IsHashing}" VerticalAlignment="Center"
+                                                 ToolTip.Tip="Hashing - tells replaced files from identical ones" />
+                                    <TextBlock Text="hashing..." Opacity="0.6" FontSize="11" Margin="0,4,12,4" VerticalAlignment="Center"
+                                               IsVisible="{Binding IsHashing}" />
+                                    <!-- what the scan left out; the full list is the tooltip -->
+                                    <TextBlock Text="{Binding IssuesSummary}" FontSize="11" Margin="0,4,0,4"
+                                               Foreground="{DynamicResource LLWarning}" VerticalAlignment="Center"
+                                               MaxWidth="520" TextTrimming="CharacterEllipsis"
+                                               IsVisible="{Binding HasIssues}" ToolTip.Tip="{Binding IssuesText}" />
+                                </WrapPanel>
+                                <Button Grid.Column="1" Content="✕" Padding="6,2" VerticalAlignment="Center"
+                                        Background="Transparent" BorderThickness="0"
+                                        Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this source" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
+        <!-- Directly above the tree it acts on: the switch that hides everything the
+             Pending changes leave as it is, with the number of changes, and next to it
+             what the dialog is working on in the background (loading the entry,
+             scanning a drop, rebuilding the preview, detecting the version: work with
+             no steps to count, CLAUDE.md). Reserved height, so the tree below doesn't
+             jump when either comes and goes. -->
+        <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10" MinHeight="24" Margin="0,0,0,6">
+            <CheckBox Grid.Column="0" Content="{Binding ChangesOnlyLabel}" FontSize="12" VerticalAlignment="Center"
+                      IsChecked="{Binding Tree.ChangesOnly, Mode=TwoWay}"
+                      IsVisible="{Binding HasPendingChanges}"
+                      ToolTip.Tip="Hide every file and folder that stays as it is, so only what gets added, replaced or removed is left" />
+            <ProgressBar Grid.Column="2" Width="120" MinWidth="0" IsIndeterminate="True" VerticalAlignment="Center"
+                         IsVisible="{Binding HasActivity}" />
+            <TextBlock Grid.Column="3" Text="{Binding Activity}" FontSize="11" Opacity="0.6"
+                       VerticalAlignment="Center" IsVisible="{Binding HasActivity}" />
+        </Grid>
+
+        <!-- blocking problems (plan 16 D6) -->
+        <ItemsControl Grid.Row="4" ItemsSource="{Binding Problems}" Margin="0,0,0,8"
+                      IsVisible="{Binding !!Problems.Count}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                    <TextBlock Text="{Binding}" Foreground="{DynamicResource LLDanger}" FontSize="12" TextWrapping="Wrap" />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <Border Grid.Row="5" BorderBrush="{DynamicResource LLHairline}" BorderThickness="1" CornerRadius="6"
+                ClipToBounds="True">
+            <Panel>
+            <views:FileTreeView x:Name="TreeView" DataContext="{Binding Tree}" KeyDown="OnTreeKeyDown">
+                <views:FileTreeView.ContextMenu>
+                    <ContextMenu Opening="OnTreeMenuOpening">
+                        <MenuItem x:Name="RemoveItem" Header="Remove from entry" Click="OnRemoveClick" />
+                        <MenuItem x:Name="ExcludeItem" Header="Leave out of the update" Click="OnExcludeClick" />
+                        <MenuItem x:Name="RestoreItem" Header="Restore" Click="OnRestoreClick" />
+                        <Separator />
+                        <MenuItem x:Name="RevealItem" Header="Reveal in Storage" Click="OnRevealInStorageClick" />
+                    </ContextMenu>
+                </views:FileTreeView.ContextMenu>
+            </views:FileTreeView>
+
+            <!-- Drawn over the (then rowless) tree: what the area says when it has no
+                 rows, and why. The loading state is the activity line above the tree;
+                 "no files" may only follow a load that finished. -->
+            <TextBlock Text="This entry has no files yet. Use Update... to add some." Opacity="0.6" FontSize="13"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap"
+                       IsVisible="{Binding IsEntryEmpty}" IsHitTestVisible="False" />
+            <TextBlock Text="Nothing matches the filter." Opacity="0.6" FontSize="13"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       IsVisible="{Binding HasNoTreeMatches}" IsHitTestVisible="False" />
+            </Panel>
+        </Border>
+
+        <TextBlock Grid.Row="6" Text="{Binding ChangesSummary}" FontSize="12" TextWrapping="Wrap" Margin="0,10,0,0"
+                   IsVisible="{Binding ChangesSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+        <!-- detected game version (plan 16 D10) -->
+        <CheckBox Grid.Row="7" FontSize="12" Margin="0,6,0,0"
+                  Content="{Binding DetectedVersionText}"
+                  IsChecked="{Binding AdoptDetectedVersion, Mode=TwoWay}"
+                  IsVisible="{Binding HasDetectedVersion}"
+                  ToolTip.Tip="Tag this entry with the detected version when you apply. Untick to keep the version it has now." />
+
+        <Grid Grid.Row="8" ColumnDefinitions="*,Auto" Margin="0,10,0,0">
+            <StackPanel Grid.Column="0" Spacing="4" VerticalAlignment="Center" IsVisible="{Binding IsBusy}" Margin="0,0,12,0">
+                <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}" MinWidth="0"
+                             IsIndeterminate="{Binding IsProgressIndeterminate}" />
+                <TextBlock Text="{Binding StatusLine}" FontSize="11" Opacity="0.6" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Content="Cancel" Command="{Binding CancelApplyCommand}" IsVisible="{Binding IsBusy}" />
+                <Button Content="Close" Command="{Binding CloseCommand}" IsVisible="{Binding !IsBusy}" />
+                <Button Classes="Primary" Content="Apply" Command="{Binding ApplyCommand}"
+                        IsVisible="{Binding HasPendingChanges}"
+                        ToolTip.Tip="Write the pending changes to this entry. Deployed folders are not touched." />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

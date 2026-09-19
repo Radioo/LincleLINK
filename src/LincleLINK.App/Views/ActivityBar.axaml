@@ -5,15 +5,24 @@
              x:DataType="vm:MainViewModel">
     <Border Background="{DynamicResource LLSidebar}"
             BorderBrush="{DynamicResource LLHairline}" BorderThickness="0,1,0,0">
-        <Grid ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="10" Margin="12,5">
+        <!-- Everything that takes time shows progress (CLAUDE.md): the bar runs
+             indeterminate while the operation has nothing to count, and the status
+             line says what it is doing, so it never sits at a silent 0%. -->
+        <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="10" Margin="12,5">
 
-            <ProgressBar Grid.Column="0" Width="170" Height="6" MinHeight="6"
+            <ProgressBar Grid.Column="0" Width="170" MinWidth="0" Height="6" MinHeight="6"
                          Value="{Binding Progress}" Minimum="0" Maximum="100"
+                         IsIndeterminate="{Binding IsProgressIndeterminate}"
                          VerticalAlignment="Center" IsVisible="{Binding IsBusy}" />
-            <TextBlock Grid.Column="1" Text="{Binding Progress, StringFormat={}{0:0}%}"
-                       FontSize="12" Opacity="0.7" VerticalAlignment="Center" MinWidth="34"
-                       TextAlignment="Right" IsVisible="{Binding IsBusy}" />
-            <Button Grid.Column="2" Content="Cancel" FontSize="12" Padding="10,3"
+            <Panel Grid.Column="1" MinWidth="34" IsVisible="{Binding IsBusy}">
+                <TextBlock Text="{Binding Progress, StringFormat={}{0:0}%}"
+                           FontSize="12" Opacity="0.7" VerticalAlignment="Center"
+                           TextAlignment="Right" IsVisible="{Binding !IsProgressIndeterminate}" />
+            </Panel>
+            <TextBlock Grid.Column="2" Text="{Binding OperationStatus}" FontSize="12" Opacity="0.7"
+                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                       ToolTip.Tip="{Binding OperationName}" IsVisible="{Binding IsBusy}" />
+            <Button Grid.Column="3" Content="Cancel" FontSize="12" Padding="10,3"
                     Command="{Binding CancelOperationCommand}" IsVisible="{Binding IsBusy}" />
         </Grid>
     </Border>

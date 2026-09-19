@@ -15,7 +15,8 @@
         <ListBox Grid.Row="1" ItemsSource="{Binding LogLines}"
                  behaviors:AutoScrollBehavior.AutoScrollToEnd="True" />
 
-        <ProgressBar Grid.Row="2" Value="{Binding Progress}" Minimum="0" Maximum="100" />
+        <ProgressBar Grid.Row="2" Value="{Binding Progress}" Minimum="0" Maximum="100" MinWidth="0"
+                     IsIndeterminate="{Binding IsProgressIndeterminate}" />
 
     </Grid>
 </UserControl>

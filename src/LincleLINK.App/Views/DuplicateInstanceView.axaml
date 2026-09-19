@@ -1,0 +1,29 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LincleLINK.App.ViewModels"
+             x:Class="LincleLINK.App.Views.DuplicateInstanceView"
+             x:DataType="vm:DuplicateInstanceViewModel">
+    <!-- Duplicate dialog (plan 16 D3), hosted by the shell as an in-window overlay. -->
+    <StackPanel Margin="16" Spacing="10">
+        <TextBlock Text="Duplicate entry" FontSize="16" FontWeight="SemiBold" />
+        <TextBlock TextWrapping="Wrap" Opacity="0.7" FontSize="12"
+                   Text="{Binding SourceName, StringFormat='Creates a new entry with the same files as {0}. No files are copied, so it takes no extra space in storage.'}" />
+        <StackPanel Spacing="6">
+            <TextBlock Text="Name" />
+            <TextBox x:Name="NameBox" Text="{Binding NewName, Mode=TwoWay}" IsEnabled="{Binding !IsBusy}" />
+            <TextBlock Text="{Binding Error}" Foreground="{DynamicResource LLDanger}" FontSize="12"
+                       TextWrapping="Wrap"
+                       IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        </StackPanel>
+        <!-- A duplicate rewrites every file row of the entry; it has no measurable
+             steps, so the bar is indeterminate and the line says what is going on. -->
+        <StackPanel Spacing="4" IsVisible="{Binding IsBusy}">
+            <ProgressBar IsIndeterminate="True" MinWidth="0" />
+            <TextBlock Text="{Binding StatusLine}" FontSize="11" Opacity="0.6" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,4,0,0">
+            <Button Content="Cancel" Command="{Binding CloseCommand}" IsCancel="True" />
+            <Button Classes="Primary" Content="Duplicate" Command="{Binding DuplicateCommand}" IsDefault="True" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

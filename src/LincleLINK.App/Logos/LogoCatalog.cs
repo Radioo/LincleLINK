@@ -49,6 +49,15 @@ public sealed class LogoCatalog
         LogoSourceConverter.Evict(dest);
     }
 
+    /// <summary>Gives <paramref name="toNameKey"/> its own copy of another entry's custom image, if there is one.</summary>
+    public static void CopyCustomLogo(string dataDirectory, string fromNameKey, string toNameKey)
+    {
+        if (GetCustomLogoFilePath(dataDirectory, fromNameKey) is { } source)
+        {
+            SaveCustomLogo(dataDirectory, toNameKey, source);
+        }
+    }
+
     public static void DeleteCustomLogo(string dataDirectory, string nameKey)
     {
         var filePath = Path.Combine(dataDirectory, "custom_logos", nameKey + ".png");

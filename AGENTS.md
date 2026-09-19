@@ -21,6 +21,7 @@
 - File-scoped namespaces; namespaces by layer (`LincleLINK.Core.Domain`, `LincleLINK.App.ViewModels`, …).
 - Services depend on ports (`Abstractions/`), never on UI; VMs stay thin binding shells; dialogs go through `IDialogService`.
 - Async commands use `IProgress<T>` + `CancellationToken`; no `async void`.
+- **The UI never freezes, and everything that takes time shows a progress indicator.** Nothing slow (database, disk, hashing, anything sized by an entry's file count) runs on the UI thread; `await` alone does not move it, and SQLite's async calls are synchronous underneath. Full rule and checklist: `CLAUDE.md`.
 - Data layout: user data lives under a data dir (default CWD, configurable via settings `DataDirectory`), `db/` + `instance/`; settings in the per-OS config dir (`03`).
 
 ## Gotchas
@@ -28,4 +29,5 @@
 - .NET 10 `dotnet new sln` defaults to `.slnx` - pass `-f sln` for the classic format this repo uses.
 - Avalonia 12: diagnostics come from `AvaloniaUI.DiagnosticsSupport` (not `Avalonia.Diagnostics`).
 - Semi.Avalonia styles are registered in `App.axaml` (`<semi:SemiTheme/>` + `<semi:DataGridSemiTheme/>`); theme switches via `IThemeManager`/`RequestedThemeVariant`.
+- Semi's `ProgressBar` has a default `MinWidth` of 200 that beats `Width` and a narrow grid column. A bar given less room spills out of it and the text next to it is drawn on top of the bar. Every `ProgressBar` gets `MinWidth="0"`, and a sized bar sits in an `Auto` column with an explicit `Width`. `ProgressLayoutTests` (App.Views.Tests) lays the views out with the real theme and fails on any text overlapping a bar or another text.
 - EF Core (M7): migrations are committed under `Infrastructure/Persistence/Migrations/` and applied at runtime via `Database.MigrateAsync()` - generate with `dotnet ef` (global tool, version-matched; `IDesignTimeDbContextFactory` lets it run against Core without launching Avalonia). The DB file lives at the data root, never inside `db/` (that dir is scanned by `IFileStore`).

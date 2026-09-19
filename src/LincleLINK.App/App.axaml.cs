@@ -51,8 +51,12 @@ public partial class App : Application
                 // installs have no JSON to trigger the migration below, but the
                 // first repository call would crash on a missing table without
                 // this (plan 13 §7/§8).
+                // On the thread pool (CLAUDE.md: the UI never freezes): SQLite's async
+                // calls run on the calling thread, and this one can apply migrations.
+                // Yielding here also lets the main window come up in its boot state
+                // instead of appearing only once all of this is done.
                 var migration = _services.GetRequiredService<StorageMigrationService>();
-                await migration.EnsureSchemaAsync();
+                await Task.Run(() => migration.EnsureSchemaAsync());
                 logger.LogInformation("Database schema ensured");
 
                 // Set the DataContext BEFORE any dialog can show the main window:
@@ -71,7 +75,7 @@ public partial class App : Application
                 // Forced one-time JSON → SQLite migration before the main window loads
                 // (plan 13 §7): users with legacy instance/*.json manifests get a
                 // non-dismissable progress window; new installs skip straight through.
-                if (migration.NeedsMigration())
+                if (await Task.Run(migration.NeedsMigration))
                 {
                     logger.LogInformation("Legacy JSON manifests found; running the storage migration");
                     if (!desktop.MainWindow.IsVisible)

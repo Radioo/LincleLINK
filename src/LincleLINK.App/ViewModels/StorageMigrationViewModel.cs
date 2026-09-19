@@ -26,7 +26,11 @@ public partial class StorageMigrationViewModel : ViewModelBase
     private string _status = "Upgrading instance database…";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsProgressIndeterminate))]
     private double _progress;
+
+    /// <summary>Until the first manifest is counted, and after the last, the bar has nothing to show as a number.</summary>
+    public bool IsProgressIndeterminate => Progress <= 0 || Progress >= 100;
 
     public event EventHandler<StorageMigrationResult>? Completed;
 
@@ -41,7 +45,7 @@ public partial class StorageMigrationViewModel : ViewModelBase
         try
         {
             var log = ProgressBridge.Create<string>(line => AddLogLine(line, _logger), batchSize: 100);
-            var percent = ProgressBridge.Create<double>(p => Progress = p);
+            var percent = ProgressBridge.CreatePercent(p => Progress = p);
             var result = await Task.Run(() => _migration.MigrateAsync(log, percent));
 
             Status = result.Errors.Count == 0

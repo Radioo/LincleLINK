@@ -30,6 +30,40 @@ public static class ProgressBridge
         return new SyncProgress<T>(handler);
     }
 
+    /// <summary>
+    /// A percent channel to the UI thread that lets through only what moves a
+    /// progress bar: a change of a tenth of a percent, a restart, and the final 100.
+    /// A deploy links 150k files in seconds, and one dispatcher post per file would
+    /// keep the UI thread busy with nothing but progress updates (CLAUDE.md: the UI
+    /// never freezes).
+    /// </summary>
+    public static IProgress<double> CreatePercent(Action<double> handler)
+        => new ThinnedPercent(Create(handler));
+
+    private sealed class ThinnedPercent(IProgress<double> inner) : IProgress<double>
+    {
+        private readonly Lock _gate = new();
+        private double _last = double.NaN;
+
+        public void Report(double value)
+        {
+            lock (_gate)
+            {
+                var moves = double.IsNaN(_last)
+                    || Math.Abs(value - _last) >= 0.1
+                    || (value >= 100 && _last < 100);
+                if (!moves)
+                {
+                    return;
+                }
+
+                _last = value;
+            }
+
+            inner.Report(value);
+        }
+    }
+
     private sealed class SyncProgress<T>(Action<T> handler) : IProgress<T>
     {
         public void Report(T value) => handler(value);

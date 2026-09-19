@@ -29,4 +29,7 @@ public interface IDialogService
 
     /// <summary>Returns null when the user cancels.</summary>
     Task<string?> PickOpenFileAsync(string title, FileType fileType);
+
+    /// <summary>Picks any number of files of any type. Returns an empty list when the user cancels.</summary>
+    Task<IReadOnlyList<string>> PickOpenFilesAsync(string title);
 }

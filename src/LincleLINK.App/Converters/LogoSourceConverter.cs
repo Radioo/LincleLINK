@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using Avalonia.Data.Converters;
 using Avalonia.Media.Imaging;
@@ -16,14 +17,17 @@ namespace LincleLINK.App.Converters;
 /// </summary>
 public sealed class LogoSourceConverter : IValueConverter
 {
-    private static readonly Dictionary<string, Bitmap> Cache = new(StringComparer.Ordinal);
+    // Concurrent: conversions run on the UI thread, while Evict comes from the
+    // thread pool, where the logo files are written and deleted (CLAUDE.md: no
+    // file access on the UI thread).
+    private static readonly ConcurrentDictionary<string, Bitmap> Cache = new(StringComparer.Ordinal);
 
     /// <summary>Drops a cached bitmap so the next conversion re-reads the file.</summary>
     public static void Evict(string source)
     {
         if (!string.IsNullOrEmpty(source))
         {
-            Cache.Remove(source);
+            Cache.TryRemove(source, out _);
         }
     }
 

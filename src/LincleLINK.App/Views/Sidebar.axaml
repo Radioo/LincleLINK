@@ -43,12 +43,16 @@
                     BorderBrush="{DynamicResource LLHairline}" BorderThickness="1"
                     CornerRadius="8" Padding="11,10">
                 <StackPanel Spacing="4">
-                    <TextBlock Text="{Binding Savings, StringFormat=Saving {0}}"
-                               FontWeight="Bold" FontSize="14"
+                    <!-- "Measuring storage..." with a moving bar until the first figures
+                         are in: a card that starts at "Saving" and an empty bar reads as
+                         a result of zero. -->
+                    <TextBlock Text="{Binding SavingsHeadline}"
+                               FontWeight="Bold" FontSize="14" TextWrapping="Wrap"
                                Foreground="{DynamicResource LLAccentText}" />
                     <!-- MinWidth=0 is load-bearing: the themed ProgressBar template has a
                          default MinWidth wider than the sidebar card and overflows it. -->
                     <ProgressBar Value="{Binding StorageSharePercent}" Maximum="100"
+                                 IsIndeterminate="{Binding IsStatusLoading}"
                                  Height="6" MinHeight="6" MinWidth="0" Margin="0,2,0,2"
                                  HorizontalAlignment="Stretch"
                                  ToolTip.Tip="Storage size as a share of what the library would occupy un-deduplicated" />

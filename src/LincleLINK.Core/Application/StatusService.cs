@@ -47,7 +47,15 @@ public sealed class StatusService
         _logger = logger;
     }
 
-    public async Task<StatusSummary> GetSummaryAsync(CancellationToken ct = default)
+    /// <summary>
+    /// Runs on the thread pool whatever thread asks (CLAUDE.md: the UI never
+    /// freezes): it is called after every operation and at startup, and asks the
+    /// drive for its free space, which on a sleeping or network drive takes a while.
+    /// </summary>
+    public Task<StatusSummary> GetSummaryAsync(CancellationToken ct = default)
+        => Task.Run(() => GetSummaryCoreAsync(ct), ct);
+
+    private async Task<StatusSummary> GetSummaryCoreAsync(CancellationToken ct)
     {
         var dbSize = await _store.GetTotalSizeAsync(ct);
         var instances = await _repository.GetSummariesAsync(ct);

@@ -66,6 +66,13 @@ public sealed class MainViewModelCoverageTests : IDisposable
             () => new AddInstanceViewModel(
             new InstanceService(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, _detector, NullLogger<InstanceService>.Instance),
             _dialogs, _taskbarProgress, _fs, _preflight, NullLogger<AddInstanceViewModel>.Instance, _detector),
+        () => new InstanceFilesViewModel(
+            _repository, _store, _dialogs,
+            new InstanceUpdateService(_fs, _hasher, _store, _repository, _driveInfo, _paths, _dialogs, _detector, NullLogger<InstanceUpdateService>.Instance),
+            _taskbarProgress, NullLogger<InstanceFilesViewModel>.Instance),
+        () => new DuplicateInstanceViewModel(
+            new InstanceService(_fs, _hasher, _store, _hardLinker, _preflight, _repository, _driveInfo, _dialogs, _detector, NullLogger<InstanceService>.Instance),
+            NullLogger<DuplicateInstanceViewModel>.Instance),
         logger ?? NullLogger<MainViewModel>.Instance,
         new DiagnosticLogOptions(Path.Combine(_temp.Root, "logs")),
         _logoCatalog, _paths, _exceptionReporter);

@@ -86,7 +86,10 @@ public sealed partial class InstanceService
             return Fail(nameError);
         }
 
-        if (!_fileSystem.DirectoryExists(request.DataPath))
+        // Off the caller's (UI) thread: a folder on a network share can take
+        // seconds to answer whether it exists (CLAUDE.md: the UI never freezes).
+        status?.Report($"Checking {request.DataPath}...");
+        if (!await Task.Run(() => _fileSystem.DirectoryExists(request.DataPath), ct))
         {
             LogAddFailed(request.InstanceName, "The folder does not exist or is not a directory.");
             return Fail("The folder does not exist or is not a directory.");
@@ -118,6 +121,8 @@ public sealed partial class InstanceService
         // Copy mode also precomputes the total size here, since per-file metadata
         // on a network origin is one round-trip per file that shouldn't run serially
         // on the UI thread.
+        // Listing a large tree has no steps to count, so it is named for the status line.
+        status?.Report($"Listing the files in {request.DataPath}...");
         var enumerated = await Task.Run(() =>
         {
             var fileList = _fileSystem.EnumerateFiles(request.DataPath, recursive: true);
@@ -144,7 +149,8 @@ public sealed partial class InstanceService
         // Low-disk warning only in copy mode; free space measured on the data-path volume.
         if (request.Mode == CopyMoveMode.Copy)
         {
-            long freeSpace = _driveInfo.GetAvailableFreeSpace(request.DataPath);
+            // The question below belongs on the caller's thread; the drive query doesn't.
+            long freeSpace = await Task.Run(() => _driveInfo.GetAvailableFreeSpace(request.DataPath), ct);
             if (enumerated.SizeToCopy + LowDiskWiggleRoom > freeSpace)
             {
                 LogLowDisk(request.InstanceName, freeSpace, enumerated.SizeToCopy);

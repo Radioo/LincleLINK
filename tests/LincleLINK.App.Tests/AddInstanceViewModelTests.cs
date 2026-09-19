@@ -54,6 +54,37 @@ public sealed class AddInstanceViewModelTests
     }
 
     [Fact]
+    public async Task Typing_a_folder_checks_it_off_the_ui_thread_and_shows_that_it_is_being_looked_at()
+    {
+        // The folder box is analysed on every change. A path on a network share can
+        // take seconds to answer whether it exists, and that may not block typing.
+        var ui = new UiThreadStandIn();
+        var answer = new ManualResetEventSlim();
+        _fs.DirectoryExists(Data).Returns(_ =>
+        {
+            ui.Note("directory exists");
+            answer.Wait(TimeSpan.FromSeconds(10));
+            return false;
+        });
+        var vm = Create();
+
+        await ui.RunAsync(() =>
+        {
+            vm.DataPath = Data;
+            return Task.FromResult(0);
+        });
+
+        // Back on the "UI thread" at once, with the indicator up while the share thinks.
+        vm.IsCalculatingSize.Should().BeTrue();
+
+        answer.Set();
+        await AsyncWaits.AwaitUntilAsync(() => !vm.IsCalculatingSize);
+
+        ui.RanOnUiThread.Should().BeEmpty();
+        vm.EstimatedSizeText.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task CreateInstance_success_raises_close()
     {
         StubDataPath();
@@ -154,8 +185,12 @@ public sealed class AddInstanceViewModelTests
         var vm = Create();
         vm.DataPath = Data;
 
-        // The analysis runs in the background; wait for its outcome.
-        await AsyncWaits.AwaitUntilAsync(() => !vm.ReclaimAvailable);
+        // The analysis runs in the background and publishes its outcome one
+        // property at a time (availability, reason, then the radio fallback, whose
+        // handler clears the other radio last). Wait for the last of them:
+        // waking on the first one lets the assertions land between two assignments.
+        await AsyncWaits.AwaitUntilAsync(() =>
+            !vm.ReclaimAvailable && vm.CrossVolumeReason.Length > 0 && vm.IsKeepChecked && !vm.IsReclaimChecked);
 
         vm.ReclaimAvailable.Should().BeFalse();
         vm.CrossVolumeReason.Should().Contain("different drive");

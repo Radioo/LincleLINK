@@ -57,12 +57,18 @@ public static class ServiceCollectionExtensions
             builder.UseSqlite(LincleLinkPersistence.ConnectionStringFor(paths.DataDirectory));
         });
 
-        services.AddSingleton<IInstanceRepository, SqliteInstanceRepository>();
+        // Behind BackgroundInstanceRepository on purpose (CLAUDE.md, "the UI never
+        // freezes"): SQLite's async calls run on the calling thread, so the app must
+        // never get the SQLite repository itself.
+        services.AddSingleton<SqliteInstanceRepository>();
+        services.AddSingleton<IInstanceRepository>(
+            sp => new BackgroundInstanceRepository(sp.GetRequiredService<SqliteInstanceRepository>()));
         services.AddSingleton<StorageMigrationService>();
         services.AddSingleton<ITorrentSource, MonoTorrentSource>();
 
         services.AddSingleton<LegacyImporter>();
         services.AddSingleton<InstanceService>();
+        services.AddSingleton<InstanceUpdateService>();
         services.AddSingleton<StatusService>();
         services.AddSingleton<LinkingService>();
         services.AddSingleton<UnusedFilesService>();

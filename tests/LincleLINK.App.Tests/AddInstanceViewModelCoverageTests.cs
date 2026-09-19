@@ -105,7 +105,11 @@ public sealed class AddInstanceViewModelCoverageTests
         vm.IsReclaimChecked = true;
 
         vm.DataPath = Data;
-        await AsyncWaits.AwaitUntilAsync(() => !vm.ReclaimAvailable);
+
+        // The outcome arrives one property at a time from a pool thread; wait for
+        // the last one asserted below, not for the first one set.
+        await AsyncWaits.AwaitUntilAsync(() =>
+            !vm.ReclaimAvailable && vm.CrossVolumeReason.Length > 0 && vm.IsKeepChecked);
 
         vm.ReclaimAvailable.Should().BeFalse();
         vm.CrossVolumeReason.Should().Contain("different drive");
@@ -128,7 +132,10 @@ public sealed class AddInstanceViewModelCoverageTests
         var vm = Create();
 
         vm.DataPath = Data;
-        await AsyncWaits.AwaitUntilAsync(() => vm.DetectedGameText is not null);
+
+        // The hint is the last property the detection publishes, after the text and
+        // the game-root flag; waiting on the text alone races the other two.
+        await AsyncWaits.AwaitUntilAsync(() => vm.DataFolderHint is not null);
 
         vm.DetectedGameText.Should().Contain("SOUND VOLTEX II");
         vm.IsGameRootDetected.Should().BeTrue();

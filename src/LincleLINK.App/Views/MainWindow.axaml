@@ -9,6 +9,18 @@
         Title="LincleLINK &quot;It never ends&quot;"
         Width="1120" Height="700" MinWidth="840" MinHeight="540">
 
+    <Panel>
+    <!-- Boot state: the window can be on screen before the view model exists (the
+         database schema check, the first-run dialog). A blank window looks hung, so
+         it begins by saying that it is starting (CLAUDE.md: every view begins in its
+         loading state). -->
+    <StackPanel x:Name="BootState" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" Width="240"
+                IsVisible="{Binding $parent[Window].DataContext, Converter={x:Static ObjectConverters.IsNull}}">
+        <TextBlock Text="LincleLINK" FontSize="19" FontWeight="Bold" HorizontalAlignment="Center" />
+        <ProgressBar IsIndeterminate="True" MinWidth="0" />
+        <TextBlock Text="Starting..." Opacity="0.7" FontSize="13" HorizontalAlignment="Center" />
+    </StackPanel>
+
     <!-- Hidden until a DataContext exists: the first-run flow shows this window
          (as a dialog owner) before the view model can be constructed, and unbound
          page-visibility bindings would render every page stacked. -->
@@ -44,6 +56,28 @@
                 </Border>
             </Panel>
 
+            <!-- ═════ files dialog (plan 16 D4) ═════ -->
+            <Panel IsVisible="{Binding InstanceFiles, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Border Background="{DynamicResource LLVeil}" />
+                <Border Margin="40,28" MaxWidth="1100"
+                        Background="{DynamicResource LLSurface}"
+                        BorderBrush="{DynamicResource LLHairline}" BorderThickness="1"
+                        CornerRadius="10" BoxShadow="0 0 24 0 #40000000">
+                    <ContentControl Content="{Binding InstanceFiles}" />
+                </Border>
+            </Panel>
+
+            <!-- ═════ duplicate dialog (plan 16 D3) ═════ -->
+            <Panel IsVisible="{Binding DuplicateDialog, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Border Background="{DynamicResource LLVeil}" />
+                <Border HorizontalAlignment="Center" VerticalAlignment="Center" Width="420"
+                        Background="{DynamicResource LLSurface}"
+                        BorderBrush="{DynamicResource LLHairline}" BorderThickness="1"
+                        CornerRadius="10" BoxShadow="0 0 24 0 #40000000">
+                    <ContentControl Content="{Binding DuplicateDialog}" />
+                </Border>
+            </Panel>
+
             <!-- ═════ logo picker overlay ═════ -->
             <views:LogoPicker IsVisible="{Binding IsLogoPickerOpen}" />
         </Panel>
@@ -51,4 +85,5 @@
         <!-- ═════ activity bar (plan 15 D5) ═════ -->
         <views:ActivityBar Grid.Row="2" />
     </Grid>
+    </Panel>
 </Window>
