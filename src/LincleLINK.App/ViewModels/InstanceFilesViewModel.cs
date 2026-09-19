@@ -795,9 +795,13 @@ public partial class InstanceFilesViewModel : ViewModelBase
 
     private bool CanInteract() => !IsBusy;
 
-    /// <summary>Opens the Storage folder that holds the content of a file row.</summary>
+    /// <summary>
+    /// Shows the stored content of a file row in the file manager. An added or
+    /// replaced row has a hash name that Apply has not copied yet: the Storage
+    /// folder opens for it, instead of nothing happening.
+    /// </summary>
     [RelayCommand]
-    private void RevealInStorage(FileTreeRow? row)
+    private async Task RevealInStorageAsync(FileTreeRow? row)
     {
         if (row?.File is not { HashedFileName.Length: > 0 } file)
         {
@@ -806,7 +810,9 @@ public partial class InstanceFilesViewModel : ViewModelBase
 
         try
         {
-            FolderOpener.Reveal(_store.GetPath(file.HashedFileName));
+            // A disk check and a process start: not on the UI thread (CLAUDE.md).
+            var path = _store.GetPath(file.HashedFileName);
+            await Task.Run(() => FolderOpener.Reveal(path));
         }
         catch (Exception ex)
         {

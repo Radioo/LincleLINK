@@ -72,9 +72,12 @@ public sealed class FileStore : IFileStore
         {
             await DeleteLeftoverTempFilesAsync(CancellationToken.None);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception)
         {
-            // The leftovers stay for the next session or the next storage cleanup.
+            // Every exception, not only the I/O ones: every copy of the session awaits
+            // this one task, so a path the platform rejects (NotSupportedException,
+            // say) would otherwise fail them all. The leftovers stay for the next
+            // session or the next storage cleanup.
         }
     }
 

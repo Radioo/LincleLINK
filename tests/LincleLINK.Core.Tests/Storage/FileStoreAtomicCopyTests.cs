@@ -216,6 +216,55 @@ public sealed class FileStoreAtomicCopyTests : IDisposable
         Directory.GetFiles(exportDir).Should().BeEmpty("a rerun skips files that exist, so a partial one would stay truncated for good");
     }
 
+    [Fact]
+    public async Task A_sweep_that_fails_for_any_reason_fails_no_copy()
+    {
+        // Every copy of a session awaits the same sweep task. One that faulted, with
+        // whatever exception, would fail this copy and every later one.
+        var paths = new PathsFailingInTheSweep(_paths);
+        var store = new FileStore(paths);
+        var first = _temp.CreateFile("a.2dx", Pattern(1000));
+        var second = _temp.CreateFile("b.2dx", Pattern(2000));
+
+        await store.CopyToStoreAsync(first, HashA, TestContext.Current.CancellationToken);
+        await store.CopyToStoreAsync(second, HashB, TestContext.Current.CancellationToken);
+
+        paths.Failed.Should().BeTrue("the test has to reach the sweep to mean anything");
+        DbFiles().Should().BeEquivalentTo(HashA, HashB);
+    }
+
+    /// <summary>
+    /// Fails the third read of the db directory with an exception that is not an I/O
+    /// one. A first copy reads it to look for the hash name, reads it to create the
+    /// folder, and the third read is the sweep's.
+    /// </summary>
+    private sealed class PathsFailingInTheSweep(IAppPaths inner) : IAppPaths
+    {
+        private int _reads;
+
+        public bool Failed { get; private set; }
+
+        public string DataDirectory => inner.DataDirectory;
+
+        public string InstanceDirectory => inner.InstanceDirectory;
+
+        public string DbDirectory
+        {
+            get
+            {
+                if (Interlocked.Increment(ref _reads) == 3)
+                {
+                    Failed = true;
+                    throw new NotSupportedException("The given path's format is not supported.");
+                }
+
+                return inner.DbDirectory;
+            }
+        }
+
+        public void EnsureCreated() => inner.EnsureCreated();
+    }
+
     /// <summary>A readable stream that does something once, after a number of bytes: cancels, throws, or races.</summary>
     private sealed class InterruptedStream(byte[] content, int afterBytes, Action interrupt) : MemoryStream(content)
     {

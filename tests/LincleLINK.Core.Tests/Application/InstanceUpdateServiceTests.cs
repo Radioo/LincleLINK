@@ -219,6 +219,26 @@ public sealed class InstanceUpdateServiceTests
     }
 
     [Fact]
+    public async Task A_source_file_that_changes_between_the_check_and_its_copy_stops_the_apply()
+    {
+        // The check before Apply is not the last word: the low disk question can sit
+        // open for minutes, and the copies before this one can take as long.
+        _repository.GetAsync("IIDX 32", Arg.Any<CancellationToken>()).Returns(Existing());
+        var first = OnDisk("", "first.bin", 1, "F.bin");
+        var late = OnDisk("", "late.bin", 1, "L.bin");
+        _fs.GetLastWriteTimeUtc(late.FullPath).Returns(Stamp, Stamp.AddMinutes(5));
+        var changes = new PendingChanges([new UpdateSource("", [first, late], [])], [], []);
+
+        var result = await CreateService().ApplyAsync("IIDX 32", changes, ct: TestContext.Current.CancellationToken);
+
+        result.Success.Should().BeFalse();
+        result.Error.Should().Contain("late.bin").And.Contain("changed");
+        await _store.Received(1).CopyToStoreAsync(first.FullPath, "F.bin", Arg.Any<CancellationToken>());
+        await _store.DidNotReceive().CopyToStoreAsync(late.FullPath, Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _repository.DidNotReceive().SaveAsync(Arg.Any<Instance>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Collisions_and_unhashed_files_refuse_the_apply()
     {
         _repository.GetAsync("IIDX 32", Arg.Any<CancellationToken>()).Returns(Existing());

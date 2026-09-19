@@ -249,6 +249,35 @@ public sealed class InstanceFilesStagingTests
     }
 
     [Fact]
+    public async Task A_file_that_could_not_be_hashed_leaves_the_sources_file_count()
+    {
+        _hasher.ComputeHashAsync("/drop/pack/data/new.bin", Arg.Any<CancellationToken>())
+            .Returns<string>(_ => throw new IOException("The file is in use."));
+        var vm = await OpenAsync();
+        var raised = new System.Collections.Concurrent.ConcurrentBag<string?>();
+        string? scanned = null;
+        vm.Sources.CollectionChanged += (_, e) =>
+        {
+            foreach (StagedSourceViewModel added in e.NewItems ?? Array.Empty<object>())
+            {
+                scanned = added.Contents;
+                added.PropertyChanged += (_, changed) => raised.Add(changed.PropertyName);
+            }
+        };
+
+        await vm.AddPathsAsync(["/drop/pack"]);
+
+        // The row says what Apply will bring in, not what the scan first saw, and
+        // the binding has to hear about the change.
+        var source = vm.Sources.Should().ContainSingle().Which;
+        source.IsHashing.Should().BeFalse();
+        source.HasIssues.Should().BeTrue();
+        scanned.Should().Be("2 files, 127 B");
+        source.Contents.Should().Be("1 files, 120 B");
+        raised.Should().Contain(nameof(StagedSourceViewModel.Contents));
+    }
+
+    [Fact]
     public async Task A_dropped_folder_is_scanned_hashed_and_previewed_and_apply_copies_new_content()
     {
         var vm = await OpenAsync();

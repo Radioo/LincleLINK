@@ -217,6 +217,12 @@ the dialog.
   show nothing. "Restore" takes both back.
 - Apply refuses a Source file whose size or write time changed after it was hashed,
   because content copied under a stale hash would sit in Storage under the wrong name.
+  It checks twice: all files before anything is asked or copied, and each file again
+  right before its own copy, since the low disk question and the earlier copies can
+  take minutes. A mismatch in the second check saves nothing; what was copied so far
+  stays in Storage unreferenced until the next storage cleanup.
+- "Reveal in Storage" on an added or replaced file opens the Storage folder, because
+  its content is not in Storage before Apply.
 - Apply and the Destination box refuse rooted and `..` paths, which Deploy would
   reject later.
 - The whole dialog takes drops, and the Delete key stages the selection. A drop on a

@@ -77,6 +77,32 @@ public sealed class InstanceFilesViewModelTests
     }
 
     [Fact]
+    public void Reveal_falls_back_to_the_folder_for_content_that_is_not_in_storage_yet()
+    {
+        // An added or replaced file has a hash name before Apply has copied it. The
+        // menu item must still do something: open the Storage folder.
+        var path = Path.Combine(Path.GetTempPath(), "db", "NEW.dll");
+
+        var info = FolderOpener.ChooseRevealStartInfo(path, fileExists: false, folderExists: true, isWindows: true, isMacOS: false);
+
+        info.Should().NotBeNull();
+        info!.FileName.Should().Be("explorer.exe");
+        info.ArgumentList.Should().Equal(Path.GetDirectoryName(path));
+        info.Arguments.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Reveal_selects_the_file_when_it_is_there_and_does_nothing_without_a_folder()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "db", "AA.dll");
+
+        FolderOpener.ChooseRevealStartInfo(path, fileExists: true, folderExists: true, isWindows: true, isMacOS: false)!
+            .Arguments.Should().Be($"/select,\"{path}\"");
+        FolderOpener.ChooseRevealStartInfo(path, fileExists: false, folderExists: false, isWindows: true, isMacOS: false)
+            .Should().BeNull();
+    }
+
+    [Fact]
     public void Reveal_opens_the_containing_folder_where_no_file_manager_can_select()
     {
         var path = Path.Combine(Path.GetTempPath(), "db", "AA.dll");

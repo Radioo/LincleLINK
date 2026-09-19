@@ -481,7 +481,7 @@ public sealed partial class InstanceUpdateService
         var (newContent, changedFile) = InspectNewContent(plan);
         if (changedFile is not null)
         {
-            return Refuse($"{changedFile} changed or disappeared after it was hashed. Remove that source and add it again.");
+            return Refuse(ChangedSinceHashed(changedFile));
         }
 
         return new PreparedApply(null, instance, plan, newContent, _driveInfo.GetAvailableFreeSpace(_paths.DbDirectory));
@@ -497,9 +497,7 @@ public sealed partial class InstanceUpdateService
         var newContent = NewContent(plan);
         foreach (var file in newContent)
         {
-            if (!_fileSystem.FileExists(file.FullPath)
-                || _fileSystem.GetFileLength(file.FullPath) != file.FileSize
-                || _fileSystem.GetLastWriteTimeUtc(file.FullPath) != file.LastWriteTimeUtc)
+            if (!IsUnchanged(file))
             {
                 return (newContent, file.FullPath);
             }
@@ -507,6 +505,15 @@ public sealed partial class InstanceUpdateService
 
         return (newContent, null);
     }
+
+    /// <summary>Whether a Source file is still the one that was hashed: there, same length, same write time.</summary>
+    private bool IsUnchanged(SourceFile file)
+        => _fileSystem.FileExists(file.FullPath)
+           && _fileSystem.GetFileLength(file.FullPath) == file.FileSize
+           && _fileSystem.GetLastWriteTimeUtc(file.FullPath) == file.LastWriteTimeUtc;
+
+    private static string ChangedSinceHashed(string path)
+        => $"{path} changed or disappeared after it was hashed. Remove that source and add it again.";
 
     private async Task<ApplyUpdateResult> CopyAndSaveAsync(
         Instance instance,
@@ -524,6 +531,17 @@ public sealed partial class InstanceUpdateService
         foreach (var file in newContent)
         {
             ct.ThrowIfCancellationRequested();
+
+            // Checked once before Apply, and again right before its own copy: the low
+            // disk question and the copies before this one can each take minutes.
+            // Nothing is saved on a mismatch, so the entry stays as it was. What was
+            // copied so far stays in Storage unreferenced until the next storage
+            // cleanup, the same as after a failed copy.
+            if (!IsUnchanged(file))
+            {
+                return Fail(instance.InstanceName, ChangedSinceHashed(file.FullPath));
+            }
+
             await _store.CopyToStoreAsync(file.FullPath, file.HashedFileName!, ct);
             status?.Report($"Added {file.FullPath} to storage");
             percent?.Report(progress.Report(ref index));

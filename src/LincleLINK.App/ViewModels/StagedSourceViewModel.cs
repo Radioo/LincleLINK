@@ -31,13 +31,20 @@ public sealed partial class StagedSourceViewModel : ObservableObject
         _remove = remove;
         _changed = changed;
         Issues = scan.Issues;
-        Contents = $"{scan.Source.Files.Count} files, {SizeFormatter.Format(scan.Source.Files.Sum(f => f.FileSize))}";
+        Contents = Describe(scan.Source);
     }
 
     /// <summary>The dropped folder's name, the single file's name, or "N items".</summary>
     public string Label { get; }
 
-    public string Contents { get; }
+    /// <summary>
+    /// How much the Source brings, e.g. "12 files, 3.4 MB". Follows the hashing:
+    /// a file that could not be read is dropped from the Source and from this count.
+    /// </summary>
+    public string Contents { get; private set; }
+
+    private static string Describe(UpdateSource source)
+        => $"{source.Files.Count} files, {SizeFormatter.Format(source.Files.Sum(f => f.FileSize))}";
 
     /// <summary>Skipped links and unreadable files or folders of this Source.</summary>
     public IReadOnlyList<SourceIssue> Issues { get; private set; }
@@ -107,6 +114,8 @@ public sealed partial class StagedSourceViewModel : ObservableObject
     internal void SetHashed(SourceScan hashed)
     {
         _scanned = hashed.Source;
+        Contents = Describe(hashed.Source);
+        OnPropertyChanged(nameof(Contents));
         Issues = [.. Issues, .. hashed.Issues];
         OnPropertyChanged(nameof(Issues));
         OnPropertyChanged(nameof(HasIssues));
